@@ -1,0 +1,8 @@
+/bin/
+/dist/
+/coverage.out
+/.idea/
+/.vscode/
+*.log
+config.yaml
+
