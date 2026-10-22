@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"a2matex-runtime/internal/buildinfo"
-	"a2matex-runtime/internal/config"
+	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
+	"github.com/A2MaTex/a2matex-runtime/internal/config"
 )
 
 const exitFailure = 1

@@ -5,11 +5,11 @@ package main
 import (
 	"github.com/google/wire"
 
-	"a2matex-runtime/internal/app"
-	"a2matex-runtime/internal/buildinfo"
-	"a2matex-runtime/internal/config"
-	"a2matex-runtime/internal/logging"
-	httptransport "a2matex-runtime/internal/transport/http"
+	"github.com/A2MaTex/a2matex-runtime/internal/app"
+	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
+	"github.com/A2MaTex/a2matex-runtime/internal/config"
+	"github.com/A2MaTex/a2matex-runtime/internal/logging"
+	httptransport "github.com/A2MaTex/a2matex-runtime/internal/transport/http"
 )
 
 //go:generate wire

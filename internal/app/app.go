@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	httptransport "a2matex-runtime/internal/transport/http"
+	httptransport "github.com/A2MaTex/a2matex-runtime/internal/transport/http"
 )
 
 type App struct {

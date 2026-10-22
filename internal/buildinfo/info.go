@@ -3,7 +3,7 @@ package buildinfo
 const Name = "a2matex-runtime"
 
 var (
-	Version   = "dev"
+	Version   = "0.0.0-dev"
 	Commit    = "unknown"
 	BuildTime = "unknown"
 )

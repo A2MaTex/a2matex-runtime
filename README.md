@@ -2,7 +2,7 @@
 
 Local Go agent responsible for executing approved A2MaTeX workflows against selected Android devices.
 
-This initial scaffold contains only the process foundation:
+The current codebase is the initial process scaffold:
 
 - typed configuration with Viper;
 - structured logging with `log/slog`;
@@ -11,7 +11,7 @@ This initial scaffold contains only the process foundation:
 - a loopback-only Gin HTTP server;
 - health and runtime-information endpoints.
 
-Device discovery, workflow execution, persistence, local authentication, and node handlers are intentionally not implemented yet.
+B1 establishes the buildable Go project foundation. Device discovery, workflow execution, persistence, local authentication, and node handlers belong to later phases and are not implemented yet.
 
 ## Requirements
 
@@ -21,7 +21,7 @@ Device discovery, workflow execution, persistence, local authentication, and nod
 
 ## Configuration
 
-Copy `config/config.example.yaml` to `config/config.yaml` when local overrides are needed. The file is optional.
+Copy `configs/config.example.yaml` to `configs/config.yaml` when local overrides are needed. The file is optional.
 
 Configuration precedence is:
 
@@ -40,7 +40,7 @@ A2MATEX_RUNTIME_LOGGING_LEVEL=debug
 Supported command-line overrides:
 
 ```text
--config config/config.yaml
+-config configs/config.yaml
 -listen-address 127.0.0.1:9000
 -log-level debug
 ```
@@ -52,16 +52,17 @@ The HTTP listener rejects non-loopback addresses.
 ```bash
 make wire
 make fmt
+make test
 make build
 make run
 make lint
 ```
 
-Initial endpoints:
+Preliminary scaffold endpoints:
 
 ```text
 GET /api/v1/health
 GET /api/v1/runtime-info
 ```
 
-These endpoints are currently unauthenticated and reachable only through the configured loopback listener. Authentication will be added with the approved local API contract.
+These handlers are not yet compliant with the approved A7 local API contract. B5 and B6 will add session authentication and align the routes and payloads with that contract. Until then, the preliminary endpoints remain unauthenticated and are reachable only through the configured loopback listener.

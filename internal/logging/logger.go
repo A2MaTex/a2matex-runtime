@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"a2matex-runtime/internal/config"
+	"github.com/A2MaTex/a2matex-runtime/internal/config"
 )
 
 func New(cfg config.Config) (*slog.Logger, error) {

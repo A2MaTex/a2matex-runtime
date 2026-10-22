@@ -1,4 +1,4 @@
-module a2matex-runtime
+module github.com/A2MaTex/a2matex-runtime
 
 go 1.25.0
 

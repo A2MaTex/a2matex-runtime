@@ -7,11 +7,11 @@
 package main
 
 import (
-	"a2matex-runtime/internal/app"
-	"a2matex-runtime/internal/buildinfo"
-	"a2matex-runtime/internal/config"
-	"a2matex-runtime/internal/logging"
-	"a2matex-runtime/internal/transport/http"
+	"github.com/A2MaTex/a2matex-runtime/internal/app"
+	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
+	"github.com/A2MaTex/a2matex-runtime/internal/config"
+	"github.com/A2MaTex/a2matex-runtime/internal/logging"
+	"github.com/A2MaTex/a2matex-runtime/internal/transport/http"
 )
 
 // Injectors from wire.go:
