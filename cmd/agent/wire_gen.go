@@ -22,6 +22,6 @@ func initializeApp(cfg config.Config, info buildinfo.Info) (*app.App, error) {
 		return nil, err
 	}
 	server := httptransport.NewServer(cfg, info, logger)
-	appApp := app.New(server, logger)
+	appApp := app.New(server, cfg, logger)
 	return appApp, nil
 }

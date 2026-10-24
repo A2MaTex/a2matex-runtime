@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime"
 	"time"
@@ -16,9 +17,8 @@ import (
 )
 
 type Server struct {
-	httpServer      *http.Server
-	shutdownTimeout time.Duration
-	logger          *slog.Logger
+	httpServer  *http.Server
+	serveResult chan error
 }
 
 func NewServer(cfg config.Config, info buildinfo.Info, logger *slog.Logger) *Server {
@@ -29,7 +29,7 @@ func NewServer(cfg config.Config, info buildinfo.Info, logger *slog.Logger) *Ser
 
 	api := router.Group("/api/v1")
 	api.GET("/health", healthHandler)
-	api.GET("/runtime-info", runtimeInfoHandler(info, cfg.Mode))
+	api.GET("/runtime-info", runtimeInfoHandler(info))
 
 	return &Server{
 		httpServer: &http.Server{
@@ -40,41 +40,41 @@ func NewServer(cfg config.Config, info buildinfo.Info, logger *slog.Logger) *Ser
 			WriteTimeout:      cfg.HTTP.WriteTimeout,
 			IdleTimeout:       cfg.HTTP.IdleTimeout,
 		},
-		shutdownTimeout: cfg.ShutdownTimeout,
-		logger:          logger,
+		serveResult: make(chan error, 1),
 	}
 }
 
-func (s *Server) Address() string {
-	return s.httpServer.Addr
-}
+func (s *Server) Start(ctx context.Context) error {
+	var listenConfig net.ListenConfig
 
-func (s *Server) Run(ctx context.Context) error {
-	serveErrors := make(chan error, 1)
+	listener, err := listenConfig.Listen(ctx, "tcp", s.httpServer.Addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", s.httpServer.Addr, err)
+	}
+
 	go func() {
-		serveErrors <- s.httpServer.ListenAndServe()
+		err := s.httpServer.Serve(listener)
+		if errors.Is(err, http.ErrServerClosed) {
+			err = nil
+		}
+		s.serveResult <- err
 	}()
 
-	select {
-	case err := <-serveErrors:
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
+	return nil
+}
+
+func (s *Server) Wait() error {
+	return <-s.serveResult
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		shutdownErr := fmt.Errorf("graceful shutdown: %w", err)
+		if closeErr := s.httpServer.Close(); closeErr != nil {
+			return errors.Join(shutdownErr, fmt.Errorf("force close: %w", closeErr))
 		}
 
-		return err
-	case <-ctx.Done():
-	}
-
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.shutdownTimeout)
-	defer cancel()
-
-	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown HTTP server: %w", err)
-	}
-
-	err := <-serveErrors
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+		return shutdownErr
 	}
 
 	return nil
@@ -84,14 +84,13 @@ func healthHandler(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func runtimeInfoHandler(info buildinfo.Info, mode string) gin.HandlerFunc {
+func runtimeInfoHandler(info buildinfo.Info) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{
 			"name":            info.Name,
 			"version":         info.Version,
 			"commit":          info.Commit,
 			"buildTime":       info.BuildTime,
-			"mode":            mode,
 			"goVersion":       runtime.Version(),
 			"operatingSystem": runtime.GOOS,
 			"architecture":    runtime.GOARCH,

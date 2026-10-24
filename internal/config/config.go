@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"net/netip"
 	"strings"
@@ -11,13 +10,29 @@ import (
 )
 
 const (
-	defaultConfigName = "config"
-	defaultConfigPath = "configs"
-	envPrefix         = "A2MATEX_RUNTIME"
+	envPrefix = "A2MATEX_RUNTIME"
+
+	defaultShutdownTimeout = 10 * time.Second
+	minShutdownTimeout     = time.Second
+	maxShutdownTimeout     = time.Minute
+
+	defaultListenAddress     = "127.0.0.1:8765"
+	defaultReadHeaderTimeout = 5 * time.Second
+	defaultReadTimeout       = 10 * time.Second
+	defaultWriteTimeout      = 30 * time.Second
+	defaultIdleTimeout       = time.Minute
+
+	minHTTPTimeout       = time.Second
+	maxReadHeaderTimeout = 30 * time.Second
+	maxReadTimeout       = 2 * time.Minute
+	maxWriteTimeout      = 2 * time.Minute
+	maxIdleTimeout       = 5 * time.Minute
+
+	defaultLogLevel  = "info"
+	defaultLogFormat = "json"
 )
 
 type Config struct {
-	Mode            string        `mapstructure:"mode"`
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
 	HTTP            HTTPConfig    `mapstructure:"http"`
 	Logging         LoggingConfig `mapstructure:"logging"`
@@ -59,9 +74,10 @@ func Load(overrides Overrides) (Config, error) {
 	}
 
 	var cfg Config
-	if err := loader.Unmarshal(&cfg); err != nil {
+	if err := loader.UnmarshalExact(&cfg); err != nil {
 		return Config{}, fmt.Errorf("decode configuration: %w", err)
 	}
+	cfg.normalize()
 
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
@@ -71,15 +87,14 @@ func Load(overrides Overrides) (Config, error) {
 }
 
 func setDefaults(loader *viper.Viper) {
-	loader.SetDefault("mode", "development")
-	loader.SetDefault("shutdown_timeout", 10*time.Second)
-	loader.SetDefault("http.listen_address", "127.0.0.1:8765")
-	loader.SetDefault("http.read_header_timeout", 5*time.Second)
-	loader.SetDefault("http.read_timeout", 10*time.Second)
-	loader.SetDefault("http.write_timeout", 30*time.Second)
-	loader.SetDefault("http.idle_timeout", 60*time.Second)
-	loader.SetDefault("logging.level", "info")
-	loader.SetDefault("logging.format", "json")
+	loader.SetDefault("shutdown_timeout", defaultShutdownTimeout)
+	loader.SetDefault("http.listen_address", defaultListenAddress)
+	loader.SetDefault("http.read_header_timeout", defaultReadHeaderTimeout)
+	loader.SetDefault("http.read_timeout", defaultReadTimeout)
+	loader.SetDefault("http.write_timeout", defaultWriteTimeout)
+	loader.SetDefault("http.idle_timeout", defaultIdleTimeout)
+	loader.SetDefault("logging.level", defaultLogLevel)
+	loader.SetDefault("logging.format", defaultLogFormat)
 }
 
 func configureEnvironment(loader *viper.Viper) {
@@ -89,31 +104,24 @@ func configureEnvironment(loader *viper.Viper) {
 }
 
 func readConfigFile(loader *viper.Viper, configFile string) error {
-	if configFile != "" {
-		loader.SetConfigFile(configFile)
-	} else {
-		loader.SetConfigName(defaultConfigName)
-		loader.SetConfigType("yaml")
-		loader.AddConfigPath(defaultConfigPath)
+	if configFile == "" {
+		return nil
 	}
 
+	loader.SetConfigFile(configFile)
 	if err := loader.ReadInConfig(); err != nil {
-		var notFound viper.ConfigFileNotFoundError
-		if configFile == "" && errors.As(err, &notFound) {
-			return nil
-		}
-
 		return fmt.Errorf("read configuration file: %w", err)
 	}
 
 	return nil
 }
 
-func (c Config) Validate() error {
-	if c.Mode != "development" && c.Mode != "production" {
-		return fmt.Errorf("mode must be development or production, got %q", c.Mode)
-	}
+func (c *Config) normalize() {
+	c.Logging.Level = strings.ToLower(c.Logging.Level)
+	c.Logging.Format = strings.ToLower(c.Logging.Format)
+}
 
+func (c Config) Validate() error {
 	address, err := netip.ParseAddrPort(c.HTTP.ListenAddress)
 	if err != nil {
 		return fmt.Errorf("http.listen_address must be an IP address and port: %w", err)
@@ -121,30 +129,33 @@ func (c Config) Validate() error {
 	if !address.Addr().IsLoopback() {
 		return fmt.Errorf("http.listen_address must use a loopback IP, got %q", c.HTTP.ListenAddress)
 	}
-
-	if err := validatePositiveDuration("shutdown_timeout", c.ShutdownTimeout); err != nil {
-		return err
-	}
-	if err := validatePositiveDuration("http.read_header_timeout", c.HTTP.ReadHeaderTimeout); err != nil {
-		return err
-	}
-	if err := validatePositiveDuration("http.read_timeout", c.HTTP.ReadTimeout); err != nil {
-		return err
-	}
-	if err := validatePositiveDuration("http.write_timeout", c.HTTP.WriteTimeout); err != nil {
-		return err
-	}
-	if err := validatePositiveDuration("http.idle_timeout", c.HTTP.IdleTimeout); err != nil {
-		return err
+	if address.Port() == 0 {
+		return fmt.Errorf("http.listen_address must use a non-zero port, got %q", c.HTTP.ListenAddress)
 	}
 
-	switch strings.ToLower(c.Logging.Level) {
+	if err := validateDurationRange("shutdown_timeout", c.ShutdownTimeout, minShutdownTimeout, maxShutdownTimeout); err != nil {
+		return err
+	}
+	if err := validateDurationRange("http.read_header_timeout", c.HTTP.ReadHeaderTimeout, minHTTPTimeout, maxReadHeaderTimeout); err != nil {
+		return err
+	}
+	if err := validateDurationRange("http.read_timeout", c.HTTP.ReadTimeout, minHTTPTimeout, maxReadTimeout); err != nil {
+		return err
+	}
+	if err := validateDurationRange("http.write_timeout", c.HTTP.WriteTimeout, minHTTPTimeout, maxWriteTimeout); err != nil {
+		return err
+	}
+	if err := validateDurationRange("http.idle_timeout", c.HTTP.IdleTimeout, minHTTPTimeout, maxIdleTimeout); err != nil {
+		return err
+	}
+
+	switch c.Logging.Level {
 	case "debug", "info", "warn", "error":
 	default:
 		return fmt.Errorf("logging.level must be debug, info, warn, or error, got %q", c.Logging.Level)
 	}
 
-	switch strings.ToLower(c.Logging.Format) {
+	switch c.Logging.Format {
 	case "json", "text":
 	default:
 		return fmt.Errorf("logging.format must be json or text, got %q", c.Logging.Format)
@@ -153,9 +164,9 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func validatePositiveDuration(name string, value time.Duration) error {
-	if value <= 0 {
-		return fmt.Errorf("%s must be greater than zero", name)
+func validateDurationRange(name string, value, minimum, maximum time.Duration) error {
+	if value < minimum || value > maximum {
+		return fmt.Errorf("%s must be between %s and %s, got %s", name, minimum, maximum, value)
 	}
 
 	return nil

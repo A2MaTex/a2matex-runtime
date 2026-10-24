@@ -2,16 +2,16 @@
 
 Local Go agent responsible for executing approved A2MaTeX workflows against selected Android devices.
 
-The current codebase is the initial process scaffold:
+The current codebase is the initial process foundation:
 
 - typed configuration with Viper;
 - structured logging with `log/slog`;
 - compile-time dependency wiring with Google Wire;
-- graceful shutdown;
+- supervisor-owned startup, failure monitoring, and bounded graceful shutdown;
 - a loopback-only Gin HTTP server;
 - health and runtime-information endpoints.
 
-B1 establishes the buildable Go project foundation. Device discovery, workflow execution, persistence, local authentication, and node handlers belong to later phases and are not implemented yet.
+B1 establishes the buildable Go project foundation, B2 provides validated startup configuration, and B3 coordinates the lifecycle of the currently implemented HTTP component. Device discovery, workflow execution, persistence, local authentication, and node handlers belong to later phases and are not implemented yet.
 
 ## Requirements
 
@@ -21,13 +21,13 @@ B1 establishes the buildable Go project foundation. Device discovery, workflow e
 
 ## Configuration
 
-Copy `configs/config.example.yaml` to `configs/config.yaml` when local overrides are needed. The file is optional.
+Runtime uses built-in defaults when no configuration file is supplied. To use local overrides, copy `configs/config.example.yaml` to `configs/config.yaml` and select it explicitly with `-config configs/config.yaml`.
 
 Configuration precedence is:
 
 1. command-line overrides;
 2. `A2MATEX_RUNTIME_*` environment variables;
-3. configuration file;
+3. explicitly selected configuration file;
 4. built-in defaults.
 
 Nested environment keys use underscores. For example:
@@ -46,6 +46,7 @@ Supported command-line overrides:
 ```
 
 The HTTP listener rejects non-loopback addresses.
+Unknown configuration-file keys and invalid values stop startup before the HTTP server is created. Configuration is loaded once; changing the file requires restarting Runtime.
 
 ## Commands
 
