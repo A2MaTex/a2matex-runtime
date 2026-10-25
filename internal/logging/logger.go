@@ -10,6 +10,31 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/config"
 )
 
+const redactedValue = "[REDACTED]"
+
+var sensitiveAttributeKeys = map[string]struct{}{
+	"adbserial":      {},
+	"artifactpath":   {},
+	"authorization":  {},
+	"cookie":         {},
+	"credential":     {},
+	"credentials":    {},
+	"filepath":       {},
+	"password":       {},
+	"payload":        {},
+	"requestbody":    {},
+	"responsebody":   {},
+	"runtimeir":      {},
+	"secret":         {},
+	"sessiontoken":   {},
+	"setcookie":      {},
+	"stderr":         {},
+	"stdout":         {},
+	"token":          {},
+	"workflowinput":  {},
+	"workflowoutput": {},
+}
+
 func New(cfg config.Config) (*slog.Logger, error) {
 	level, err := parseLevel(cfg.Logging.Level)
 	if err != nil {
@@ -23,7 +48,10 @@ func New(cfg config.Config) (*slog.Logger, error) {
 }
 
 func newHandler(output io.Writer, format string, level slog.Level) slog.Handler {
-	options := &slog.HandlerOptions{Level: level}
+	options := &slog.HandlerOptions{
+		Level:       level,
+		ReplaceAttr: redactAttribute,
+	}
 	if strings.EqualFold(format, "text") {
 		return slog.NewTextHandler(output, options)
 	}
@@ -44,4 +72,16 @@ func parseLevel(value string) (slog.Level, error) {
 	default:
 		return 0, fmt.Errorf("unsupported log level %q", value)
 	}
+}
+
+func redactAttribute(_ []string, attribute slog.Attr) slog.Attr {
+	if _, sensitive := sensitiveAttributeKeys[normalizeAttributeKey(attribute.Key)]; sensitive {
+		return slog.String(attribute.Key, redactedValue)
+	}
+
+	return attribute
+}
+
+func normalizeAttributeKey(key string) string {
+	return strings.ReplaceAll(strings.ToLower(key), "_", "")
 }

@@ -44,7 +44,11 @@ func run() int {
 	defer stop()
 
 	if err := application.Run(ctx); err != nil {
-		slog.Error("runtime agent stopped with an error", "error", err)
+		slog.Error("runtime agent stopped with an error",
+			"component", "runtime",
+			"event", "runtime_failed",
+			"error", err,
+		)
 		return exitFailure
 	}
 

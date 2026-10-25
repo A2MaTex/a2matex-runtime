@@ -103,23 +103,53 @@ func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 		startedAt := time.Now()
 		ctx.Next()
 
-		logger.Info("local API request",
+		route := ctx.FullPath()
+		if route == "" {
+			route = "unmatched"
+		}
+
+		status := ctx.Writer.Status()
+		logger.Log(ctx.Request.Context(), requestLogLevel(ctx.Request.Method, route, status), "local API request completed",
+			"component", "local_http_server",
+			"event", "local_api_request_completed",
 			"method", ctx.Request.Method,
-			"path", ctx.Request.URL.Path,
-			"status", ctx.Writer.Status(),
-			"durationMs", time.Since(startedAt).Milliseconds(),
+			"route", route,
+			"status", status,
+			"duration_ms", time.Since(startedAt).Milliseconds(),
 		)
 	}
 }
 
+func requestLogLevel(method, route string, status int) slog.Level {
+	switch {
+	case status >= http.StatusBadRequest:
+		return slog.LevelError
+	case method == http.MethodGet && route == "/api/v1/health":
+		return slog.LevelDebug
+	default:
+		return slog.LevelInfo
+	}
+}
+
 func recoveryMiddleware(logger *slog.Logger) gin.HandlerFunc {
-	return gin.CustomRecovery(func(ctx *gin.Context, recovered any) {
-		logger.Error("recovered local API panic", "panic", recovered)
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
-				"code":    "INTERNAL_ERROR",
-				"message": "internal server error",
-			},
-		})
-	})
+	return func(ctx *gin.Context) {
+		defer func() {
+			if recover() == nil {
+				return
+			}
+
+			logger.ErrorContext(ctx.Request.Context(), "recovered local API panic",
+				"component", "local_http_server",
+				"event", "local_api_panic_recovered",
+			)
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{
+					"code":    "INTERNAL_ERROR",
+					"message": "internal server error",
+				},
+			})
+		}()
+
+		ctx.Next()
+	}
 }

@@ -36,7 +36,7 @@ type App struct {
 func New(server *httptransport.Server, cfg config.Config, logger *slog.Logger) *App {
 	return &App{
 		components: []component{
-			{name: "local http server", lifecycle: server},
+			{name: "local_http_server", lifecycle: server},
 		},
 		shutdownTimeout: cfg.ShutdownTimeout,
 		logger:          logger,
@@ -50,7 +50,10 @@ func (a *App) Run(ctx context.Context) error {
 	results := make(chan componentResult, len(a.components))
 	started := make([]component, 0, len(a.components))
 
-	a.logger.Info("starting runtime agent")
+	a.logger.Info("starting runtime agent",
+		"component", "runtime",
+		"event", "runtime_starting",
+	)
 
 	for index, current := range a.components {
 		if err := current.lifecycle.Start(runCtx); err != nil {
@@ -68,7 +71,10 @@ func (a *App) Run(ctx context.Context) error {
 		go waitForComponent(index, current, results)
 	}
 
-	a.logger.Info("runtime agent started")
+	a.logger.Info("runtime agent ready",
+		"component", "runtime",
+		"event", "runtime_ready",
+	)
 
 	observed := make(map[int]struct{}, len(started))
 	var runErr error
@@ -90,7 +96,10 @@ func (a *App) Run(ctx context.Context) error {
 		return err
 	}
 
-	a.logger.Info("runtime agent stopped")
+	a.logger.Info("runtime agent stopped",
+		"component", "runtime",
+		"event", "runtime_stopped",
+	)
 
 	return nil
 }
