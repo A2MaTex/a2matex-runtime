@@ -5,20 +5,28 @@ package main
 import (
 	"github.com/google/wire"
 
-	"github.com/A2MaTex/a2matex-runtime/internal/app"
+	"github.com/A2MaTex/a2matex-runtime/internal/api"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
+	"github.com/A2MaTex/a2matex-runtime/internal/auth"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
 	"github.com/A2MaTex/a2matex-runtime/internal/config"
+	"github.com/A2MaTex/a2matex-runtime/internal/discovery"
 	"github.com/A2MaTex/a2matex-runtime/internal/logging"
-	httptransport "github.com/A2MaTex/a2matex-runtime/internal/transport/http"
+	"github.com/A2MaTex/a2matex-runtime/internal/platform/httpserver"
+	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 )
 
 //go:generate wire
 
-func initializeApp(cfg config.Config, info buildinfo.Info) (*app.App, error) {
+func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, error) {
 	wire.Build(
 		logging.New,
-		httptransport.NewServer,
-		app.New,
+		auth.NewSession,
+		discovery.NewPublisher,
+		api.NewHandler,
+		wire.Bind(new(middleware.AuthorizationVerifier), new(*auth.Session)),
+		httpserver.New,
+		supervisor.New,
 	)
 
 	return nil, nil

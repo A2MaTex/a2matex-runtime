@@ -5,13 +5,23 @@ Local Go agent responsible for executing approved A2MaTeX workflows against sele
 The current codebase is the initial process foundation:
 
 - typed configuration with Viper;
-- structured logging with `log/slog`;
+- structured logging with `log/slog`, central key-based redaction, and safe
+  lifecycle and Local API records;
 - compile-time dependency wiring with Google Wire;
 - supervisor-owned startup, failure monitoring, and bounded graceful shutdown;
 - a loopback-only Gin HTTP server;
-- health and runtime-information endpoints.
+- per-start local session authentication material and protected connection-file
+  publication;
+- public health and authenticated runtime-information endpoints.
 
-B1 establishes the buildable Go project foundation, B2 provides validated startup configuration, and B3 coordinates the lifecycle of the currently implemented HTTP component. Device discovery, workflow execution, persistence, local authentication, and node handlers belong to later phases and are not implemented yet.
+B1 establishes the buildable Go project foundation, B2 provides validated
+startup configuration, B3 coordinates the lifecycle of the currently
+implemented HTTP component, and B4 protects operational logs through stable
+fields, route-pattern request records, and redaction. B5 creates the local
+session verifier and publishes its connection handoff after listener readiness,
+and B6 applies that verifier to the Local API compatibility handshake. Device
+discovery, workflow execution, persistence, and node handlers belong to later
+phases and are not implemented yet.
 
 ## Requirements
 
@@ -59,11 +69,16 @@ make run
 make lint
 ```
 
-Preliminary scaffold endpoints:
+Local API foundation endpoints:
 
 ```text
 GET /api/v1/health
 GET /api/v1/runtime-info
 ```
 
-These handlers are not yet compliant with the approved A7 local API contract. B5 and B6 will add session authentication and align the routes and payloads with that contract. Until then, the preliminary endpoints remain unauthenticated and are reachable only through the configured loopback listener.
+`GET /api/v1/health` is the only unauthenticated endpoint and returns only the
+process-liveness status. Every other request requires the per-start bearer token
+published in `runtime-connection.json`. The authenticated Runtime-information
+response exposes only the Runtime version, accepted Runtime IR format versions,
+and currently implemented node handlers. Every non-health response uses
+`Cache-Control: no-store`.

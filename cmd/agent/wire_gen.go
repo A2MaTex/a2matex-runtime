@@ -7,21 +7,30 @@
 package main
 
 import (
-	"github.com/A2MaTex/a2matex-runtime/internal/app"
+	"github.com/A2MaTex/a2matex-runtime/internal/api"
+	"github.com/A2MaTex/a2matex-runtime/internal/auth"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
 	"github.com/A2MaTex/a2matex-runtime/internal/config"
+	"github.com/A2MaTex/a2matex-runtime/internal/discovery"
 	"github.com/A2MaTex/a2matex-runtime/internal/logging"
-	"github.com/A2MaTex/a2matex-runtime/internal/transport/http"
+	"github.com/A2MaTex/a2matex-runtime/internal/platform/httpserver"
+	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 )
 
 // Injectors from wire.go:
 
-func initializeApp(cfg config.Config, info buildinfo.Info) (*app.App, error) {
+func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, error) {
+	session, err := auth.NewSession()
+	if err != nil {
+		return nil, err
+	}
 	logger, err := logging.New(cfg)
 	if err != nil {
 		return nil, err
 	}
-	server := httptransport.NewServer(cfg, info, logger)
-	appApp := app.New(server, cfg, logger)
-	return appApp, nil
+	handler := api.NewHandler(info, session, logger)
+	server := httpserver.New(cfg, handler)
+	publisher := discovery.NewPublisher(cfg, session)
+	app := supervisor.New(server, publisher, cfg, logger)
+	return app, nil
 }

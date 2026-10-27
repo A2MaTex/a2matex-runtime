@@ -17,7 +17,7 @@ test:
 	go test ./...
 
 fmt:
-	gofmt -s -w cmd internal
+	gofmt -s -w cmd internal pkg
 
 lint:
 	golangci-lint run ./...
