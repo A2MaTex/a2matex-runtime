@@ -16,7 +16,7 @@ func Health(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, healthResponse{Status: constants.RuntimeHealthStatusUp})
+	ctx.JSON(http.StatusOK, healthResponse{Status: "UP"})
 }
 
 // RuntimeInfo returns the Runtime capabilities currently available to clients.

@@ -37,5 +37,5 @@ func Authentication(verifier AuthorizationVerifier) gin.HandlerFunc {
 }
 
 func isHealthRequest(request *http.Request) bool {
-	return request.Method == http.MethodGet && request.URL.Path == constants.LocalAPIHealthPath
+	return request.Method == http.MethodGet && request.URL.Path == "/api/v1/health"
 }

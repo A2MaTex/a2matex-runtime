@@ -8,6 +8,7 @@ package main
 
 import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
 	"github.com/A2MaTex/a2matex-runtime/internal/config"
@@ -15,6 +16,8 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/logging"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/httpserver"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/service"
 )
 
 // Injectors from wire.go:
@@ -24,12 +27,18 @@ func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, err
 	if err != nil {
 		return nil, err
 	}
+	registry, err := nodecontract.NewDefaultRegistry()
+	if err != nil {
+		return nil, err
+	}
+	serviceService := service.New(registry)
+	handler := workflowvalidation.NewHandler(serviceService)
 	logger, err := logging.New(cfg)
 	if err != nil {
 		return nil, err
 	}
-	handler := api.NewHandler(info, session, logger)
-	server := httpserver.New(cfg, handler)
+	httpHandler := api.NewHandler(info, session, handler, logger)
+	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewPublisher(cfg, session)
 	app := supervisor.New(server, publisher, cfg, logger)
 	return app, nil

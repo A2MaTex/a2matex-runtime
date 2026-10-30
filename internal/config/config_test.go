@@ -162,7 +162,7 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "IPv6 loopback",
 			mutate: func(cfg *Config) {
-				cfg.HTTP.ListenAddress = "[::1]:8765"
+				cfg.HTTP.ListenAddress = "[::1]:6810"
 			},
 		},
 		{
@@ -188,14 +188,14 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "wildcard address",
 			mutate: func(cfg *Config) {
-				cfg.HTTP.ListenAddress = "0.0.0.0:8765"
+				cfg.HTTP.ListenAddress = "0.0.0.0:6810"
 			},
 			wantErrPart: "must use a loopback IP",
 		},
 		{
 			name: "hostname",
 			mutate: func(cfg *Config) {
-				cfg.HTTP.ListenAddress = "localhost:8765"
+				cfg.HTTP.ListenAddress = "localhost:6810"
 			},
 			wantErrPart: "must be an IP address and port",
 		},

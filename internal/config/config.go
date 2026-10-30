@@ -16,7 +16,7 @@ const (
 	minShutdownTimeout     = time.Second
 	maxShutdownTimeout     = time.Minute
 
-	defaultListenAddress     = "127.0.0.1:8765"
+	defaultListenAddress     = "127.0.0.1:6810"
 	defaultReadHeaderTimeout = 5 * time.Second
 	defaultReadTimeout       = 10 * time.Second
 	defaultWriteTimeout      = 30 * time.Second

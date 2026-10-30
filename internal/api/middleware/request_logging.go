@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-
-	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
 
 // RequestLogging records request metadata without headers or payloads.
@@ -37,7 +35,7 @@ func requestLogLevel(method, route string, status int) slog.Level {
 	switch {
 	case status >= http.StatusBadRequest:
 		return slog.LevelError
-	case method == http.MethodGet && route == constants.LocalAPIHealthPath:
+	case method == http.MethodGet && route == "/api/v1/health":
 		return slog.LevelDebug
 	default:
 		return slog.LevelInfo

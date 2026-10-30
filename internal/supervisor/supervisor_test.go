@@ -19,6 +19,8 @@ func TestRunRollsBackStartedComponentsWhenLaterStartFails(t *testing.T) {
 	server := newFakeLifecycle("server", nil)
 	publisher := newFakeLifecycle("publisher", startFailure)
 	application := testApp(server, publisher)
+	var logs bytes.Buffer
+	application.logger = slog.New(slog.NewJSONHandler(&logs, nil))
 
 	err := application.Run(context.Background())
 	if !errors.Is(err, startFailure) {
@@ -29,6 +31,51 @@ func TestRunRollsBackStartedComponentsWhenLaterStartFails(t *testing.T) {
 	}
 	if got := publisher.shutdownCount(); got != 0 {
 		t.Fatalf("publisher shutdown count = %d, want 0", got)
+	}
+	if !strings.Contains(logs.String(), `"component":"server","event":"component_ready"`) {
+		t.Fatalf("started component readiness was not logged: %s", logs.String())
+	}
+	if strings.Contains(logs.String(), `"component":"publisher","event":"component_ready"`) {
+		t.Fatalf("failed component reported readiness: %s", logs.String())
+	}
+	if strings.Contains(logs.String(), `"event":"runtime_ready"`) {
+		t.Fatalf("runtime reported readiness after component start failure: %s", logs.String())
+	}
+}
+
+func TestRunLogsComponentReadinessBeforeRuntimeReadiness(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeLifecycle("local_http_server", nil)
+	publisher := newFakeLifecycle("connection_file_publisher", nil)
+	application := testApp(server, publisher)
+	application.components[0].readyAttributes = []slog.Attr{
+		slog.String("listen_address", "127.0.0.1:6810"),
+	}
+	logs := newLockedBuffer()
+	application.logger = slog.New(slog.NewJSONHandler(logs, nil))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	runResult := make(chan error, 1)
+	go func() {
+		runResult <- application.Run(ctx)
+	}()
+
+	waitForLogEvent(t, logs, `"event":"runtime_ready"`)
+	cancel()
+	if err := receiveRunResult(t, runResult); err != nil {
+		t.Fatal(err)
+	}
+
+	output := logs.String()
+	serverReady := strings.Index(output, `"component":"local_http_server","event":"component_ready","listen_address":"127.0.0.1:6810"`)
+	publisherReady := strings.Index(output, `"component":"connection_file_publisher","event":"component_ready"`)
+	runtimeReady := strings.Index(output, `"component":"runtime","event":"runtime_ready"`)
+	if serverReady < 0 || publisherReady < 0 || runtimeReady < 0 {
+		t.Fatalf("missing readiness records: %s", output)
+	}
+	if serverReady >= publisherReady || publisherReady >= runtimeReady {
+		t.Fatalf("readiness records out of order: %s", output)
 	}
 }
 
@@ -311,6 +358,50 @@ func assertEventuallyClosed(t *testing.T, channel <-chan struct{}, name string) 
 type eventLog struct {
 	mu     sync.Mutex
 	events []string
+}
+
+type lockedBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func newLockedBuffer() *lockedBuffer {
+	return &lockedBuffer{}
+}
+
+func (b *lockedBuffer) Write(contents []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buffer.Write(contents)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buffer.String()
+}
+
+func waitForLogEvent(t *testing.T, logs *lockedBuffer, event string) {
+	t.Helper()
+
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if strings.Contains(logs.String(), event) {
+			return
+		}
+
+		select {
+		case <-deadline.C:
+			t.Fatalf("log event %s was not emitted: %s", event, logs.String())
+		case <-ticker.C:
+		}
+	}
 }
 
 func (l *eventLog) append(event string) {

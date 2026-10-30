@@ -11,12 +11,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
+	validationservice "github.com/A2MaTex/a2matex-runtime/internal/validation/service"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
 
 const (
-	validAuthorization = "Bearer valid-local-session"
+	validAuthorization             = "Bearer valid-local-session"
+	localAPIBasePath               = "/api/v1"
+	localAPIHealthPath             = localAPIBasePath + "/health"
+	localAPIRuntimeInfoPath        = localAPIBasePath + "/runtime-info"
+	localAPIWorkflowValidationPath = localAPIBasePath + "/workflow-validation"
 
 	invalidRequestBody = `{"error":{"code":"INVALID_REQUEST",` +
 		`"message":"request is invalid","retryable":false}}`
@@ -50,14 +57,14 @@ func TestRouterContract(t *testing.T) {
 		{
 			name:       "public health",
 			method:     http.MethodGet,
-			target:     constants.LocalAPIHealthPath,
+			target:     localAPIHealthPath,
 			wantStatus: http.StatusOK,
 			wantBody:   `{"status":"UP"}`,
 		},
 		{
 			name:          "health ignores authorization",
 			method:        http.MethodGet,
-			target:        constants.LocalAPIHealthPath,
+			target:        localAPIHealthPath,
 			authorization: []string{"malformed"},
 			wantStatus:    http.StatusOK,
 			wantBody:      `{"status":"UP"}`,
@@ -65,7 +72,7 @@ func TestRouterContract(t *testing.T) {
 		{
 			name:        "health rejects query",
 			method:      http.MethodGet,
-			target:      constants.LocalAPIHealthPath + "?probe=true",
+			target:      localAPIHealthPath + "?probe=true",
 			wantStatus:  http.StatusBadRequest,
 			wantBody:    invalidRequestBody,
 			wantNoStore: true,
@@ -73,7 +80,7 @@ func TestRouterContract(t *testing.T) {
 		{
 			name:        "runtime information requires authorization",
 			method:      http.MethodGet,
-			target:      constants.LocalAPIRuntimeInfoPath,
+			target:      localAPIRuntimeInfoPath,
 			wantStatus:  http.StatusUnauthorized,
 			wantBody:    unauthorizedBody,
 			wantNoStore: true,
@@ -81,7 +88,7 @@ func TestRouterContract(t *testing.T) {
 		{
 			name:          "runtime information rejects wrong authorization",
 			method:        http.MethodGet,
-			target:        constants.LocalAPIRuntimeInfoPath,
+			target:        localAPIRuntimeInfoPath,
 			authorization: []string{"Bearer wrong"},
 			wantStatus:    http.StatusUnauthorized,
 			wantBody:      unauthorizedBody,
@@ -90,7 +97,7 @@ func TestRouterContract(t *testing.T) {
 		{
 			name:          "runtime information rejects duplicate authorization",
 			method:        http.MethodGet,
-			target:        constants.LocalAPIRuntimeInfoPath,
+			target:        localAPIRuntimeInfoPath,
 			authorization: []string{validAuthorization, validAuthorization},
 			wantStatus:    http.StatusUnauthorized,
 			wantBody:      unauthorizedBody,
@@ -99,7 +106,7 @@ func TestRouterContract(t *testing.T) {
 		{
 			name:        "query token does not authenticate",
 			method:      http.MethodGet,
-			target:      constants.LocalAPIRuntimeInfoPath + "?token=valid-local-session",
+			target:      localAPIRuntimeInfoPath + "?token=valid-local-session",
 			wantStatus:  http.StatusUnauthorized,
 			wantBody:    unauthorizedBody,
 			wantNoStore: true,
@@ -107,7 +114,7 @@ func TestRouterContract(t *testing.T) {
 		{
 			name:        "cookie token does not authenticate",
 			method:      http.MethodGet,
-			target:      constants.LocalAPIRuntimeInfoPath,
+			target:      localAPIRuntimeInfoPath,
 			cookie:      "token=valid-local-session",
 			wantStatus:  http.StatusUnauthorized,
 			wantBody:    unauthorizedBody,
@@ -116,16 +123,50 @@ func TestRouterContract(t *testing.T) {
 		{
 			name:          "authenticated runtime information",
 			method:        http.MethodGet,
-			target:        constants.LocalAPIRuntimeInfoPath,
+			target:        localAPIRuntimeInfoPath,
 			authorization: []string{validAuthorization},
 			wantStatus:    http.StatusOK,
 			wantBody:      `{"runtimeVersion":"1.2.3","runtimeIrFormatVersions":[1],"supportedNodes":[]}`,
 			wantNoStore:   true,
 		},
 		{
+			name:        "workflow validation authenticates before parsing",
+			method:      http.MethodPost,
+			target:      localAPIWorkflowValidationPath,
+			wantStatus:  http.StatusUnauthorized,
+			wantBody:    unauthorizedBody,
+			wantNoStore: true,
+		},
+		{
+			name:          "workflow validation rejects wrong authorization",
+			method:        http.MethodPost,
+			target:        localAPIWorkflowValidationPath,
+			authorization: []string{"Bearer wrong"},
+			wantStatus:    http.StatusUnauthorized,
+			wantBody:      unauthorizedBody,
+			wantNoStore:   true,
+		},
+		{
+			name:          "workflow validation rejects duplicate authorization",
+			method:        http.MethodPost,
+			target:        localAPIWorkflowValidationPath,
+			authorization: []string{validAuthorization, validAuthorization},
+			wantStatus:    http.StatusUnauthorized,
+			wantBody:      unauthorizedBody,
+			wantNoStore:   true,
+		},
+		{
+			name:        "workflow validation query token does not authenticate",
+			method:      http.MethodPost,
+			target:      localAPIWorkflowValidationPath + "?token=valid-local-session",
+			wantStatus:  http.StatusUnauthorized,
+			wantBody:    unauthorizedBody,
+			wantNoStore: true,
+		},
+		{
 			name:        "unmatched route is protected",
 			method:      http.MethodGet,
-			target:      constants.LocalAPIBasePath + "/missing",
+			target:      localAPIBasePath + "/missing",
 			wantStatus:  http.StatusUnauthorized,
 			wantBody:    unauthorizedBody,
 			wantNoStore: true,
@@ -133,7 +174,7 @@ func TestRouterContract(t *testing.T) {
 		{
 			name:          "authenticated unmatched route",
 			method:        http.MethodGet,
-			target:        constants.LocalAPIBasePath + "/missing",
+			target:        localAPIBasePath + "/missing",
 			authorization: []string{validAuthorization},
 			wantStatus:    http.StatusNotFound,
 			wantBody:      notFoundBody,
@@ -177,7 +218,7 @@ func TestRouterDoesNotLogAuthorization(t *testing.T) {
 
 	var output bytes.Buffer
 	router := newTestRouter(&output)
-	request := httptest.NewRequest(http.MethodGet, constants.LocalAPIRuntimeInfoPath, nil)
+	request := httptest.NewRequest(http.MethodGet, localAPIRuntimeInfoPath, nil)
 	request.Header.Set("Authorization", "Bearer private-token-value")
 
 	response := httptest.NewRecorder()
@@ -188,6 +229,42 @@ func TestRouterDoesNotLogAuthorization(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), `"status":401`) {
 		t.Fatalf("request log does not contain 401 status: %s", output.String())
+	}
+}
+
+func TestWorkflowValidationRouterIntegration(t *testing.T) {
+	t.Parallel()
+
+	var output bytes.Buffer
+	router := newTestRouter(&output)
+	body := `{"editorGraph":{"schemaVersion":1,"entryNodeId":"private_graph_value",` +
+		`"nodes":[{"id":"private_graph_value","type":"flow.start","config":{},"bindings":{},` +
+		`"errorPolicy":"STOP","editor":{"x":0,"y":0}},{"id":"end","type":"flow.end",` +
+		`"config":{},"bindings":{},"errorPolicy":"STOP","editor":{"x":1,"y":0}}],` +
+		`"edges":[{"id":"edge","sourceNodeId":"private_graph_value","sourcePort":"success",` +
+		`"targetNodeId":"end"}]}}`
+	request := httptest.NewRequest(http.MethodPost, localAPIWorkflowValidationPath, strings.NewReader(body))
+	request.Header.Set("Authorization", validAuthorization)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || response.Body.String() != `{"status":"VALID","errors":[],"warnings":[],"truncated":false}` {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if got := response.Header().Get("Cache-Control"); got != constants.CacheControlNoStore {
+		t.Fatalf("Cache-Control = %q", got)
+	}
+	if strings.Contains(output.String(), "private_graph_value") {
+		t.Fatal("request log contains workflow content")
+	}
+
+	unsupported := httptest.NewRequest(http.MethodGet, localAPIWorkflowValidationPath, nil)
+	unsupported.Header.Set("Authorization", validAuthorization)
+	unsupportedResponse := httptest.NewRecorder()
+	router.ServeHTTP(unsupportedResponse, unsupported)
+	if unsupportedResponse.Code != http.StatusNotFound || unsupportedResponse.Body.String() != notFoundBody {
+		t.Fatalf("unsupported method status=%d body=%s", unsupportedResponse.Code, unsupportedResponse.Body.String())
 	}
 }
 
@@ -218,6 +295,11 @@ func TestRecoveryUsesAPIErrorContract(t *testing.T) {
 func newTestRouter(output io.Writer) *gin.Engine {
 	logger := slog.New(slog.NewJSONHandler(output, nil))
 	info := buildinfo.Info{Version: "1.2.3"}
+	registry, err := nodecontract.NewDefaultRegistry()
+	if err != nil {
+		panic(err)
+	}
+	workflowValidation := workflowvalidation.NewHandler(validationservice.New(registry))
 
-	return newRouter(info, exactAuthorizationVerifier{}, logger)
+	return newRouter(info, exactAuthorizationVerifier{}, workflowValidation, logger)
 }

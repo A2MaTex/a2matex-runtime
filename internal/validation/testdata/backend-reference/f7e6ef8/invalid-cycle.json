@@ -1,0 +1,52 @@
+{
+  "editorGraph": {
+    "schemaVersion": 1,
+    "entryNodeId": "start_01",
+    "nodes": [
+      {
+        "id": "start_01",
+        "type": "flow.start",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": { "x": 100, "y": 180 }
+      },
+      {
+        "id": "delay_01",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": { "x": 340, "y": 180 }
+      },
+      {
+        "id": "end_01",
+        "type": "flow.end",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": { "x": 580, "y": 180 }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_01",
+        "sourceNodeId": "start_01",
+        "sourcePort": "success",
+        "targetNodeId": "delay_01"
+      },
+      {
+        "id": "edge_02",
+        "sourceNodeId": "delay_01",
+        "sourcePort": "success",
+        "targetNodeId": "delay_01"
+      },
+      {
+        "id": "edge_03",
+        "sourceNodeId": "delay_01",
+        "sourcePort": "success",
+        "targetNodeId": "end_01"
+      }
+    ]
+  }
+}

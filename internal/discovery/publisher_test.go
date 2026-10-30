@@ -133,7 +133,7 @@ func testPublisher(t *testing.T, directory string) *Publisher {
 	}
 
 	return newPublisher(
-		"127.0.0.1:8765",
+		"127.0.0.1:6810",
 		session,
 		func() (string, error) { return directory, nil },
 	)

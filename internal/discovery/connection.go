@@ -6,7 +6,6 @@ import (
 	"net/url"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
-	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
@@ -25,12 +24,12 @@ func encodeConnectionDocument(listenAddress string, session *auth.Session) ([]by
 	}
 
 	// url.URL formats IPv4 and IPv6 hosts correctly; string concatenation would
-	// produce an invalid URL for an address such as [::1]:8765.
+	// produce an invalid URL for an address such as [::1]:6810.
 	document := connectionDocument{
 		APIBaseURL: (&url.URL{
 			Scheme: "http",
 			Host:   address.String(),
-			Path:   constants.LocalAPIBasePath,
+			Path:   "/api/v1",
 		}).String(),
 		SessionToken: session.ConnectionToken(),
 	}

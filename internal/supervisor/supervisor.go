@@ -19,8 +19,9 @@ type lifecycle interface {
 }
 
 type component struct {
-	name      string
-	lifecycle lifecycle
+	name            string
+	lifecycle       lifecycle
+	readyAttributes []slog.Attr
 }
 
 type componentResult struct {
@@ -44,7 +45,13 @@ func New(
 		// Components start in this order and stop in reverse. This guarantees the
 		// connection file appears only after bind and disappears before HTTP stop.
 		components: []component{
-			{name: "local_http_server", lifecycle: server},
+			{
+				name:      "local_http_server",
+				lifecycle: server,
+				readyAttributes: []slog.Attr{
+					slog.String("listen_address", cfg.HTTP.ListenAddress),
+				},
+			},
 			{name: "connection_file_publisher", lifecycle: publisher},
 		},
 		shutdownTimeout: cfg.ShutdownTimeout,
@@ -90,6 +97,14 @@ func (a *App) Run(ctx context.Context) error {
 				a.cleanup(runCtx, started, results, nil),
 			)
 		}
+
+		readyAttributes := make([]slog.Attr, 0, 2+len(current.readyAttributes))
+		readyAttributes = append(readyAttributes,
+			slog.String("component", current.name),
+			slog.String("event", "component_ready"),
+		)
+		readyAttributes = append(readyAttributes, current.readyAttributes...)
+		a.logger.LogAttrs(runCtx, slog.LevelInfo, "runtime component ready", readyAttributes...)
 
 		started = append(started, current)
 		go waitForComponent(index, current, results, cancelRun)
