@@ -24,16 +24,8 @@ func Validate(graph *editorgraph.Graph, registry *Registry) []validation.Diagnos
 			))
 			continue
 		}
-		for _, field := range contract.required {
-			if _, exists := node.Config[field]; !exists {
-				diagnostics = append(diagnostics, configDiagnostic(node.ID, index, field))
-			}
-		}
-		for field, raw := range node.Config {
-			schema, exists := contract.properties[field]
-			if !exists || !validValue(raw, schema) {
-				diagnostics = append(diagnostics, configDiagnostic(node.ID, index, field))
-			}
+		if node.Type != switchType {
+			diagnostics = append(diagnostics, validateNode(node, index, contract)...)
 		}
 	}
 
@@ -43,7 +35,7 @@ func Validate(graph *editorgraph.Graph, registry *Registry) []validation.Diagnos
 	}
 	for index, edge := range graph.Edges {
 		node, exists := nodeByID[edge.SourceNodeID]
-		if !exists {
+		if !exists || node.Type == switchType {
 			continue
 		}
 		contract, exists := registry.lookup(node.Type)
@@ -59,7 +51,8 @@ func Validate(graph *editorgraph.Graph, registry *Registry) []validation.Diagnos
 			))
 		}
 	}
-	return diagnostics
+	diagnostics = append(diagnostics, validateSwitches(graph, registry)...)
+	return append(diagnostics, validateBindings(graph, registry, nodeByID)...)
 }
 
 func configDiagnostic(nodeID string, nodeIndex int, field string) validation.Diagnostic {

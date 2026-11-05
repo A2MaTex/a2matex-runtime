@@ -156,7 +156,7 @@ func decodePosition(raw json.RawMessage, base validation.Path, diagnostics *[]va
 		*diagnostics = append(*diagnostics, contractDiagnostic(base))
 		return Position{}, false
 	}
-	unknownFields(object, []string{"x", "y"}, base, diagnostics)
+	unknownFields(object, []string{"x", "y", "label", "description"}, base, diagnostics)
 	x, xOK := decodeFiniteNumber(object["x"])
 	if !xOK {
 		*diagnostics = append(*diagnostics, contractDiagnostic(appendPath(base, "x")))
@@ -165,7 +165,26 @@ func decodePosition(raw json.RawMessage, base validation.Path, diagnostics *[]va
 	if !yOK {
 		*diagnostics = append(*diagnostics, contractDiagnostic(appendPath(base, "y")))
 	}
-	return Position{X: x, Y: y}, xOK && yOK
+	label, labelOK := decodeOptionalEditorText(object["label"])
+	if !labelOK {
+		*diagnostics = append(*diagnostics, contractDiagnostic(appendPath(base, "label")))
+	}
+	description, descriptionOK := decodeOptionalEditorText(object["description"])
+	if !descriptionOK {
+		*diagnostics = append(*diagnostics, contractDiagnostic(appendPath(base, "description")))
+	}
+	return Position{X: x, Y: y, Label: label, Description: description}, xOK && yOK && labelOK && descriptionOK
+}
+
+func decodeOptionalEditorText(raw json.RawMessage) (*string, bool) {
+	if len(raw) == 0 {
+		return nil, true
+	}
+	var value *string
+	if err := json.Unmarshal(raw, &value); err != nil || (value != nil && *value == "") {
+		return nil, false
+	}
+	return value, true
 }
 
 func decodeObject(raw []byte) (map[string]json.RawMessage, bool) {

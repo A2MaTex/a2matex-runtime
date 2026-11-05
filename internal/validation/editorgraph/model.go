@@ -12,8 +12,10 @@ const (
 type JSONObject map[string]json.RawMessage
 
 type Position struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	X           float64 `json:"x"`
+	Y           float64 `json:"y"`
+	Label       *string `json:"label,omitempty"`
+	Description *string `json:"description,omitempty"`
 }
 
 type Node struct {

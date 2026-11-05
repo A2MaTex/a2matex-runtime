@@ -20,6 +20,113 @@ import (
 
 const backendReferenceCommit = "f7e6ef8b89c8d1b5a70e1d921fdae022b8aa75e8"
 
+func TestBindingParity(t *testing.T) {
+	t.Parallel()
+	fixture, err := os.ReadFile("../testdata/binding-parity.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name  string
+		Graph json.RawMessage
+		Paths []struct {
+			Node    int
+			Field   string
+			Section string
+		}
+	}
+	if err := json.Unmarshal(fixture, &cases); err != nil || len(cases) == 0 {
+		t.Fatalf("invalid binding parity fixture: %v", err)
+	}
+	validator := defaultService(t)
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			graph, _ := editorgraph.Decode(tc.Graph)
+			if graph == nil {
+				t.Fatal("invalid fixture graph")
+			}
+			want := valid()
+			for _, path := range tc.Paths {
+				want.Status = validation.StatusInvalid
+				section, code := path.Section, validation.CodeNodeValueBindingInvalid
+				switch section {
+				case "ports":
+					code = validation.CodeSwitchPortEdgeCountInvalid
+				case "config":
+					code = validation.CodeNodeConfigInvalid
+				default:
+					section = "bindings"
+				}
+				want.Errors = append(want.Errors, d(code,
+					validation.Path{"nodes", path.Node, section, path.Field}, graph.Nodes[path.Node].ID, ""))
+			}
+			got, err := validator.Validate(tc.Graph)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %+v (%v), want %+v", got, err, want)
+			}
+		})
+	}
+}
+
+func TestTargetingParity(t *testing.T) {
+	t.Parallel()
+	fixture, err := os.ReadFile("../testdata/targeting-parity.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name     string
+		Type     string
+		Config   editorgraph.JSONObject
+		Bindings editorgraph.JSONObject
+		Paths    [][]string
+	}
+	if err := json.Unmarshal(fixture, &cases); err != nil || len(cases) == 0 {
+		t.Fatalf("invalid targeting parity fixture: %v", err)
+	}
+	validator := defaultService(t)
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			graph := editorgraph.Graph{
+				SchemaVersion: 1,
+				EntryNodeID:   "start",
+				Nodes: []editorgraph.Node{
+					{ID: "start", Type: "flow.start", Config: editorgraph.JSONObject{}, Bindings: editorgraph.JSONObject{}, ErrorPolicy: editorgraph.ErrorPolicyStop},
+					{ID: "target", Type: tc.Type, Config: tc.Config, Bindings: tc.Bindings, ErrorPolicy: editorgraph.ErrorPolicyStop},
+					{ID: "end", Type: "flow.end", Config: editorgraph.JSONObject{}, Bindings: editorgraph.JSONObject{}, ErrorPolicy: editorgraph.ErrorPolicyStop},
+				},
+				Edges: []editorgraph.Edge{
+					{ID: "e1", SourceNodeID: "start", SourcePort: "success", TargetNodeID: "target"},
+					{ID: "e2", SourceNodeID: "target", SourcePort: "success", TargetNodeID: "end"},
+				},
+			}
+			raw, err := json.Marshal(graph)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := valid()
+			for _, segments := range tc.Paths {
+				code := validation.CodeNodeBindingsInvalid
+				if segments[0] == "config" {
+					code = validation.CodeNodeConfigInvalid
+				}
+				path := validation.Path{"nodes", 1}
+				for _, segment := range segments {
+					path = append(path, segment)
+				}
+				want.Status = validation.StatusInvalid
+				want.Errors = append(want.Errors, d(code, path, "target", ""))
+			}
+			got, err := validator.Validate(raw)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %+v (%v), want %+v", got, err, want)
+			}
+		})
+	}
+}
+
 func TestBackendReferenceFixtureHashes(t *testing.T) {
 	t.Parallel()
 

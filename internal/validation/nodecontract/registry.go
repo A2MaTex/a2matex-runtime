@@ -73,6 +73,8 @@ func NewRegistry(contracts []Contract) (*Registry, error) {
 }
 
 func NewDefaultRegistry() (*Registry, error) {
+	const maxWaitTimeoutMS = 600_000
+	minTimeout, maxTimeout := 1.0, float64(maxWaitTimeoutMS)
 	empty := func(nodeType string, ports ...string) Contract {
 		return Contract{Type: nodeType, Config: ConfigSchema{Properties: map[string]FieldSchema{}}, OutputPorts: ports}
 	}
@@ -80,10 +82,34 @@ func NewDefaultRegistry() (*Registry, error) {
 		empty("flow.start", "success"),
 		empty("flow.end"),
 		empty("flow.delay", "success", "error"),
+		empty(switchType, "error"),
+		{
+			Type: waitVariableType,
+			Config: ConfigSchema{
+				Properties: map[string]FieldSchema{
+					"name":      {Type: FieldTypeString, Pattern: bindingNamePattern},
+					"timeoutMs": {Type: FieldTypeInteger, Minimum: &minTimeout, Maximum: &maxTimeout},
+				},
+				Required: []string{"name", "timeoutMs"},
+			},
+			OutputPorts: []string{"success", "error"},
+		},
+		{
+			Type: setVariableType,
+			Config: ConfigSchema{
+				Properties: map[string]FieldSchema{
+					"name":  {Type: FieldTypeString, Pattern: bindingNamePattern},
+					"scope": {Type: FieldTypeString, Pattern: "^(FLOW|RUN_GROUP)$"},
+				},
+				Required: []string{"name"},
+			},
+			OutputPorts: []string{"success", "error"},
+		},
 		empty("utility.log", "success", "error"),
 		empty("android.launch_app", "success", "error"),
 		empty("android.tap", "success", "error"),
 		empty("android.swipe", "success", "error"),
+		empty("android.long_press", "success", "error"),
 		empty("android.input_text", "success", "error"),
 		empty("android.press_back", "success", "error"),
 		empty("android.press_home", "success", "error"),

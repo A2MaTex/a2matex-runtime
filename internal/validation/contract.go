@@ -33,6 +33,9 @@ const (
 	CodeGraphCycleDetected            Code = "GRAPH_CYCLE_DETECTED"
 	CodeNodeTypeNotActive             Code = "NODE_TYPE_NOT_ACTIVE"
 	CodeNodeConfigInvalid             Code = "NODE_CONFIG_INVALID"
+	CodeNodeBindingsInvalid           Code = "NODE_BINDINGS_INVALID"
+	CodeNodeValueBindingInvalid       Code = "NODE_VALUE_BINDING_INVALID"
+	CodeSwitchPortEdgeCountInvalid    Code = "SWITCH_PORT_EDGE_COUNT_INVALID"
 	CodeGraphNodeLimitExceeded        Code = "GRAPH_NODE_LIMIT_EXCEEDED"
 	CodeGraphEdgeLimitExceeded        Code = "GRAPH_EDGE_LIMIT_EXCEEDED"
 )
@@ -63,6 +66,9 @@ var messages = map[Code]string{
 	CodeGraphCycleDetected:            "Graph contains an uncontrolled cycle",
 	CodeNodeTypeNotActive:             "Node type does not exist in the active Node Catalog",
 	CodeNodeConfigInvalid:             "Node configuration does not match its definition",
+	CodeNodeBindingsInvalid:           "Node bindings do not match the selected targeting mode",
+	CodeNodeValueBindingInvalid:       "Node input binding is invalid or its source is unavailable",
+	CodeSwitchPortEdgeCountInvalid:    "Switch port must have exactly one outgoing edge",
 	CodeGraphNodeLimitExceeded:        "Graph exceeds the maximum node count",
 	CodeGraphEdgeLimitExceeded:        "Graph exceeds the maximum edge count",
 }

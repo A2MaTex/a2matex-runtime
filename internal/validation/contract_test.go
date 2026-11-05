@@ -119,8 +119,8 @@ func TestEveryDiagnosticCodeHasMessage(t *testing.T) {
 		CodeEdgeIDDuplicated, CodeStartNodeCountInvalid, CodeEntryNodeInvalid, CodeEndNodeUnreachable,
 		CodeEdgeSourceNodeNotFound, CodeEdgeTargetNodeNotFound, CodeEdgeSourcePortNotFound,
 		CodeEndNodeHasOutgoingEdge, CodeNodeUnreachable, CodeGraphCycleDetected,
-		CodeNodeTypeNotActive, CodeNodeConfigInvalid, CodeGraphNodeLimitExceeded,
-		CodeGraphEdgeLimitExceeded,
+		CodeNodeTypeNotActive, CodeNodeConfigInvalid, CodeNodeBindingsInvalid, CodeGraphNodeLimitExceeded,
+		CodeGraphEdgeLimitExceeded, CodeNodeValueBindingInvalid,
 	}
 	for _, code := range codes {
 		if Message(code) == "" {

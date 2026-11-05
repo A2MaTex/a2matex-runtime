@@ -19,10 +19,14 @@ func TestDefaultRegistryContainsApprovedContracts(t *testing.T) {
 		"flow.start":         {"success"},
 		"flow.end":           {},
 		"flow.delay":         {"success", "error"},
+		setVariableType:      {"success", "error"},
+		waitVariableType:     {"success", "error"},
+		switchType:           {"error"},
 		"utility.log":        {"success", "error"},
 		"android.launch_app": {"success", "error"},
 		"android.tap":        {"success", "error"},
 		"android.swipe":      {"success", "error"},
+		"android.long_press": {"success", "error"},
 		"android.input_text": {"success", "error"},
 		"android.press_back": {"success", "error"},
 		"android.press_home": {"success", "error"},
@@ -36,7 +40,8 @@ func TestDefaultRegistryContainsApprovedContracts(t *testing.T) {
 		if !ok {
 			t.Fatalf("missing contract %q", nodeType)
 		}
-		if len(contract.properties) != 0 || len(contract.required) != 0 {
+		if nodeType != setVariableType && nodeType != waitVariableType &&
+			(len(contract.properties) != 0 || len(contract.required) != 0) {
 			t.Fatalf("contract %q does not have an empty config schema", nodeType)
 		}
 		if len(contract.outputPorts) != len(ports) {
@@ -49,11 +54,26 @@ func TestDefaultRegistryContainsApprovedContracts(t *testing.T) {
 		}
 
 		empty := &editorgraph.Graph{Nodes: []editorgraph.Node{testContractNode("node", nodeType, map[string]any{})}}
-		if diagnostics := Validate(empty, registry); len(diagnostics) != 0 {
-			t.Fatalf("contract %q rejected empty config: %+v", nodeType, diagnostics)
+		wantConfigErrors := 0
+		wantBindingErrors := 0
+		switch nodeType {
+		case "android.tap", "android.swipe", "android.long_press", switchType:
+			wantConfigErrors = 1
+		case setVariableType:
+			wantConfigErrors = 1
+			wantBindingErrors = 1
+		case waitVariableType:
+			wantConfigErrors = 2
+		}
+		if diagnostics := Validate(empty, registry); len(diagnostics) != wantConfigErrors+wantBindingErrors {
+			t.Fatalf("contract %q empty config diagnostics: %+v", nodeType, diagnostics)
 		}
 		configured := &editorgraph.Graph{Nodes: []editorgraph.Node{testContractNode("node", nodeType, map[string]any{"unexpected": true})}}
-		if diagnostics := Validate(configured, registry); countValidationCode(diagnostics, validation.CodeNodeConfigInvalid) != 1 {
+		wantUnexpected := wantConfigErrors + 1
+		if nodeType == switchType {
+			wantUnexpected = 1
+		}
+		if diagnostics := Validate(configured, registry); countValidationCode(diagnostics, validation.CodeNodeConfigInvalid) != wantUnexpected {
 			t.Fatalf("contract %q accepted unexpected config: %+v", nodeType, diagnostics)
 		}
 	}
