@@ -15,6 +15,9 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/discovery"
 	"github.com/A2MaTex/a2matex-runtime/internal/logging"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/httpserver"
+	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
+	"github.com/A2MaTex/a2matex-runtime/internal/repositories"
+	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/service"
@@ -40,6 +43,9 @@ func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, err
 	httpHandler := api.NewHandler(info, session, handler, logger)
 	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewPublisher(cfg, session)
-	app := supervisor.New(server, publisher, cfg, logger)
+	store := sqlitestore.New()
+	executionRepository := repositories.NewExecutionRepository(store)
+	eventRetention := services.NewEventRetention(executionRepository, logger)
+	app := supervisor.New(server, publisher, store, eventRetention, cfg, logger)
 	return app, nil
 }

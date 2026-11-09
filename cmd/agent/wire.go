@@ -12,8 +12,12 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
 	"github.com/A2MaTex/a2matex-runtime/internal/config"
 	"github.com/A2MaTex/a2matex-runtime/internal/discovery"
+	"github.com/A2MaTex/a2matex-runtime/internal/execution"
 	"github.com/A2MaTex/a2matex-runtime/internal/logging"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/httpserver"
+	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
+	"github.com/A2MaTex/a2matex-runtime/internal/repositories"
+	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	validationservice "github.com/A2MaTex/a2matex-runtime/internal/validation/service"
@@ -32,6 +36,10 @@ func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, err
 		api.NewHandler,
 		wire.Bind(new(middleware.AuthorizationVerifier), new(*auth.Session)),
 		httpserver.New,
+		sqlitestore.New,
+		repositories.NewExecutionRepository,
+		wire.Bind(new(execution.EventRetentionRepository), new(*repositories.ExecutionRepository)),
+		services.NewEventRetention,
 		supervisor.New,
 	)
 

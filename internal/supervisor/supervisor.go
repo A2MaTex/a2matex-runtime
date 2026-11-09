@@ -10,6 +10,8 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/config"
 	"github.com/A2MaTex/a2matex-runtime/internal/discovery"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/httpserver"
+	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
+	"github.com/A2MaTex/a2matex-runtime/internal/services"
 )
 
 type lifecycle interface {
@@ -38,6 +40,8 @@ type App struct {
 func New(
 	server *httpserver.Server,
 	publisher *discovery.Publisher,
+	store *sqlitestore.Store,
+	retention *services.EventRetention,
 	cfg config.Config,
 	logger *slog.Logger,
 ) *App {
@@ -46,13 +50,24 @@ func New(
 		// connection file appears only after bind and disappears before HTTP stop.
 		components: []component{
 			{
+				name:      "execution_store",
+				lifecycle: store,
+			},
+			{
+				name:      "event_retention",
+				lifecycle: retention,
+			},
+			{
 				name:      "local_http_server",
 				lifecycle: server,
 				readyAttributes: []slog.Attr{
 					slog.String("listen_address", cfg.HTTP.ListenAddress),
 				},
 			},
-			{name: "connection_file_publisher", lifecycle: publisher},
+			{
+				name:      "connection_file_publisher",
+				lifecycle: publisher,
+			},
 		},
 		shutdownTimeout: cfg.ShutdownTimeout,
 		logger:          logger,

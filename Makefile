@@ -7,7 +7,7 @@ LDFLAGS := -X github.com/A2MaTex/a2matex-runtime/internal/buildinfo.Version=$(VE
 	-X github.com/A2MaTex/a2matex-runtime/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/A2MaTex/a2matex-runtime/internal/buildinfo.BuildTime=$(BUILD_TIME)
 
-.PHONY: build test fmt lint run wire clean
+.PHONY: build test fmt lint run migrate-up wire clean
 
 build:
 	mkdir -p $(BUILD_DIR)
@@ -24,6 +24,9 @@ lint:
 
 run:
 	go run -buildvcs=false ./cmd/agent
+
+migrate-up:
+	go run -buildvcs=false ./cmd/agent --migrate-up
 
 wire:
 	wire ./cmd/agent
