@@ -45,7 +45,9 @@ func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, err
 	publisher := discovery.NewPublisher(cfg, session)
 	store := sqlitestore.New()
 	executionRepository := repositories.NewExecutionRepository(store)
+	executionRecovery := services.NewExecutionRecovery(executionRepository, logger)
 	eventRetention := services.NewEventRetention(executionRepository, logger)
-	app := supervisor.New(server, publisher, store, eventRetention, cfg, logger)
+	checkpointService := services.NewCheckpointService(executionRepository)
+	app := supervisor.New(server, publisher, store, executionRecovery, eventRetention, checkpointService, cfg, logger)
 	return app, nil
 }

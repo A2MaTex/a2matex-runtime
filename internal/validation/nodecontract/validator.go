@@ -24,6 +24,16 @@ func Validate(graph *editorgraph.Graph, registry *Registry) []validation.Diagnos
 			))
 			continue
 		}
+		if node.ErrorPolicy == editorgraph.ErrorPolicyErrorBranch {
+			if _, hasErrorPort := contract.outputPorts["error"]; !hasErrorPort {
+				diagnostics = append(diagnostics, validation.NewDiagnostic(
+					validation.CodeNodeErrorPolicyInvalid,
+					validation.Path{"nodes", index, "errorPolicy"},
+					node.ID,
+					"",
+				))
+			}
+		}
 		if node.Type != switchType {
 			diagnostics = append(diagnostics, validateNode(node, index, contract)...)
 		}

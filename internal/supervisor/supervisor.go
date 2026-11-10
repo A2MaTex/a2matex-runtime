@@ -41,7 +41,9 @@ func New(
 	server *httpserver.Server,
 	publisher *discovery.Publisher,
 	store *sqlitestore.Store,
+	recovery *services.ExecutionRecovery,
 	retention *services.EventRetention,
+	checkpoint *services.CheckpointService,
 	cfg config.Config,
 	logger *slog.Logger,
 ) *App {
@@ -54,8 +56,16 @@ func New(
 				lifecycle: store,
 			},
 			{
+				name:      "execution_recovery",
+				lifecycle: recovery,
+			},
+			{
 				name:      "event_retention",
 				lifecycle: retention,
+			},
+			{
+				name:      "execution_checkpoint",
+				lifecycle: checkpoint,
 			},
 			{
 				name:      "local_http_server",

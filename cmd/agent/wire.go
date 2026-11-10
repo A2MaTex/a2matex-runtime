@@ -38,8 +38,12 @@ func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, err
 		httpserver.New,
 		sqlitestore.New,
 		repositories.NewExecutionRepository,
+		wire.Bind(new(execution.RecoveryRepository), new(*repositories.ExecutionRepository)),
+		services.NewExecutionRecovery,
 		wire.Bind(new(execution.EventRetentionRepository), new(*repositories.ExecutionRepository)),
 		services.NewEventRetention,
+		wire.Bind(new(execution.CheckpointRepository), new(*repositories.ExecutionRepository)),
+		services.NewCheckpointService,
 		supervisor.New,
 	)
 

@@ -27,7 +27,7 @@ func ValidEvent(event PendingEvent) bool {
 	attempt := event.Type == constants.EventAttemptStateChanged || event.Type == constants.EventRetryScheduled
 	if (event.Type == constants.EventRunGroupStateChanged) != (event.DeviceExecutionID == "") ||
 		attempt != (event.NodeAttemptID != "") || attempt != (event.NodeID != "") ||
-		(attempt && !entryNodeID.MatchString(event.NodeID)) {
+		(attempt && !ValidNodeID(event.NodeID)) {
 		return false
 	}
 	status := stringField(fields["status"])
@@ -39,7 +39,7 @@ func ValidEvent(event PendingEvent) bool {
 		next := bytes.TrimSpace(fields["nextNodeId"])
 		terminal := oneOf(status, "SUCCEEDED", "FAILED", "CANCELLED", "INTERRUPTED")
 		validNext := (terminal && bytes.Equal(next, []byte("null"))) ||
-			(!terminal && entryNodeID.MatchString(stringField(next)))
+			(!terminal && ValidNodeID(stringField(next)))
 		valid = validNext && oneOf(status, "QUEUED", "RUNNING", "PAUSED", "SUCCEEDED", "FAILED", "CANCELLED", "INTERRUPTED") &&
 			((len(fields) == 2 && fields["status"] != nil) ||
 				(len(fields) == 3 && oneOf(status, "FAILED", "INTERRUPTED") && validEventError(fields["error"])))
@@ -113,4 +113,14 @@ func validEventError(raw json.RawMessage) bool {
 			"DEVICE_UNAUTHORIZED", "DEVICE_OFFLINE", "DEVICE_NOT_READY", "DEVICE_DISCONNECTED",
 			"COMMAND_START_FAILED", "COMMAND_INPUT_UNSUPPORTED", "COMMAND_FAILED", "COMMAND_TIMED_OUT",
 			"NODE_TIMED_OUT", "NODE_OUTPUT_INVALID", "PERSISTENCE_FAILED", "EXECUTION_INTERRUPTED", "INTERNAL_ERROR")
+}
+
+func RetryableEventError(raw json.RawMessage) bool {
+	if len(raw) > constants.MaxEventBytes || !utf8.Valid(raw) || !validEventError(raw) {
+		return false
+	}
+	var value struct {
+		Retryable bool `json:"retryable"`
+	}
+	return json.Unmarshal(raw, &value) == nil && value.Retryable
 }

@@ -10,6 +10,8 @@ import (
 
 var entryNodeID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
+func ValidNodeID(id string) bool { return entryNodeID.MatchString(id) }
+
 // ValidID reports whether id is a canonical Runtime UUID v4.
 func ValidID(id string) bool {
 	parsed, err := uuid.Parse(id)
@@ -27,7 +29,7 @@ func ValidNewAdmission(admission Admission) bool {
 	}
 	ids, serials := make(map[string]bool), make(map[string]bool)
 	for _, device := range admission.Devices {
-		if !ValidID(device.DeviceExecutionID) || !entryNodeID.MatchString(device.EntryNodeID) ||
+		if !ValidID(device.DeviceExecutionID) || !ValidNodeID(device.EntryNodeID) ||
 			strings.TrimSpace(device.ADBSerial) == "" || ids[device.DeviceExecutionID] || serials[device.ADBSerial] {
 			return false
 		}

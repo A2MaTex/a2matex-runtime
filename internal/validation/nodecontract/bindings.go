@@ -10,9 +10,14 @@ import (
 )
 
 const (
-	setVariableType    = "flow.set_variable"
-	waitVariableType   = "flow.wait_variable"
-	bindingNamePattern = "^[A-Za-z_][A-Za-z0-9_]{0,99}$"
+	setVariableType       = "flow.set_variable"
+	waitVariableType      = "flow.wait_variable"
+	bindingNamePattern    = "^[A-Za-z_][A-Za-z0-9_]{0,99}$"
+	bindingLiteral        = "LITERAL"
+	bindingWorkflowInput  = "WORKFLOW_INPUT"
+	bindingNodeOutput     = "NODE_OUTPUT"
+	bindingFlowVariable   = "FLOW_VARIABLE"
+	bindingGlobalVariable = "GLOBAL_VARIABLE"
 )
 
 var bindingName = regexp.MustCompile(bindingNamePattern)
@@ -87,7 +92,7 @@ func validateBindings(graph *editorgraph.Graph, registry *Registry, nodes map[st
 			var binding editorgraph.JSONObject
 			_ = json.Unmarshal(raw, &binding)
 			kind := bindingString(binding["kind"])
-			if !set && !isSwitch && kind != "nodeOutput" && kind != "flowVariable" && kind != "globalVariable" {
+			if !set && !isSwitch && kind != bindingNodeOutput && kind != bindingFlowVariable && kind != bindingGlobalVariable {
 				continue
 			}
 			input := bindingInputs[node.Type][field]
@@ -96,7 +101,7 @@ func validateBindings(graph *editorgraph.Graph, registry *Registry, nodes map[st
 				report(field)
 				continue
 			}
-			if isSwitch && kind == "literal" {
+			if isSwitch && kind == bindingLiteral {
 				var literal any
 				_ = json.Unmarshal(binding["value"], &literal)
 				switch literal.(type) {
@@ -108,7 +113,7 @@ func validateBindings(graph *editorgraph.Graph, registry *Registry, nodes map[st
 					types[field] = FieldTypeInteger
 				}
 			}
-			if kind != "nodeOutput" {
+			if kind != bindingNodeOutput {
 				continue
 			}
 			producer := bindingString(binding["nodeId"])
@@ -169,15 +174,15 @@ func reachableWithoutSuccess(entry, producer string, outgoing map[string][]edito
 
 func validBindingShape(kind string, binding editorgraph.JSONObject) bool {
 	switch kind {
-	case "nodeOutput":
+	case bindingNodeOutput:
 		id := bindingString(binding["nodeId"])
 		return len(binding) == 3 && id != "" && len(utf16.Encode([]rune(id))) <= validation.EditorGraphIdentifierMaxUTF16 &&
 			bindingName.MatchString(bindingString(binding["field"]))
-	case "flowVariable", "globalVariable":
+	case bindingFlowVariable, bindingGlobalVariable:
 		return len(binding) == 2 && bindingName.MatchString(bindingString(binding["name"]))
-	case "workflowInput":
+	case bindingWorkflowInput:
 		return len(binding) == 2 && bindingName.MatchString(bindingString(binding["inputName"]))
-	case "literal":
+	case bindingLiteral:
 		if len(binding) != 2 {
 			return false
 		}

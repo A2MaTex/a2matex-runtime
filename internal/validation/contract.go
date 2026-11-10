@@ -33,6 +33,7 @@ const (
 	CodeGraphCycleDetected            Code = "GRAPH_CYCLE_DETECTED"
 	CodeNodeTypeNotActive             Code = "NODE_TYPE_NOT_ACTIVE"
 	CodeNodeConfigInvalid             Code = "NODE_CONFIG_INVALID"
+	CodeNodeErrorPolicyInvalid        Code = "NODE_ERROR_POLICY_INVALID"
 	CodeNodeBindingsInvalid           Code = "NODE_BINDINGS_INVALID"
 	CodeNodeValueBindingInvalid       Code = "NODE_VALUE_BINDING_INVALID"
 	CodeSwitchPortEdgeCountInvalid    Code = "SWITCH_PORT_EDGE_COUNT_INVALID"
@@ -66,6 +67,7 @@ var messages = map[Code]string{
 	CodeGraphCycleDetected:            "Graph contains an uncontrolled cycle",
 	CodeNodeTypeNotActive:             "Node type does not exist in the active Node Catalog",
 	CodeNodeConfigInvalid:             "Node configuration does not match its definition",
+	CodeNodeErrorPolicyInvalid:        "Node error policy is not supported by its definition",
 	CodeNodeBindingsInvalid:           "Node bindings do not match the selected targeting mode",
 	CodeNodeValueBindingInvalid:       "Node input binding is invalid or its source is unavailable",
 	CodeSwitchPortEdgeCountInvalid:    "Switch port must have exactly one outgoing edge",

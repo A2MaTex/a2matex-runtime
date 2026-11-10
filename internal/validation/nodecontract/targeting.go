@@ -103,7 +103,7 @@ func validateTargetBindings(node editorgraph.Node, index int, fields map[string]
 			continue
 		}
 		var kind string
-		if json.Unmarshal(literal["kind"], &kind) != nil || kind != "literal" {
+		if json.Unmarshal(literal["kind"], &kind) != nil || kind != bindingLiteral {
 			add(field, "kind")
 		}
 		if raw := literal["value"]; raw == nil || string(raw) == "null" || !validValue(raw, schema) {
