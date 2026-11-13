@@ -11,6 +11,8 @@ import (
 	"sync"
 
 	_ "modernc.org/sqlite"
+
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
 const databaseName = "execution.sqlite3"
@@ -55,7 +57,10 @@ func (s *Store) startAt(ctx context.Context, root string) error {
 	}
 	if err := lockExclusive(lock); err != nil {
 		_ = lock.Close()
-		return errors.New("execution store lock unavailable")
+		if isLockContention(err) {
+			return xerror.ErrExecutionStoreInUse
+		}
+		return errors.New("acquire execution store lock")
 	}
 	s.lock = lock
 	db, err := openDatabase(ctx, filepath.Join(root, databaseName))

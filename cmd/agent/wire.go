@@ -25,11 +25,11 @@ import (
 
 //go:generate wire
 
-func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, error) {
+func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *discovery.Owner) (*supervisor.App, error) {
 	wire.Build(
 		logging.New,
 		auth.NewSession,
-		discovery.NewPublisher,
+		discovery.NewOwnerPublisher,
 		nodecontract.NewDefaultRegistry,
 		validationservice.New,
 		workflowvalidation.NewHandler,

@@ -5,8 +5,10 @@ const (
 	LocalAPIWorkflowValidationEnvelopeAllowance = 4 * 1024
 	LocalAPIWorkflowValidationBodyMaxBytes      = EditorGraphMaxContentBytes + LocalAPIWorkflowValidationEnvelopeAllowance
 
-	RuntimeIRFormatVersion = 1
-	CacheControlNoStore    = "no-store"
+	LocalAPIWorkflowCompilationBodyMaxBytes = 2 * 1024 * 1024
+	RuntimeIRMaxContentBytes                = 1024 * 1024
+	RuntimeIRFormatVersion                  = 1
+	CacheControlNoStore                     = "no-store"
 
 	APIErrorCodeInvalidRequest   = "INVALID_REQUEST"
 	APIErrorCodeUnauthorized     = "UNAUTHORIZED"

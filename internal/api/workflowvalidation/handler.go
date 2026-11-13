@@ -27,28 +27,8 @@ func NewHandler(service *validationservice.Service) *Handler {
 }
 
 func (h *Handler) Validate(ctx *gin.Context) {
-	if ctx.Request.URL.RawQuery != "" || !validContentType(ctx.Request.Header.Get("Content-Type")) || hasContentEncoding(ctx.Request.Header.Values("Content-Encoding")) {
-		invalidRequest(ctx)
-		return
-	}
-	if ctx.Request.ContentLength > constants.LocalAPIWorkflowValidationBodyMaxBytes {
-		payloadTooLarge(ctx)
-		return
-	}
-
-	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, constants.LocalAPIWorkflowValidationBodyMaxBytes)
-	body, err := io.ReadAll(ctx.Request.Body)
-	if err != nil {
-		var maxBytesError *http.MaxBytesError
-		if errors.As(err, &maxBytesError) {
-			payloadTooLarge(ctx)
-			return
-		}
-		invalidRequest(ctx)
-		return
-	}
-	if !utf8.Valid(body) {
-		invalidRequest(ctx)
+	body, ok := readBody(ctx, constants.LocalAPIWorkflowValidationBodyMaxBytes)
+	if !ok {
 		return
 	}
 
@@ -71,6 +51,55 @@ func (h *Handler) Validate(ctx *gin.Context) {
 		panic(err)
 	}
 	ctx.JSON(http.StatusOK, result)
+}
+
+func (h *Handler) Compile(ctx *gin.Context) {
+	body, ok := readBody(ctx, constants.LocalAPIWorkflowCompilationBodyMaxBytes)
+	if !ok {
+		return
+	}
+	fields, ok := decodeObjects(body, "editorGraph", "inputSchema")
+	if !ok {
+		invalidRequest(ctx)
+		return
+	}
+	result, err := h.service.Compile(fields["editorGraph"], fields["inputSchema"])
+	if errors.Is(err, validationservice.ErrPayloadTooLarge) {
+		payloadTooLarge(ctx)
+		return
+	}
+	if err != nil {
+		panic(err)
+	}
+	ctx.JSON(http.StatusOK, result)
+}
+
+func readBody(ctx *gin.Context, limit int64) ([]byte, bool) {
+	if ctx.Request.URL.RawQuery != "" || !validContentType(ctx.Request.Header.Get("Content-Type")) || hasContentEncoding(ctx.Request.Header.Values("Content-Encoding")) {
+		invalidRequest(ctx)
+		return nil, false
+	}
+	if ctx.Request.ContentLength > limit {
+		payloadTooLarge(ctx)
+		return nil, false
+	}
+
+	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, limit)
+	body, err := io.ReadAll(ctx.Request.Body)
+	if err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			payloadTooLarge(ctx)
+			return nil, false
+		}
+		invalidRequest(ctx)
+		return nil, false
+	}
+	if !utf8.Valid(body) {
+		invalidRequest(ctx)
+		return nil, false
+	}
+	return body, true
 }
 
 func validContentType(value string) bool {
@@ -96,40 +125,52 @@ func hasContentEncoding(values []string) bool {
 }
 
 func decodeEnvelope(body []byte) (json.RawMessage, bool) {
+	objects, ok := decodeObjects(body, "editorGraph")
+	return objects["editorGraph"], ok
+}
+
+func decodeObjects(body []byte, required ...string) (map[string]json.RawMessage, bool) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	first, err := decoder.Token()
 	if err != nil || first != json.Delim('{') {
 		return nil, false
 	}
-	seenGraph := false
-	var graph json.RawMessage
+	fields := make(map[string]json.RawMessage, len(required))
+	for _, field := range required {
+		fields[field] = nil
+	}
 	for decoder.More() {
 		token, err := decoder.Token()
-		if err != nil {
+		field, fieldOK := token.(string)
+		existing, expected := fields[field]
+		if err != nil || !fieldOK || !expected || existing != nil {
 			return nil, false
 		}
-		field, ok := token.(string)
-		if !ok || field != "editorGraph" || seenGraph {
+
+		var raw json.RawMessage
+		if err := decoder.Decode(&raw); err != nil {
 			return nil, false
 		}
-		seenGraph = true
-		if err := decoder.Decode(&graph); err != nil {
+		trimmed := bytes.TrimSpace(raw)
+		if len(trimmed) < 2 || trimmed[0] != '{' {
 			return nil, false
 		}
+		fields[field] = raw
 	}
 	closing, err := decoder.Token()
-	if err != nil || closing != json.Delim('}') || !seenGraph {
+	if err != nil || closing != json.Delim('}') {
 		return nil, false
+	}
+	for _, value := range fields {
+		if value == nil {
+			return nil, false
+		}
 	}
 	var trailing json.RawMessage
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		return nil, false
 	}
-	trimmed := bytes.TrimSpace(graph)
-	if len(trimmed) < 2 || trimmed[0] != '{' || trimmed[len(trimmed)-1] != '}' || !json.Valid(trimmed) {
-		return nil, false
-	}
-	return graph, true
+	return fields, true
 }
 
 func invalidRequest(ctx *gin.Context) {

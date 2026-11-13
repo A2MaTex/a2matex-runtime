@@ -46,6 +46,7 @@ func newRouter(
 		v1.GET("/health", foundation.Health)
 		v1.GET("/runtime-info", foundation.RuntimeInfo(info))
 		v1.POST("/workflow-validation", workflowValidation.Validate)
+		v1.POST("/workflow-compilation", workflowValidation.Compile)
 		router.NoRoute(foundation.NotFound)
 	}
 

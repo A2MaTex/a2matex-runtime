@@ -18,13 +18,20 @@ type Position struct {
 	Description *string `json:"description,omitempty"`
 }
 
+type RetryPolicy struct {
+	MaxAttempts *int64 `json:"maxAttempts,omitempty"`
+	DelayMS     *int64 `json:"delayMs,omitempty"`
+}
+
 type Node struct {
-	ID          string      `json:"id"`
-	Type        string      `json:"type"`
-	Config      JSONObject  `json:"config"`
-	Bindings    JSONObject  `json:"bindings"`
-	ErrorPolicy ErrorPolicy `json:"errorPolicy"`
-	Editor      Position    `json:"editor"`
+	TimeoutMS   *int64       `json:"timeoutMs,omitempty"`
+	RetryPolicy *RetryPolicy `json:"retryPolicy,omitempty"`
+	ID          string       `json:"id"`
+	Type        string       `json:"type"`
+	Config      JSONObject   `json:"config"`
+	Bindings    JSONObject   `json:"bindings"`
+	ErrorPolicy ErrorPolicy  `json:"errorPolicy"`
+	Editor      Position     `json:"editor"`
 }
 
 type Edge struct {

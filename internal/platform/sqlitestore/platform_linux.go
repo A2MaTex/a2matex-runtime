@@ -35,3 +35,5 @@ func checkFilesystem(root string) error {
 	}
 	return nil
 }
+
+func isLockContention(err error) bool { return errors.Is(err, unix.EWOULDBLOCK) }

@@ -37,3 +37,5 @@ func checkFilesystem(root string) error {
 		return errors.New("execution store requires a supported local drive")
 	}
 }
+
+func isLockContention(err error) bool { return errors.Is(err, windows.ERROR_LOCK_VIOLATION) }

@@ -1,0 +1,406 @@
+[
+  {
+    "type": "flow.start",
+    "runtimeHandler": "flow.start",
+    "defaultTimeoutMs": 1000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": []
+  },
+  {
+    "type": "flow.end",
+    "runtimeHandler": "flow.end",
+    "defaultTimeoutMs": 1000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": []
+  },
+  {
+    "type": "flow.delay",
+    "runtimeHandler": "flow.delay",
+    "defaultTimeoutMs": 300000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300000
+        }
+      },
+      "required": [
+        "durationMs"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "durationMs"
+      ],
+      "additionalProperties": false
+    },
+    "bindingKinds": [
+      "LITERAL",
+      "WORKFLOW_INPUT",
+      "NODE_OUTPUT",
+      "FLOW_VARIABLE",
+      "GLOBAL_VARIABLE"
+    ]
+  },
+  {
+    "type": "utility.log",
+    "runtimeHandler": "utility.log",
+    "defaultTimeoutMs": 1000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": [
+      "LITERAL",
+      "WORKFLOW_INPUT",
+      "NODE_OUTPUT",
+      "FLOW_VARIABLE",
+      "GLOBAL_VARIABLE"
+    ]
+  },
+  {
+    "type": "flow.wait_variable",
+    "runtimeHandler": "flow.wait_variable",
+    "defaultTimeoutMs": 600000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": []
+  },
+  {
+    "type": "flow.switch",
+    "runtimeHandler": "flow.switch",
+    "defaultTimeoutMs": 1000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": [
+      "LITERAL",
+      "WORKFLOW_INPUT",
+      "NODE_OUTPUT",
+      "FLOW_VARIABLE",
+      "GLOBAL_VARIABLE"
+    ]
+  },
+  {
+    "type": "flow.set_variable",
+    "runtimeHandler": "flow.set_variable",
+    "defaultTimeoutMs": 1000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": [
+      "LITERAL",
+      "WORKFLOW_INPUT",
+      "NODE_OUTPUT",
+      "FLOW_VARIABLE",
+      "GLOBAL_VARIABLE"
+    ]
+  },
+  {
+    "type": "android.launch_app",
+    "runtimeHandler": "android.launch_app",
+    "defaultTimeoutMs": 30000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [
+      "android.device.control"
+    ],
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "packageName": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 255,
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+$"
+        }
+      },
+      "required": [
+        "packageName"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": [
+      "LITERAL",
+      "WORKFLOW_INPUT",
+      "NODE_OUTPUT",
+      "FLOW_VARIABLE",
+      "GLOBAL_VARIABLE"
+    ]
+  },
+  {
+    "type": "android.tap",
+    "runtimeHandler": "android.tap",
+    "defaultTimeoutMs": 30000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [
+      "android.device.control"
+    ],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": [
+      "LITERAL"
+    ]
+  },
+  {
+    "type": "android.swipe",
+    "runtimeHandler": "android.swipe",
+    "defaultTimeoutMs": 30000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [
+      "android.device.control"
+    ],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": [
+      "LITERAL"
+    ]
+  },
+  {
+    "type": "android.input_text",
+    "runtimeHandler": "android.input_text",
+    "defaultTimeoutMs": 30000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [
+      "android.device.control"
+    ],
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 10000
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": [
+      "LITERAL",
+      "WORKFLOW_INPUT",
+      "NODE_OUTPUT",
+      "FLOW_VARIABLE",
+      "GLOBAL_VARIABLE"
+    ]
+  },
+  {
+    "type": "android.press_back",
+    "runtimeHandler": "android.press_back",
+    "defaultTimeoutMs": 30000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [
+      "android.device.control"
+    ],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": []
+  },
+  {
+    "type": "android.press_home",
+    "runtimeHandler": "android.press_home",
+    "defaultTimeoutMs": 30000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [
+      "android.device.control"
+    ],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": []
+  },
+  {
+    "type": "android.screenshot",
+    "runtimeHandler": "android.screenshot",
+    "defaultTimeoutMs": 30000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [
+      "android.screen.capture"
+    ],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "artifactId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "artifactId"
+      ],
+      "additionalProperties": false
+    },
+    "bindingKinds": []
+  },
+  {
+    "type": "android.long_press",
+    "runtimeHandler": "android.long_press",
+    "defaultTimeoutMs": 30000,
+    "minimumRuntimeVersion": "0.1.0",
+    "capabilities": [
+      "android.device.control"
+    ],
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "bindingKinds": [
+      "LITERAL"
+    ]
+  }
+]

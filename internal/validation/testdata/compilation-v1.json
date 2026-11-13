@@ -1,0 +1,621 @@
+[
+  {
+    "name": "targeting-and-defaults",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        },
+        {
+          "id": "tap",
+          "type": "android.tap",
+          "config": {
+            "targetMode": "ABSOLUTE_PIXELS"
+          },
+          "bindings": {
+            "x": {
+              "kind": "LITERAL",
+              "value": 20
+            },
+            "y": {
+              "kind": "LITERAL",
+              "value": 30
+            }
+          },
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "tap"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "tap",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "VALID",
+      "errors": [],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": {
+      "formatVersion": 1,
+      "minimumRuntimeVersion": "0.1.0",
+      "metadata": {
+        "sourceGraphSchemaVersion": 1
+      },
+      "entryNodeId": "start",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "runtimeHandler": "flow.start",
+          "config": {},
+          "inputs": {},
+          "timeoutMs": 1000,
+          "retryPolicy": {
+            "maxAttempts": 1,
+            "delayMs": 0
+          },
+          "errorPolicy": "STOP"
+        },
+        {
+          "id": "tap",
+          "type": "android.tap",
+          "runtimeHandler": "android.tap",
+          "config": {
+            "targetMode": "ABSOLUTE_PIXELS"
+          },
+          "inputs": {
+            "x": {
+              "source": "LITERAL",
+              "value": 20
+            },
+            "y": {
+              "source": "LITERAL",
+              "value": 30
+            }
+          },
+          "timeoutMs": 30000,
+          "retryPolicy": {
+            "maxAttempts": 1,
+            "delayMs": 0
+          },
+          "errorPolicy": "STOP"
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "runtimeHandler": "flow.end",
+          "config": {},
+          "inputs": {},
+          "timeoutMs": 1000,
+          "retryPolicy": {
+            "maxAttempts": 1,
+            "delayMs": 0
+          },
+          "errorPolicy": "STOP"
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "tap"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "tap",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ],
+      "requiredCapabilities": [
+        "android.device.control"
+      ]
+    }
+  },
+  {
+    "name": "explicit-timeout-and-partial-retry",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "config": {},
+          "bindings": {
+            "durationMs": {
+              "kind": "WORKFLOW_INPUT",
+              "inputName": "duration"
+            }
+          },
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          },
+          "timeoutMs": 2500,
+          "retryPolicy": {
+            "maxAttempts": 2
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "duration": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "duration"
+      ],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "VALID",
+      "errors": [],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": {
+      "formatVersion": 1,
+      "minimumRuntimeVersion": "0.1.0",
+      "metadata": {
+        "sourceGraphSchemaVersion": 1
+      },
+      "entryNodeId": "start",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "duration": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "duration"
+        ],
+        "additionalProperties": false
+      },
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "runtimeHandler": "flow.start",
+          "config": {},
+          "inputs": {},
+          "timeoutMs": 1000,
+          "retryPolicy": {
+            "maxAttempts": 1,
+            "delayMs": 0
+          },
+          "errorPolicy": "STOP"
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "runtimeHandler": "flow.delay",
+          "config": {},
+          "inputs": {
+            "durationMs": {
+              "source": "WORKFLOW_INPUT",
+              "inputName": "duration"
+            }
+          },
+          "timeoutMs": 2500,
+          "retryPolicy": {
+            "maxAttempts": 2,
+            "delayMs": 0
+          },
+          "errorPolicy": "STOP"
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "runtimeHandler": "flow.end",
+          "config": {},
+          "inputs": {},
+          "timeoutMs": 1000,
+          "retryPolicy": {
+            "maxAttempts": 1,
+            "delayMs": 0
+          },
+          "errorPolicy": "STOP"
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ],
+      "requiredCapabilities": []
+    }
+  },
+  {
+    "name": "invalid-workflow-input",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "config": {},
+          "bindings": {
+            "durationMs": {
+              "kind": "WORKFLOW_INPUT",
+              "inputName": "duration"
+            }
+          },
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          },
+          "timeoutMs": 2500,
+          "retryPolicy": {
+            "maxAttempts": 2
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "INVALID",
+      "errors": [
+        {
+          "code": "NODE_VALUE_BINDING_INVALID",
+          "message": "Node input binding is invalid or its source is unavailable",
+          "nodeId": "delay",
+          "path": [
+            "nodes",
+            1,
+            "bindings",
+            "durationMs"
+          ]
+        }
+      ],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": null
+  },
+  {
+    "name": "invalid-input-schema",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        },
+        {
+          "id": "tap",
+          "type": "android.tap",
+          "config": {
+            "targetMode": "ABSOLUTE_PIXELS"
+          },
+          "bindings": {
+            "x": {
+              "kind": "LITERAL",
+              "value": 20
+            },
+            "y": {
+              "kind": "LITERAL",
+              "value": 30
+            }
+          },
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "tap"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "tap",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [
+        "unknown"
+      ],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "INVALID",
+      "errors": [
+        {
+          "code": "WORKFLOW_INPUT_SCHEMA_INVALID",
+          "message": "Workflow input schema does not match the required contract",
+          "path": [
+            "inputSchema",
+            "required",
+            0
+          ]
+        }
+      ],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": null
+  },
+  {
+    "name": "invalid-node-retry",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        },
+        {
+          "id": "tap",
+          "type": "android.tap",
+          "config": {
+            "targetMode": "ABSOLUTE_PIXELS"
+          },
+          "bindings": {
+            "x": {
+              "kind": "LITERAL",
+              "value": 20
+            },
+            "y": {
+              "kind": "LITERAL",
+              "value": 30
+            }
+          },
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          },
+          "retryPolicy": {
+            "delayMs": -1
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 50,
+            "y": -15,
+            "label": "Studio only"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "tap"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "tap",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "INVALID",
+      "errors": [
+        {
+          "code": "EDITOR_GRAPH_CONTRACT_INVALID",
+          "message": "Editor Graph does not match the required contract",
+          "path": [
+            "nodes",
+            1,
+            "retryPolicy",
+            "delayMs"
+          ]
+        }
+      ],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": null
+  }
+]

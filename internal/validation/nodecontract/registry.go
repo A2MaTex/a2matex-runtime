@@ -49,6 +49,7 @@ type compiledContract struct {
 
 type Registry struct {
 	contracts map[string]compiledContract
+	catalog   map[string]catalogNode
 }
 
 func NewRegistry(contracts []Contract) (*Registry, error) {
@@ -73,12 +74,10 @@ func NewRegistry(contracts []Contract) (*Registry, error) {
 }
 
 func NewDefaultRegistry() (*Registry, error) {
-	const maxWaitTimeoutMS = 600_000
-	minTimeout, maxTimeout := 1.0, float64(maxWaitTimeoutMS)
 	empty := func(nodeType string, ports ...string) Contract {
 		return Contract{Type: nodeType, Config: ConfigSchema{Properties: map[string]FieldSchema{}}, OutputPorts: ports}
 	}
-	return NewRegistry([]Contract{
+	registry, err := NewRegistry([]Contract{
 		empty("flow.start", "success"),
 		empty("flow.end"),
 		empty("flow.delay", "success", "error"),
@@ -87,10 +86,9 @@ func NewDefaultRegistry() (*Registry, error) {
 			Type: waitVariableType,
 			Config: ConfigSchema{
 				Properties: map[string]FieldSchema{
-					"name":      {Type: FieldTypeString, Pattern: bindingNamePattern},
-					"timeoutMs": {Type: FieldTypeInteger, Minimum: &minTimeout, Maximum: &maxTimeout},
+					"name": {Type: FieldTypeString, Pattern: bindingNamePattern},
 				},
-				Required: []string{"name", "timeoutMs"},
+				Required: []string{"name"},
 			},
 			OutputPorts: []string{"success", "error"},
 		},
@@ -115,6 +113,13 @@ func NewDefaultRegistry() (*Registry, error) {
 		empty("android.press_home", "success", "error"),
 		empty("android.screenshot", "success", "error"),
 	})
+	if err != nil {
+		return nil, err
+	}
+	if err := registry.installCatalog(); err != nil {
+		return nil, err
+	}
+	return registry, nil
 }
 
 func compileContract(contract Contract) (compiledContract, error) {

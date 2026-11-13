@@ -28,10 +28,15 @@ func (s *Service) Validate(raw []byte) (validation.Result, error) {
 		return validation.BuildResult(decodeDiagnostics, nil), nil
 	}
 
+	diagnostics := s.validateGraph(graph, decodeDiagnostics, nil)
+	return validation.BuildResult(diagnostics, nil), nil
+}
+
+func (s *Service) validateGraph(graph *editorgraph.Graph, decodeDiagnostics []validation.Diagnostic, inputs *nodecontract.WorkflowInputs) []validation.Diagnostic {
 	topologyResult := topology.Validate(graph)
 	diagnostics := append(decodeDiagnostics, topologyResult.Diagnostics...)
 	if topologyResult.Continue {
-		diagnostics = append(diagnostics, nodecontract.Validate(graph, s.registry)...)
+		diagnostics = append(diagnostics, nodecontract.ValidateWithInputs(graph, s.registry, inputs)...)
 	}
-	return validation.BuildResult(diagnostics, nil), nil
+	return diagnostics
 }

@@ -25,7 +25,7 @@ import (
 
 // Injectors from wire.go:
 
-func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, error) {
+func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *discovery.Owner) (*supervisor.App, error) {
 	session, err := auth.NewSession()
 	if err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ func initializeApp(cfg config.Config, info buildinfo.Info) (*supervisor.App, err
 	}
 	httpHandler := api.NewHandler(info, session, handler, logger)
 	server := httpserver.New(cfg, httpHandler)
-	publisher := discovery.NewPublisher(cfg, session)
+	publisher := discovery.NewOwnerPublisher(cfg, session, owner)
 	store := sqlitestore.New()
 	executionRepository := repositories.NewExecutionRepository(store)
 	executionRecovery := services.NewExecutionRecovery(executionRepository, logger)

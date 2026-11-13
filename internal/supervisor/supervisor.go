@@ -47,9 +47,13 @@ func New(
 	cfg config.Config,
 	logger *slog.Logger,
 ) *App {
+	publisherName := "connection_file_publisher"
+	if publisher.IsManaged() {
+		publisherName = "managed_readiness_publisher"
+	}
 	return &App{
 		// Components start in this order and stop in reverse. This guarantees the
-		// connection file appears only after bind and disappears before HTTP stop.
+		// handoff occurs after binding and standalone discovery stops before HTTP.
 		components: []component{
 			{
 				name:      "execution_store",
@@ -75,7 +79,7 @@ func New(
 				},
 			},
 			{
-				name:      "connection_file_publisher",
+				name:      publisherName,
 				lifecycle: publisher,
 			},
 		},

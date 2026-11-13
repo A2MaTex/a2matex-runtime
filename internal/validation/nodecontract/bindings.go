@@ -3,6 +3,7 @@ package nodecontract
 import (
 	"encoding/json"
 	"regexp"
+	"slices"
 	"unicode/utf16"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
@@ -22,21 +23,14 @@ const (
 
 var bindingName = regexp.MustCompile(bindingNamePattern)
 
-// Field types mirrored from the installed Backend Node Catalog. Target
-// inputs are validated separately and allow only literals.
-var bindingInputs = map[string]map[string]FieldType{
-	"flow.delay":         {"durationMs": FieldTypeInteger},
-	"utility.log":        {"message": FieldTypeString},
-	"android.launch_app": {"packageName": FieldTypeString},
-	"android.input_text": {"text": FieldTypeString},
+var fieldName = regexp.MustCompile(`^[a-z][a-zA-Z0-9]{0,99}$`)
+
+type WorkflowInputs struct {
+	Properties map[string]FieldType
+	Required   map[string]bool
 }
 
-var requiredOutputs = map[string]map[string]FieldType{
-	"flow.delay":         {"durationMs": FieldTypeInteger},
-	"android.screenshot": {"artifactId": FieldTypeString},
-}
-
-func validateBindings(graph *editorgraph.Graph, registry *Registry, nodes map[string]editorgraph.Node) []validation.Diagnostic {
+func validateBindings(graph *editorgraph.Graph, registry *Registry, nodes map[string]editorgraph.Node, workflowInputs *WorkflowInputs) []validation.Diagnostic {
 	var diagnostics []validation.Diagnostic
 	outgoing := make(map[string][]editorgraph.Edge)
 	for _, edge := range graph.Edges {
@@ -48,7 +42,8 @@ func validateBindings(graph *editorgraph.Graph, registry *Registry, nodes map[st
 	}
 	bypasses := make(map[string]map[string]bool)
 	for index, node := range graph.Nodes {
-		if _, known := registry.lookup(node.Type); !known || targetingInputs[node.Type] != nil {
+		definition, known := registry.catalog[node.Type]
+		if !known || targetingInputs[node.Type] != nil {
 			continue
 		}
 		set := node.Type == setVariableType
@@ -74,6 +69,11 @@ func validateBindings(graph *editorgraph.Graph, registry *Registry, nodes map[st
 			diagnostics = append(diagnostics, validation.NewDiagnostic(validation.CodeNodeValueBindingInvalid,
 				validation.Path{"nodes", index, "bindings", field}, node.ID, ""))
 		}
+		for _, field := range definition.InputSchema.Required {
+			if node.Bindings[field] == nil {
+				report(field)
+			}
+		}
 		if set && node.Bindings["value"] == nil {
 			report("value")
 		}
@@ -92,33 +92,52 @@ func validateBindings(graph *editorgraph.Graph, registry *Registry, nodes map[st
 			var binding editorgraph.JSONObject
 			_ = json.Unmarshal(raw, &binding)
 			kind := bindingString(binding["kind"])
-			if !set && !isSwitch && kind != bindingNodeOutput && kind != bindingFlowVariable && kind != bindingGlobalVariable {
-				continue
-			}
-			input := bindingInputs[node.Type][field]
+			input, knownInput := definition.inputs[field]
 			if (set && field != "value") || (isSwitch && !fields[field]) ||
-				(!set && !isSwitch && input == "") || !validBindingShape(kind, binding) {
+				(!set && !isSwitch && !knownInput) || !slices.Contains(definition.BindingKinds, kind) || !validBindingShape(kind, binding) {
 				report(field)
 				continue
 			}
-			if isSwitch && kind == bindingLiteral {
-				var literal any
-				_ = json.Unmarshal(binding["value"], &literal)
-				switch literal.(type) {
-				case string:
-					types[field] = FieldTypeString
-				case bool:
-					types[field] = FieldTypeBoolean
-				case float64:
-					types[field] = FieldTypeInteger
+			if kind == bindingLiteral {
+				if knownInput && !validValue(binding["value"], input) {
+					report(field)
 				}
+				if isSwitch {
+					var literal any
+					_ = json.Unmarshal(binding["value"], &literal)
+					switch literal.(type) {
+					case string:
+						types[field] = FieldTypeString
+					case bool:
+						types[field] = FieldTypeBoolean
+					case float64:
+						types[field] = FieldTypeInteger
+					}
+				}
+				continue
+			}
+			if kind == bindingWorkflowInput {
+				if workflowInputs == nil {
+					continue
+				}
+				name := bindingString(binding["inputName"])
+				sourceType := workflowInputs.Properties[name]
+				if sourceType == "" || (knownInput && sourceType != input.Type) ||
+					(slices.Contains(definition.InputSchema.Required, field) && !workflowInputs.Required[name]) {
+					report(field)
+				} else if isSwitch {
+					types[field] = sourceType
+				}
+				continue
 			}
 			if kind != bindingNodeOutput {
 				continue
 			}
-			producer := bindingString(binding["nodeId"])
-			output := requiredOutputs[nodes[producer].Type][bindingString(binding["field"])]
-			if output == "" || (!set && !isSwitch && input != output) || producer == node.ID {
+			producer := editorgraph.TrimIdentifier(bindingString(binding["nodeId"]))
+			outputSchema := registry.catalog[nodes[producer].Type].OutputSchema
+			outputField := bindingString(binding["field"])
+			output := outputSchema.Properties[outputField].Type
+			if !slices.Contains(outputSchema.Required, outputField) || output == "" || (knownInput && input.Type != output) || producer == node.ID {
 				report(field)
 				continue
 			}
@@ -175,13 +194,13 @@ func reachableWithoutSuccess(entry, producer string, outgoing map[string][]edito
 func validBindingShape(kind string, binding editorgraph.JSONObject) bool {
 	switch kind {
 	case bindingNodeOutput:
-		id := bindingString(binding["nodeId"])
+		id := editorgraph.TrimIdentifier(bindingString(binding["nodeId"]))
 		return len(binding) == 3 && id != "" && len(utf16.Encode([]rune(id))) <= validation.EditorGraphIdentifierMaxUTF16 &&
-			bindingName.MatchString(bindingString(binding["field"]))
+			fieldName.MatchString(bindingString(binding["field"]))
 	case bindingFlowVariable, bindingGlobalVariable:
 		return len(binding) == 2 && bindingName.MatchString(bindingString(binding["name"]))
 	case bindingWorkflowInput:
-		return len(binding) == 2 && bindingName.MatchString(bindingString(binding["inputName"]))
+		return len(binding) == 2 && fieldName.MatchString(bindingString(binding["inputName"]))
 	case bindingLiteral:
 		if len(binding) != 2 {
 			return false

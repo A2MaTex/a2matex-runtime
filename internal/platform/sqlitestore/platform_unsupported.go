@@ -18,3 +18,5 @@ func lockExclusive(_ *os.File) error {
 func checkFilesystem(_ string) error {
 	return errors.New("execution storage is unsupported on this platform")
 }
+
+func isLockContention(err error) bool { return false }

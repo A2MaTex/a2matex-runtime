@@ -1,0 +1,708 @@
+[
+  {
+    "name": "duplicate_start_success",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "config": {},
+          "bindings": {
+            "durationMs": {
+              "kind": "LITERAL",
+              "value": 1
+            }
+          },
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e4",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "INVALID",
+      "errors": [
+        {
+          "code": "NODE_PORT_EDGE_COUNT_INVALID",
+          "message": "Node port must have exactly one outgoing edge",
+          "nodeId": "start",
+          "path": [
+            "nodes",
+            0,
+            "ports",
+            "success"
+          ]
+        }
+      ],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": null
+  },
+  {
+    "name": "duplicate_node_success",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "config": {},
+          "bindings": {
+            "durationMs": {
+              "kind": "LITERAL",
+              "value": 1
+            }
+          },
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        },
+        {
+          "id": "e4",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "INVALID",
+      "errors": [
+        {
+          "code": "NODE_PORT_EDGE_COUNT_INVALID",
+          "message": "Node port must have exactly one outgoing edge",
+          "nodeId": "delay",
+          "path": [
+            "nodes",
+            1,
+            "ports",
+            "success"
+          ]
+        }
+      ],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": null
+  },
+  {
+    "name": "missing_node_success",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "config": {},
+          "bindings": {
+            "durationMs": {
+              "kind": "LITERAL",
+              "value": 1
+            }
+          },
+          "errorPolicy": "ERROR_BRANCH",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e3",
+          "sourceNodeId": "delay",
+          "sourcePort": "error",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "INVALID",
+      "errors": [
+        {
+          "code": "NODE_PORT_EDGE_COUNT_INVALID",
+          "message": "Node port must have exactly one outgoing edge",
+          "nodeId": "delay",
+          "path": [
+            "nodes",
+            1,
+            "ports",
+            "success"
+          ]
+        }
+      ],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": null
+  },
+  {
+    "name": "stop_has_error_edge",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "config": {},
+          "bindings": {
+            "durationMs": {
+              "kind": "LITERAL",
+              "value": 1
+            }
+          },
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        },
+        {
+          "id": "e3",
+          "sourceNodeId": "delay",
+          "sourcePort": "error",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "INVALID",
+      "errors": [
+        {
+          "code": "NODE_PORT_EDGE_COUNT_INVALID",
+          "message": "Node port must have exactly one outgoing edge",
+          "nodeId": "delay",
+          "path": [
+            "nodes",
+            1,
+            "ports",
+            "error"
+          ]
+        }
+      ],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": null
+  },
+  {
+    "name": "error_branch_missing_edge",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "config": {},
+          "bindings": {
+            "durationMs": {
+              "kind": "LITERAL",
+              "value": 1
+            }
+          },
+          "errorPolicy": "ERROR_BRANCH",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "INVALID",
+      "errors": [
+        {
+          "code": "NODE_PORT_EDGE_COUNT_INVALID",
+          "message": "Node port must have exactly one outgoing edge",
+          "nodeId": "delay",
+          "path": [
+            "nodes",
+            1,
+            "ports",
+            "error"
+          ]
+        }
+      ],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": null
+  },
+  {
+    "name": "error_branch_duplicate_edge",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "config": {},
+          "bindings": {
+            "durationMs": {
+              "kind": "LITERAL",
+              "value": 1
+            }
+          },
+          "errorPolicy": "ERROR_BRANCH",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        },
+        {
+          "id": "e3",
+          "sourceNodeId": "delay",
+          "sourcePort": "error",
+          "targetNodeId": "end"
+        },
+        {
+          "id": "e4",
+          "sourceNodeId": "delay",
+          "sourcePort": "error",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "INVALID",
+      "errors": [
+        {
+          "code": "NODE_PORT_EDGE_COUNT_INVALID",
+          "message": "Node port must have exactly one outgoing edge",
+          "nodeId": "delay",
+          "path": [
+            "nodes",
+            1,
+            "ports",
+            "error"
+          ]
+        }
+      ],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": null
+  },
+  {
+    "name": "valid_error_branch",
+    "editorGraph": {
+      "schemaVersion": 1,
+      "entryNodeId": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "config": {},
+          "bindings": {
+            "durationMs": {
+              "kind": "LITERAL",
+              "value": 1
+            }
+          },
+          "errorPolicy": "ERROR_BRANCH",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "config": {},
+          "bindings": {},
+          "errorPolicy": "STOP",
+          "editor": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        },
+        {
+          "id": "e3",
+          "sourceNodeId": "delay",
+          "sourcePort": "error",
+          "targetNodeId": "end"
+        }
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "validation": {
+      "status": "VALID",
+      "errors": [],
+      "warnings": [],
+      "truncated": false
+    },
+    "runtimeIr": {
+      "formatVersion": 1,
+      "minimumRuntimeVersion": "0.1.0",
+      "metadata": {
+        "sourceGraphSchemaVersion": 1
+      },
+      "entryNodeId": "start",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "nodes": [
+        {
+          "id": "start",
+          "type": "flow.start",
+          "runtimeHandler": "flow.start",
+          "config": {},
+          "inputs": {},
+          "timeoutMs": 1000,
+          "retryPolicy": {
+            "maxAttempts": 1,
+            "delayMs": 0
+          },
+          "errorPolicy": "STOP"
+        },
+        {
+          "id": "delay",
+          "type": "flow.delay",
+          "runtimeHandler": "flow.delay",
+          "config": {},
+          "inputs": {
+            "durationMs": {
+              "source": "LITERAL",
+              "value": 1
+            }
+          },
+          "timeoutMs": 300000,
+          "retryPolicy": {
+            "maxAttempts": 1,
+            "delayMs": 0
+          },
+          "errorPolicy": "ERROR_BRANCH"
+        },
+        {
+          "id": "end",
+          "type": "flow.end",
+          "runtimeHandler": "flow.end",
+          "config": {},
+          "inputs": {},
+          "timeoutMs": 1000,
+          "retryPolicy": {
+            "maxAttempts": 1,
+            "delayMs": 0
+          },
+          "errorPolicy": "STOP"
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "start",
+          "sourcePort": "success",
+          "targetNodeId": "delay"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "delay",
+          "sourcePort": "success",
+          "targetNodeId": "end"
+        },
+        {
+          "id": "e3",
+          "sourceNodeId": "delay",
+          "sourcePort": "error",
+          "targetNodeId": "end"
+        }
+      ],
+      "requiredCapabilities": []
+    }
+  }
+]

@@ -81,7 +81,7 @@ func decodeNode(raw json.RawMessage, index int, diagnostics *[]validation.Diagno
 		*diagnostics = append(*diagnostics, contractDiagnostic(base))
 		return Node{}, false
 	}
-	unknownFields(object, []string{"id", "type", "config", "bindings", "errorPolicy", "editor"}, base, diagnostics)
+	unknownFields(object, []string{"id", "type", "config", "bindings", "errorPolicy", "editor", "timeoutMs", "retryPolicy"}, base, diagnostics)
 	valid := true
 
 	id, ok := decodeIdentifier(object["id"])
@@ -114,7 +114,34 @@ func decodeNode(raw json.RawMessage, index int, diagnostics *[]validation.Diagno
 		valid = false
 	}
 
-	return Node{ID: id, Type: nodeType, Config: config, Bindings: bindings, ErrorPolicy: policy, Editor: position}, valid
+	timeout := decodeOptionalBoundedInteger(object["timeoutMs"], 1, validation.NodeTimeoutMaxMS, appendPath(base, "timeoutMs"), diagnostics)
+	var retry *RetryPolicy
+	if raw := object["retryPolicy"]; raw != nil {
+		path := appendPath(base, "retryPolicy")
+		if fields, ok := decodeObject(raw); ok {
+			unknownFields(fields, []string{"maxAttempts", "delayMs"}, path, diagnostics)
+			retry = &RetryPolicy{
+				MaxAttempts: decodeOptionalBoundedInteger(fields["maxAttempts"], 1, validation.NodeRetryMaxAttempts, appendPath(path, "maxAttempts"), diagnostics),
+				DelayMS:     decodeOptionalBoundedInteger(fields["delayMs"], 0, validation.NodeRetryMaxDelayMS, appendPath(path, "delayMs"), diagnostics),
+			}
+		} else {
+			*diagnostics = append(*diagnostics, contractDiagnostic(path))
+		}
+	}
+	return Node{ID: id, Type: nodeType, Config: config, Bindings: bindings, ErrorPolicy: policy, Editor: position, TimeoutMS: timeout, RetryPolicy: retry}, valid
+}
+
+func decodeOptionalBoundedInteger(raw json.RawMessage, min, max int64, path validation.Path, diagnostics *[]validation.Diagnostic) *int64 {
+	if raw == nil {
+		return nil
+	}
+	value, ok := decodeFiniteNumber(raw)
+	if !ok || math.Trunc(value) != value || value < float64(min) || value > float64(max) {
+		*diagnostics = append(*diagnostics, contractDiagnostic(path))
+		return nil
+	}
+	result := int64(value)
+	return &result
 }
 
 func decodeEdges(raw json.RawMessage, diagnostics *[]validation.Diagnostic) ([]Edge, bool) {
@@ -208,7 +235,7 @@ func decodeIdentifier(raw json.RawMessage) (string, bool) {
 	if len(raw) == 0 || json.Unmarshal(raw, &value) != nil {
 		return "", false
 	}
-	value = trimJavaScriptWhitespace(value)
+	value = TrimIdentifier(value)
 	return value, value != "" && utf16Length(value) <= validation.EditorGraphIdentifierMaxUTF16
 }
 
@@ -217,7 +244,7 @@ func decodeNodeType(raw json.RawMessage) (string, bool) {
 	if len(raw) == 0 || json.Unmarshal(raw, &value) != nil {
 		return "", false
 	}
-	value = trimJavaScriptWhitespace(value)
+	value = TrimIdentifier(value)
 	return value, len(value) <= validation.NodeTypeMaxLength && nodeTypePattern.MatchString(value)
 }
 
@@ -277,7 +304,7 @@ func appendPath(base validation.Path, segment any) validation.Path {
 	return append(path, segment)
 }
 
-func trimJavaScriptWhitespace(value string) string {
+func TrimIdentifier(value string) string {
 	return strings.TrimFunc(value, func(r rune) bool {
 		return (unicode.IsSpace(r) && r != '\u0085') || r == '\uFEFF'
 	})

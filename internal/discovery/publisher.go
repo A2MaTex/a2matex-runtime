@@ -18,8 +18,9 @@ import (
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
-// Publisher owns the connection file as a supervised lifecycle resource.
+// Publisher hands off credentials to the owner or publishes the standalone connection file.
 type Publisher struct {
+	owner            *Owner
 	listenAddress    string
 	session          *auth.Session
 	resolveDirectory func() (string, error)
@@ -51,11 +52,29 @@ func newPublisher(
 	}
 }
 
+func NewOwnerPublisher(cfg config.Config, session *auth.Session, owner *Owner) *Publisher {
+	publisher := NewPublisher(cfg, session)
+	publisher.owner = owner
+	return publisher
+}
+
+func (p *Publisher) IsManaged() bool {
+	return p.owner != nil
+}
+
 // Start publishes the complete connection document after earlier components
 // have started.
 func (p *Publisher) Start(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	if p.owner != nil {
+		document, err := encodeConnectionDocument(p.listenAddress, p.session)
+		if err != nil {
+			return err
+		}
+		return p.owner.publish(document)
 	}
 
 	// Path resolution is delayed until startup so constructor injection remains

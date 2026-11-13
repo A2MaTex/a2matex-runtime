@@ -12,6 +12,10 @@ import (
 )
 
 func Validate(graph *editorgraph.Graph, registry *Registry) []validation.Diagnostic {
+	return ValidateWithInputs(graph, registry, nil)
+}
+
+func ValidateWithInputs(graph *editorgraph.Graph, registry *Registry, inputs *WorkflowInputs) []validation.Diagnostic {
 	var diagnostics []validation.Diagnostic
 	for index, node := range graph.Nodes {
 		contract, ok := registry.lookup(node.Type)
@@ -61,8 +65,54 @@ func Validate(graph *editorgraph.Graph, registry *Registry) []validation.Diagnos
 			))
 		}
 	}
+	diagnostics = append(diagnostics, validateOrdinaryPortCounts(graph, registry)...)
 	diagnostics = append(diagnostics, validateSwitches(graph, registry)...)
-	return append(diagnostics, validateBindings(graph, registry, nodeByID)...)
+	return append(diagnostics, validateBindings(graph, registry, nodeByID, inputs)...)
+}
+
+func validateOrdinaryPortCounts(graph *editorgraph.Graph, registry *Registry) []validation.Diagnostic {
+	type portCounts struct {
+		success int
+		failure int
+	}
+	outgoing := make(map[string]portCounts, len(graph.Nodes))
+	for _, edge := range graph.Edges {
+		counts := outgoing[edge.SourceNodeID]
+		switch edge.SourcePort {
+		case "success":
+			counts.success++
+		case "error":
+			counts.failure++
+		default:
+			continue
+		}
+		outgoing[edge.SourceNodeID] = counts
+	}
+
+	var diagnostics []validation.Diagnostic
+	for index, node := range graph.Nodes {
+		if _, known := registry.lookup(node.Type); !known || node.Type == "flow.end" || node.Type == switchType {
+			continue
+		}
+		counts := outgoing[node.ID]
+		if counts.success != 1 {
+			diagnostics = append(diagnostics, portCountDiagnostic(node.ID, index, "success"))
+		}
+
+		expectedErrors := 0
+		if node.ErrorPolicy == editorgraph.ErrorPolicyErrorBranch {
+			expectedErrors = 1
+		}
+		if counts.failure != expectedErrors {
+			diagnostics = append(diagnostics, portCountDiagnostic(node.ID, index, "error"))
+		}
+	}
+	return diagnostics
+}
+
+func portCountDiagnostic(nodeID string, index int, port string) validation.Diagnostic {
+	return validation.NewDiagnostic(validation.CodeNodePortEdgeCountInvalid,
+		validation.Path{"nodes", index, "ports", port}, nodeID, "")
 }
 
 func configDiagnostic(nodeID string, nodeIndex int, field string) validation.Diagnostic {

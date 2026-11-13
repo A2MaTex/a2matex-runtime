@@ -75,7 +75,10 @@ func TestValidateReducedConfigSchema(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			graph := &editorgraph.Graph{Nodes: []editorgraph.Node{testContractNode("node", "test.config", test.config)}}
+			graph := &editorgraph.Graph{
+				Nodes: []editorgraph.Node{testContractNode("node", "test.config", test.config)},
+				Edges: []editorgraph.Edge{{ID: "e", SourceNodeID: "node", SourcePort: "success", TargetNodeID: "end"}},
+			}
 			result := validation.BuildResult(Validate(graph, registry), nil)
 			gotFields := make([]string, 0, len(result.Errors))
 			for _, diagnostic := range result.Errors {
@@ -145,8 +148,8 @@ func TestValidateIsDeterministicReadOnlyAndBounded(t *testing.T) {
 	original := deepCopyGraph(t, graph)
 	first := validation.BuildResult(Validate(graph, registry), nil)
 	second := validation.BuildResult(Validate(graph, registry), nil)
-	if first.Status != validation.StatusValid || !reflect.DeepEqual(first, second) {
-		t.Fatalf("near-limit validation was not valid and deterministic: first=%+v second=%+v", first, second)
+	if first.Status != validation.StatusInvalid || !first.Truncated || !reflect.DeepEqual(first, second) {
+		t.Fatalf("near-limit diagnostics were not bounded and deterministic: first=%+v second=%+v", first, second)
 	}
 	if !reflect.DeepEqual(graph, original) {
 		t.Fatal("Validate mutated graph or opaque JSON")

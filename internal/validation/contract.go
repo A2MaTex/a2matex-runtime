@@ -18,6 +18,8 @@ const (
 type Code string
 
 const (
+	CodeWorkflowInputSchemaInvalid    Code = "WORKFLOW_INPUT_SCHEMA_INVALID"
+	CodeRuntimeIRPayloadTooLarge      Code = "RUNTIME_IR_PAYLOAD_TOO_LARGE"
 	CodeEditorGraphContractInvalid    Code = "EDITOR_GRAPH_CONTRACT_INVALID"
 	CodeGraphSchemaVersionUnsupported Code = "GRAPH_SCHEMA_VERSION_UNSUPPORTED"
 	CodeNodeIDDuplicated              Code = "NODE_ID_DUPLICATED"
@@ -36,12 +38,16 @@ const (
 	CodeNodeErrorPolicyInvalid        Code = "NODE_ERROR_POLICY_INVALID"
 	CodeNodeBindingsInvalid           Code = "NODE_BINDINGS_INVALID"
 	CodeNodeValueBindingInvalid       Code = "NODE_VALUE_BINDING_INVALID"
+	CodeNodePortEdgeCountInvalid      Code = "NODE_PORT_EDGE_COUNT_INVALID"
 	CodeSwitchPortEdgeCountInvalid    Code = "SWITCH_PORT_EDGE_COUNT_INVALID"
 	CodeGraphNodeLimitExceeded        Code = "GRAPH_NODE_LIMIT_EXCEEDED"
 	CodeGraphEdgeLimitExceeded        Code = "GRAPH_EDGE_LIMIT_EXCEEDED"
 )
 
 const (
+	NodeTimeoutMaxMS              = 600_000
+	NodeRetryMaxAttempts          = 3
+	NodeRetryMaxDelayMS           = 60_000
 	EditorGraphSchemaVersion      = 1
 	EditorGraphMaxContentBytes    = constants.EditorGraphMaxContentBytes
 	EditorGraphMaxNodes           = 500
@@ -52,6 +58,8 @@ const (
 )
 
 var messages = map[Code]string{
+	CodeWorkflowInputSchemaInvalid:    "Workflow input schema does not match the required contract",
+	CodeRuntimeIRPayloadTooLarge:      "Compiled Runtime IR exceeds the maximum content size",
 	CodeEditorGraphContractInvalid:    "Editor Graph does not match the required contract",
 	CodeGraphSchemaVersionUnsupported: "Editor Graph schema version is not supported",
 	CodeNodeIDDuplicated:              "Node ID must be unique",
@@ -70,6 +78,7 @@ var messages = map[Code]string{
 	CodeNodeErrorPolicyInvalid:        "Node error policy is not supported by its definition",
 	CodeNodeBindingsInvalid:           "Node bindings do not match the selected targeting mode",
 	CodeNodeValueBindingInvalid:       "Node input binding is invalid or its source is unavailable",
+	CodeNodePortEdgeCountInvalid:      "Node port must have exactly one outgoing edge",
 	CodeSwitchPortEdgeCountInvalid:    "Switch port must have exactly one outgoing edge",
 	CodeGraphNodeLimitExceeded:        "Graph exceeds the maximum node count",
 	CodeGraphEdgeLimitExceeded:        "Graph exceeds the maximum edge count",

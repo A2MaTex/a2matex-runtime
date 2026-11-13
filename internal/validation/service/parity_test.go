@@ -366,6 +366,7 @@ func TestBackendReferenceNodeContractParity(t *testing.T) {
 		got := validation.BuildResult(nodecontract.Validate(graph, registry), nil)
 		want := invalid(
 			d(validation.CodeEdgeSourcePortNotFound, validation.Path{"edges", 0, "sourcePort"}, "start_01", "edge_01"),
+			d(validation.CodeNodePortEdgeCountInvalid, validation.Path{"nodes", 0, "ports", "success"}, "start_01", ""),
 			d(validation.CodeNodeTypeNotActive, validation.Path{"nodes", 1, "type"}, "end_01", ""),
 		)
 		assertFunctionalResult(t, got, want)
@@ -404,6 +405,8 @@ func TestBackendReferenceNodeContractParity(t *testing.T) {
 			graph := fixtureGraph(t, "valid-minimal.json")
 			configured := editorgraph.Node{ID: "configured_01", Type: "test.config", Config: rawObject(t, test.value), Bindings: object(), ErrorPolicy: editorgraph.ErrorPolicyStop}
 			graph.Nodes = append(graph.Nodes[:1], append([]editorgraph.Node{configured}, graph.Nodes[1:]...)...)
+			graph.Edges[0].TargetNodeID = configured.ID
+			graph.Edges = append(graph.Edges, editorgraph.Edge{ID: "edge_configured", SourceNodeID: configured.ID, SourcePort: "success", TargetNodeID: "end_01"})
 			registry := registry(t, []nodecontract.Contract{emptyContract("flow.start", "success"), emptyContract("flow.end"), configContract})
 			got := validation.BuildResult(nodecontract.Validate(graph, registry), nil)
 			want := invalid(d(validation.CodeNodeConfigInvalid, validation.Path{"nodes", 1, "config", test.field}, "configured_01", ""))

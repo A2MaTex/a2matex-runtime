@@ -14,3 +14,5 @@ var (
 	ErrCheckpointStopped      = errors.New("execution checkpoint service stopped")
 	ErrRecoveryIntegrity      = errors.New("inconsistent execution state during startup recovery")
 )
+
+var ErrExecutionStoreInUse = errors.New("execution store lock unavailable")

@@ -63,9 +63,12 @@ func TestDefaultRegistryContainsApprovedContracts(t *testing.T) {
 			wantConfigErrors = 1
 			wantBindingErrors = 1
 		case waitVariableType:
-			wantConfigErrors = 2
+			wantConfigErrors = 1
+		case "flow.delay", "utility.log", "android.launch_app", "android.input_text":
+			wantBindingErrors = 1
 		}
-		if diagnostics := Validate(empty, registry); len(diagnostics) != wantConfigErrors+wantBindingErrors {
+		if diagnostics := Validate(empty, registry); countValidationCode(diagnostics, validation.CodeNodeConfigInvalid) != wantConfigErrors ||
+			countValidationCode(diagnostics, validation.CodeNodeValueBindingInvalid) != wantBindingErrors {
 			t.Fatalf("contract %q empty config diagnostics: %+v", nodeType, diagnostics)
 		}
 		configured := &editorgraph.Graph{Nodes: []editorgraph.Node{testContractNode("node", nodeType, map[string]any{"unexpected": true})}}

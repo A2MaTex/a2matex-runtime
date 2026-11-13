@@ -2,10 +2,13 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -265,6 +268,118 @@ func TestWorkflowValidationRouterIntegration(t *testing.T) {
 	router.ServeHTTP(unsupportedResponse, unsupported)
 	if unsupportedResponse.Code != http.StatusNotFound || unsupportedResponse.Body.String() != notFoundBody {
 		t.Fatalf("unsupported method status=%d body=%s", unsupportedResponse.Code, unsupportedResponse.Body.String())
+	}
+}
+
+func TestWorkflowCompilationRoute(t *testing.T) {
+	t.Parallel()
+	const schema = `{"type":"object","properties":{},"required":[],"additionalProperties":false}`
+	const graph = `{"schemaVersion":1,"entryNodeId":"start","nodes":[{"id":"start","type":"flow.start","config":{},"bindings":{},"errorPolicy":"STOP","editor":{"x":0,"y":0}},{"id":"end","type":"flow.end","config":{},"bindings":{},"errorPolicy":"STOP","editor":{"x":0,"y":0}}],"edges":[{"id":"e1","sourceNodeId":"start","sourcePort":"success","targetNodeId":"end"}]}`
+	body := `{"editorGraph":` + graph + `,"inputSchema":` + schema + `}`
+	cases := []struct {
+		name, body, auth string
+		status           int
+		hasIR            bool
+	}{
+		{"valid", body, validAuthorization, http.StatusOK, true},
+		{"unauthenticated", body, "", http.StatusUnauthorized, false},
+		{"unknown field", strings.TrimSuffix(body, "}") + `,"projectId":"private"}`, validAuthorization, http.StatusBadRequest, false},
+		{"duplicate field", strings.TrimSuffix(body, "}") + `,"inputSchema":{}` + "}", validAuthorization, http.StatusBadRequest, false},
+		{"missing schema", `{"editorGraph":{}}`, validAuthorization, http.StatusBadRequest, false},
+		{"invalid source", `{"editorGraph":{},"inputSchema":` + schema + `}`, validAuthorization, http.StatusOK, false},
+		{"oversize graph", `{"editorGraph":{"padding":"` + strings.Repeat("a", constants.EditorGraphMaxContentBytes) + `"},"inputSchema":` + schema + `}`, validAuthorization, http.StatusRequestEntityTooLarge, false},
+		{"oversize envelope", strings.Repeat(" ", constants.LocalAPIWorkflowCompilationBodyMaxBytes) + body, validAuthorization, http.StatusRequestEntityTooLarge, false},
+	}
+	router := newTestRouter(io.Discard)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, localAPIBasePath+"/workflow-compilation", strings.NewReader(tc.body))
+			request.Header.Set("Content-Type", "application/json")
+			if tc.auth != "" {
+				request.Header.Set("Authorization", tc.auth)
+			}
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d want=%d body=%s", response.Code, tc.status, response.Body)
+			}
+			if tc.status == http.StatusOK {
+				var result validationservice.CompilationResult
+				if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+					t.Fatal(err)
+				}
+				if len(result.RuntimeIR) == 0 || (string(result.RuntimeIR) != "null") != tc.hasIR {
+					t.Fatalf("unexpected runtimeIr: %s", result.RuntimeIR)
+				}
+			}
+		})
+	}
+}
+
+func TestWorkflowPortCountParity(t *testing.T) {
+	t.Parallel()
+	contents, err := os.ReadFile("../validation/testdata/port-edge-parity.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name        string
+		EditorGraph json.RawMessage
+		InputSchema json.RawMessage
+		Validation  json.RawMessage
+		RuntimeIR   json.RawMessage
+	}
+	if err := json.Unmarshal(contents, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases) == 0 {
+		t.Fatal("empty port parity fixture")
+	}
+
+	router := newTestRouter(io.Discard)
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			for _, operation := range []struct {
+				path     string
+				body     map[string]json.RawMessage
+				expected json.RawMessage
+			}{
+				{"/workflow-validation", map[string]json.RawMessage{"editorGraph": tc.EditorGraph}, tc.Validation},
+				{"/workflow-compilation", map[string]json.RawMessage{"editorGraph": tc.EditorGraph, "inputSchema": tc.InputSchema}, nil},
+			} {
+				t.Run(operation.path[1:], func(t *testing.T) {
+					body, err := json.Marshal(operation.body)
+					if err != nil {
+						t.Fatal(err)
+					}
+					request := httptest.NewRequest(http.MethodPost, localAPIBasePath+operation.path, bytes.NewReader(body))
+					request.Header.Set("Authorization", validAuthorization)
+					request.Header.Set("Content-Type", "application/json")
+					response := httptest.NewRecorder()
+					router.ServeHTTP(response, request)
+					if response.Code != http.StatusOK {
+						t.Fatalf("status=%d body=%s", response.Code, response.Body)
+					}
+					var actual, expected any
+					if err := json.Unmarshal(response.Body.Bytes(), &actual); err != nil {
+						t.Fatal(err)
+					}
+					expectedJSON := operation.expected
+					if expectedJSON == nil {
+						expectedJSON, err = json.Marshal(map[string]json.RawMessage{"validation": tc.Validation, "runtimeIr": tc.RuntimeIR})
+						if err != nil {
+							t.Fatal(err)
+						}
+					}
+					if err := json.Unmarshal(expectedJSON, &expected); err != nil {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(actual, expected) {
+						t.Fatalf("got %s, want %s", response.Body, expectedJSON)
+					}
+				})
+			}
+		})
 	}
 }
 
