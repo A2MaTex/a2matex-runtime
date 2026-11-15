@@ -33,6 +33,7 @@ func OpenOwner(commandHandle, readyHandle uintptr) (*Owner, error) {
 		}
 		return nil, errors.New("managed launch requires valid inherited pipes")
 	}
+	preventOwnerPipeInheritance(commands, ready)
 	return &Owner{commands: commands, ready: ready}, nil
 }
 

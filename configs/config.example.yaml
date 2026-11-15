@@ -10,3 +10,7 @@ http:
 logging:
   level: info
   format: json
+
+adb:
+  executable_path: ""
+  allow_path_fallback: false

@@ -33,6 +33,7 @@ const (
 )
 
 type Config struct {
+	ADB             ADBConfig     `mapstructure:"adb"`
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
 	HTTP            HTTPConfig    `mapstructure:"http"`
 	Logging         LoggingConfig `mapstructure:"logging"`
@@ -60,11 +61,18 @@ type Overrides struct {
 func Load(overrides Overrides) (Config, error) {
 	loader := viper.New()
 	setDefaults(loader)
-	configureEnvironment(loader)
 
 	if err := readConfigFile(loader, overrides.ConfigFile); err != nil {
 		return Config{}, err
 	}
+
+	if _, ok := loader.Get("adb.executable_path").(string); !ok {
+		return Config{}, fmt.Errorf("adb.executable_path must be a string")
+	}
+	if _, ok := loader.Get("adb.allow_path_fallback").(bool); !ok {
+		return Config{}, fmt.Errorf("adb.allow_path_fallback must be a boolean")
+	}
+	configureEnvironment(loader)
 
 	if overrides.ListenAddress != "" {
 		loader.Set("http.listen_address", overrides.ListenAddress)
@@ -87,6 +95,8 @@ func Load(overrides Overrides) (Config, error) {
 }
 
 func setDefaults(loader *viper.Viper) {
+	loader.SetDefault("adb.executable_path", "")
+	loader.SetDefault("adb.allow_path_fallback", false)
 	loader.SetDefault("shutdown_timeout", defaultShutdownTimeout)
 	loader.SetDefault("http.listen_address", defaultListenAddress)
 	loader.SetDefault("http.read_header_timeout", defaultReadHeaderTimeout)
@@ -122,6 +132,9 @@ func (c *Config) normalize() {
 }
 
 func (c Config) Validate() error {
+	if err := c.ADB.Validate(); err != nil {
+		return err
+	}
 	address, err := netip.ParseAddrPort(c.HTTP.ListenAddress)
 	if err != nil {
 		return fmt.Errorf("http.listen_address must be an IP address and port: %w", err)
