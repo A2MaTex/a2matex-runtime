@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/foundation"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
@@ -18,17 +19,19 @@ func NewHandler(
 	info buildinfo.Info,
 	verifier middleware.AuthorizationVerifier,
 	workflowValidation *workflowvalidation.Handler,
+	deviceInventory *devices.Handler,
 	logger *slog.Logger,
 ) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 
-	return newRouter(info, verifier, workflowValidation, logger)
+	return newRouter(info, verifier, workflowValidation, deviceInventory, logger)
 }
 
 func newRouter(
 	info buildinfo.Info,
 	verifier middleware.AuthorizationVerifier,
 	workflowValidation *workflowvalidation.Handler,
+	deviceInventory *devices.Handler,
 	logger *slog.Logger,
 ) *gin.Engine {
 	router := gin.New()
@@ -47,6 +50,8 @@ func newRouter(
 		v1.GET("/runtime-info", foundation.RuntimeInfo(info))
 		v1.POST("/workflow-validation", workflowValidation.Validate)
 		v1.POST("/workflow-compilation", workflowValidation.Compile)
+		v1.GET("/devices", deviceInventory.Snapshot)
+		v1.POST("/devices/refresh", deviceInventory.Refresh)
 		router.NoRoute(foundation.NotFound)
 	}
 

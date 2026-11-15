@@ -14,8 +14,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
+	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	validationservice "github.com/A2MaTex/a2matex-runtime/internal/validation/service"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
@@ -408,6 +410,10 @@ func TestRecoveryUsesAPIErrorContract(t *testing.T) {
 }
 
 func newTestRouter(output io.Writer) *gin.Engine {
+	return newTestRouterWithInventory(output, services.NewDeviceInventory(&inventorySource{}))
+}
+
+func newTestRouterWithInventory(output io.Writer, inventory devices.Inventory) *gin.Engine {
 	logger := slog.New(slog.NewJSONHandler(output, nil))
 	info := buildinfo.Info{Version: "1.2.3"}
 	registry, err := nodecontract.NewDefaultRegistry()
@@ -416,5 +422,5 @@ func newTestRouter(output io.Writer) *gin.Engine {
 	}
 	workflowValidation := workflowvalidation.NewHandler(validationservice.New(registry))
 
-	return newRouter(info, exactAuthorizationVerifier{}, workflowValidation, logger)
+	return newRouter(info, exactAuthorizationVerifier{}, workflowValidation, devices.NewHandler(inventory), logger)
 }

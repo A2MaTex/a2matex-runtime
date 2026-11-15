@@ -75,7 +75,7 @@ func parseDeviceList(stdout []byte) ([]Endpoint, error) {
 		}
 
 		serial, rest, ok := splitDeviceField(line)
-		if !ok || line == deviceListHeader || strings.ContainsFunc(serial, invalidSerialRune) {
+		if !ok || line == deviceListHeader || !ValidSerial(serial) {
 			return nil, fmt.Errorf("%w: malformed device row", xerror.ErrADBDiscovery)
 		}
 		// "no permissions" starts with "no", which maps to the same
@@ -108,8 +108,11 @@ func splitDeviceField(line string) (field, rest string, separated bool) {
 	return line[:index], strings.TrimLeft(line[index+1:], " \t"), true
 }
 
-func invalidSerialRune(r rune) bool {
-	return unicode.IsControl(r) || unicode.IsSpace(r)
+// ValidSerial checks the token shape shared by discovery and device selection.
+func ValidSerial(serial string) bool {
+	return serial != "" && utf8.ValidString(serial) && !strings.ContainsFunc(serial, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.IsSpace(r)
+	})
 }
 
 func invalidStateRune(r rune) bool {

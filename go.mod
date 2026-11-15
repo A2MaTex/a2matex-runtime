@@ -8,6 +8,7 @@ require (
 	github.com/google/wire v0.7.0
 	github.com/pressly/goose/v3 v3.22.1
 	github.com/spf13/viper v1.19.0
+	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.42.0
 	modernc.org/sqlite v1.49.1
 )
@@ -57,7 +58,6 @@ require (
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/net v0.50.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect

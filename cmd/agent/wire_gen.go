@@ -8,12 +8,14 @@ package main
 
 import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
 	"github.com/A2MaTex/a2matex-runtime/internal/config"
 	"github.com/A2MaTex/a2matex-runtime/internal/discovery"
 	"github.com/A2MaTex/a2matex-runtime/internal/logging"
+	"github.com/A2MaTex/a2matex-runtime/internal/platform/adb"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/httpserver"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
 	"github.com/A2MaTex/a2matex-runtime/internal/repositories"
@@ -36,11 +38,15 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	}
 	serviceService := service.New(registry)
 	handler := workflowvalidation.NewHandler(serviceService)
+	adbConfig := cfg.ADB
+	resolver := adb.NewResolver(adbConfig)
+	deviceInventory := services.NewDeviceInventory(resolver)
+	devicesHandler := devices.NewHandler(deviceInventory)
 	logger, err := logging.New(cfg)
 	if err != nil {
 		return nil, err
 	}
-	httpHandler := api.NewHandler(info, session, handler, logger)
+	httpHandler := api.NewHandler(info, session, handler, devicesHandler, logger)
 	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewOwnerPublisher(cfg, session, owner)
 	store := sqlitestore.New()

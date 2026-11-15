@@ -6,6 +6,7 @@ import (
 	"github.com/google/wire"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/api"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
@@ -14,6 +15,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/discovery"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
 	"github.com/A2MaTex/a2matex-runtime/internal/logging"
+	"github.com/A2MaTex/a2matex-runtime/internal/platform/adb"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/httpserver"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
 	"github.com/A2MaTex/a2matex-runtime/internal/repositories"
@@ -33,6 +35,12 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		nodecontract.NewDefaultRegistry,
 		validationservice.New,
 		workflowvalidation.NewHandler,
+		wire.FieldsOf(new(config.Config), "ADB"),
+		adb.NewResolver,
+		wire.Bind(new(services.DeviceInventorySource), new(*adb.Resolver)),
+		services.NewDeviceInventory,
+		wire.Bind(new(devices.Inventory), new(*services.DeviceInventory)),
+		devices.NewHandler,
 		api.NewHandler,
 		wire.Bind(new(middleware.AuthorizationVerifier), new(*auth.Session)),
 		httpserver.New,

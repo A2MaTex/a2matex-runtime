@@ -15,10 +15,15 @@ const (
 	APIErrorCodeResourceNotFound = "RESOURCE_NOT_FOUND"
 	APIErrorCodePayloadTooLarge  = "PAYLOAD_TOO_LARGE"
 	APIErrorCodeInternal         = "INTERNAL_ERROR"
+	APIErrorCodeADBUnavailable   = "ADB_UNAVAILABLE"
 
 	APIErrorMessageInvalidRequest   = "request is invalid"
 	APIErrorMessageUnauthorized     = "local session token is missing or invalid"
 	APIErrorMessageResourceNotFound = "resource was not found"
 	APIErrorMessagePayloadTooLarge  = "request payload is too large"
 	APIErrorMessageInternal         = "internal server error"
+	APIErrorMessageADBUnavailable   = "unable to refresh Android devices"
+
+	APIDeviceStatusReady       = "READY"
+	APIDeviceStatusUnavailable = "UNAVAILABLE"
 )
