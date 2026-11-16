@@ -34,15 +34,15 @@ func (d *Dispatcher) readHierarchy(ctx context.Context, serial string) ([]byte, 
 	directory := "/data/local/tmp/a2matex-" + rand.Text()
 	filename := directory + "/window.xml"
 	limit := constants.ProcessOutputLimitBytes
-	if _, err := d.runDevice(ctx, serial, []string{"shell", "-T", "mkdir", "-m", "700", directory}, limit); err != nil {
+	if _, err := d.runDevice(ctx, serial, []string{"shell", "-T", "mkdir", "-m", "700", directory}, limit, 0); err != nil {
 		return nil, err
 	}
 	defer d.removeHierarchy(ctx, serial, directory, filename)
-	if _, err := d.runDevice(ctx, serial, []string{"shell", "-T", "uiautomator", "dump", filename}, limit); err != nil {
+	if _, err := d.runDevice(ctx, serial, []string{"shell", "-T", "uiautomator", "dump", filename}, limit, 0); err != nil {
 		return nil, err
 	}
 	// exec-out keeps XML bytes intact. Only the generated path reaches the shell.
-	result, err := d.runDevice(ctx, serial, []string{"exec-out", "cat", filename}, constants.AndroidHierarchyMaxBytes)
+	result, err := d.runDevice(ctx, serial, []string{"exec-out", "cat", filename}, constants.AndroidHierarchyMaxBytes, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -59,8 +59,8 @@ func (d *Dispatcher) removeHierarchy(ctx context.Context, serial, directory, fil
 	ctx, cancel := context.WithTimeout(ctx, constants.AndroidHierarchyCleanup)
 	defer cancel()
 	limit := constants.ProcessOutputLimitBytes
-	_, _ = d.runDevice(ctx, serial, []string{"shell", "-T", "rm", "-f", filename}, limit)
-	_, _ = d.runDevice(ctx, serial, []string{"shell", "-T", "rmdir", directory}, limit)
+	_, _ = d.runDevice(ctx, serial, []string{"shell", "-T", "rm", "-f", filename}, limit, 0)
+	_, _ = d.runDevice(ctx, serial, []string{"shell", "-T", "rmdir", directory}, limit, 0)
 }
 
 func hierarchyError(message string) error {

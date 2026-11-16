@@ -3,9 +3,9 @@ package tap
 import (
 	"context"
 	"encoding/json"
-	"math"
 	"regexp"
 
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/targeting"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/adb"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
@@ -68,7 +68,7 @@ func (h *Tap) resolvePoint(ctx context.Context, serial, mode string, inputs map[
 			if size.Width <= 0 || size.Height <= 0 {
 				return adb.TapCommand{}, xerror.CommandError{Code: constants.CommandFailed, Message: "cannot determine the current default display size"}
 			}
-			return adb.TapCommand{X: percentPixel(point.X, size.Width), Y: percentPixel(point.Y, size.Height)}, nil
+			return adb.TapCommand{X: targeting.PercentPixel(point.X, size.Width), Y: targeting.PercentPixel(point.Y, size.Height)}, nil
 		}
 	case constants.AndroidTargetSelector:
 		var id string
@@ -83,21 +83,7 @@ func readPoint(inputs map[string]json.RawMessage, xKey, yKey string, limit int) 
 	if len(inputs) != 2 {
 		return adb.TapCommand{}, false
 	}
-	x, validX := readCoordinate(inputs[xKey], limit)
-	y, validY := readCoordinate(inputs[yKey], limit)
+	x, validX := targeting.ReadInteger(inputs[xKey], 0, limit)
+	y, validY := targeting.ReadInteger(inputs[yKey], 0, limit)
 	return adb.TapCommand{X: x, Y: y}, validX && validY
-}
-
-func readCoordinate(raw json.RawMessage, limit int) (int, bool) {
-	var value *float64
-	if json.Unmarshal(raw, &value) != nil || value == nil ||
-		*value < 0 || *value > float64(limit) || math.Trunc(*value) != *value {
-		return 0, false
-	}
-	return int(*value), true
-}
-
-func percentPixel(percent, dimension int) int {
-	const scale = constants.MaxAndroidScreenPercent
-	return int((int64(percent)*int64(dimension-1) + scale/2) / scale)
 }

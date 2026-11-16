@@ -18,6 +18,7 @@ const (
 const (
 	MaxAndroidPixelCoordinate = 100_000
 	MaxAndroidScreenPercent   = 100
+	MaxAndroidSwipeDurationMS = 60_000
 	AndroidHierarchyMaxBytes  = 1 << 20
 	AndroidHierarchyCleanup   = time.Second
 

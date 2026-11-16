@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/config"
@@ -14,6 +16,70 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
+
+func TestSwipeBudgetCheckedAfterToolchainResolution(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		budget   time.Duration
+		wantExit bool
+	}{
+		{"still enough time", 501 * time.Millisecond, true},
+		{"duration equals remaining budget", 500 * time.Millisecond, false},
+		{"duration exceeds remaining budget", 450 * time.Millisecond, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			binary := filepath.Join(t.TempDir(), executableName())
+			if err := os.WriteFile(binary, nil, 0700); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Test(t, func(t *testing.T) {
+				resolver := NewResolver(config.ADBConfig{ExecutablePath: binary})
+				versionCalls, swipes := 0, 0
+				resolver.run = func(_ context.Context, _ string, args []string, _ time.Duration) processrunner.Result {
+					code := 0
+					if reflect.DeepEqual(args, []string{"version"}) {
+						versionCalls++
+						time.Sleep(200 * time.Millisecond)
+						return processrunner.Result{Outcome: processrunner.Succeeded, ExitCode: &code, Stdout: []byte("Android Debug Bridge version 1.0.41\n")}
+					}
+					swipes++
+					return processrunner.Result{Outcome: processrunner.Succeeded, ExitCode: &code}
+				}
+				ctx, cancel := context.WithTimeout(t.Context(), test.budget)
+				defer cancel()
+				err := NewDispatcher(resolver).Dispatch(ctx, "emulator-5554", SwipeCommand{DurationMS: 300})
+				if versionCalls != 1 {
+					t.Fatalf("version probes = %d, want 1", versionCalls)
+				}
+				if test.wantExit {
+					if err != nil || swipes != 1 {
+						t.Fatalf("error = %v, swipes = %d, want one successful swipe", err, swipes)
+					}
+				} else if !errors.Is(err, context.DeadlineExceeded) || swipes != 0 {
+					t.Fatalf("error = %v, swipes = %d, want deadline failure before dispatch", err, swipes)
+				}
+			})
+		})
+	}
+}
+
+func TestDispatchRejectsInvalidSwipeBeforeResolving(t *testing.T) {
+	resolver := NewResolver(config.ADBConfig{})
+	resolver.executable = func() (string, error) {
+		t.Fatal("invalid command reached ADB resolution")
+		return "", nil
+	}
+	dispatcher := NewDispatcher(resolver)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	for _, command := range []SwipeCommand{
+		{DurationMS: 0},
+		{DurationMS: constants.MaxAndroidSwipeDurationMS + 1},
+		{EndX: -1, DurationMS: 1},
+	} {
+		assertCommandError(t, dispatcher.Dispatch(ctx, "emulator-5554", command), constants.CommandInputUnsupported, false)
+	}
+}
 
 func TestDispatchBindsExactSerial(t *testing.T) {
 	resolver := NewResolver(config.ADBConfig{})

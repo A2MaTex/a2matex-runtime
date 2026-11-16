@@ -24,8 +24,28 @@ type TapCommand struct {
 func (TapCommand) deviceCommand() {}
 
 func (c TapCommand) Valid() bool {
-	return c.X >= 0 && c.X <= constants.MaxAndroidPixelCoordinate &&
-		c.Y >= 0 && c.Y <= constants.MaxAndroidPixelCoordinate
+	return validPixelPoint(c.X, c.Y)
+}
+
+// SwipeCommand carries two resolved Android display points and a gesture duration.
+type SwipeCommand struct {
+	StartX     int
+	StartY     int
+	EndX       int
+	EndY       int
+	DurationMS int
+}
+
+func (SwipeCommand) deviceCommand() {}
+
+func (c SwipeCommand) Valid() bool {
+	return validPixelPoint(c.StartX, c.StartY) && validPixelPoint(c.EndX, c.EndY) &&
+		c.DurationMS > 0 && c.DurationMS <= constants.MaxAndroidSwipeDurationMS
+}
+
+func validPixelPoint(x, y int) bool {
+	return x >= 0 && x <= constants.MaxAndroidPixelCoordinate &&
+		y >= 0 && y <= constants.MaxAndroidPixelCoordinate
 }
 
 // Dispatcher executes a typed command against one selected device.
@@ -42,16 +62,16 @@ func (d *Dispatcher) Dispatch(ctx context.Context, serial string, command Device
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	args, err := commandArgs(command)
+	args, minimumDuration, err := commandArgs(command)
 	if err != nil {
 		return err
 	}
-	_, err = d.runDevice(ctx, serial, args, constants.ProcessOutputLimitBytes)
+	_, err = d.runDevice(ctx, serial, args, constants.ProcessOutputLimitBytes, minimumDuration)
 	return err
 }
 
 // runDevice takes only adapter-built arguments and binds them to the selected device.
-func (d *Dispatcher) runDevice(ctx context.Context, serial string, args []string, stdoutLimit int) (processrunner.Result, error) {
+func (d *Dispatcher) runDevice(ctx context.Context, serial string, args []string, stdoutLimit int, minimumDuration time.Duration) (processrunner.Result, error) {
 	if err := ctx.Err(); err != nil {
 		return processrunner.Result{}, err
 	}
@@ -67,7 +87,7 @@ func (d *Dispatcher) runDevice(ctx context.Context, serial string, args []string
 		return processrunner.Result{}, xerror.CommandError{Code: constants.ADBUnavailable, Message: "ADB is unavailable", Retryable: true}
 	}
 	remaining := time.Until(deadline)
-	if remaining <= 0 {
+	if remaining <= minimumDuration {
 		return processrunner.Result{}, context.DeadlineExceeded
 	}
 
@@ -81,15 +101,23 @@ func (d *Dispatcher) runDevice(ctx context.Context, serial string, args []string
 	return result, dispatchError(result)
 }
 
-func commandArgs(command DeviceCommand) ([]string, error) {
+func commandArgs(command DeviceCommand) ([]string, time.Duration, error) {
 	switch command := command.(type) {
 	case TapCommand:
 		if !command.Valid() {
-			return nil, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "tap coordinates are out of range"}
+			return nil, 0, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "tap coordinates are out of range"}
 		}
-		return []string{"shell", "-T", "input", "tap", strconv.Itoa(command.X), strconv.Itoa(command.Y)}, nil
+		return []string{"shell", "-T", "input", "tap", strconv.Itoa(command.X), strconv.Itoa(command.Y)}, 0, nil
+	case SwipeCommand:
+		if !command.Valid() {
+			return nil, 0, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "swipe coordinates or duration are out of range"}
+		}
+		args := []string{"shell", "-T", "input", "swipe",
+			strconv.Itoa(command.StartX), strconv.Itoa(command.StartY),
+			strconv.Itoa(command.EndX), strconv.Itoa(command.EndY), strconv.Itoa(command.DurationMS)}
+		return args, time.Duration(command.DurationMS) * time.Millisecond, nil
 	default:
-		return nil, xerror.CommandError{Code: constants.InternalError, Message: "device command has no adapter"}
+		return nil, 0, xerror.CommandError{Code: constants.InternalError, Message: "device command has no adapter"}
 	}
 }
 

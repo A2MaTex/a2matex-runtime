@@ -16,8 +16,7 @@ const (
 	selectorID      = constants.AndroidTargetSelector
 	longPress       = "android.long_press"
 
-	maxSwipeDurationMS = 60_000
-	maxSafeInteger     = 9_007_199_254_740_991
+	maxSafeInteger = 9_007_199_254_740_991
 )
 
 var targetingInputs = newTargetingInputs()
@@ -30,7 +29,7 @@ func newTargetingInputs() map[string]map[string]map[string]compiledField {
 	}
 	pixel := integer(0, constants.MaxAndroidPixelCoordinate)
 	percent := integer(0, constants.MaxAndroidScreenPercent)
-	swipeDuration := integer(1, maxSwipeDurationMS)
+	swipeDuration := integer(1, constants.MaxAndroidSwipeDurationMS)
 	holdDuration := integer(1, maxSafeInteger)
 
 	selector := compiledField{

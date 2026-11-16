@@ -15,7 +15,7 @@ type DisplaySize struct {
 
 // DefaultDisplaySize reads the current logical size rather than the base size.
 func (d *Dispatcher) DefaultDisplaySize(ctx context.Context, serial string) (DisplaySize, error) {
-	result, err := d.runDevice(ctx, serial, []string{"shell", "-T", "dumpsys", "window", "displays"}, constants.ProcessOutputLimitBytes)
+	result, err := d.runDevice(ctx, serial, []string{"shell", "-T", "dumpsys", "window", "displays"}, constants.ProcessOutputLimitBytes, 0)
 	if err != nil {
 		return DisplaySize{}, err
 	}
