@@ -11,64 +11,6 @@ import (
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
-// DeviceCommand is an internal A4 command with no device or executable fields.
-type DeviceCommand interface {
-	deviceCommand()
-}
-
-// TapCommand carries resolved Android display coordinates.
-type TapCommand struct {
-	X int
-	Y int
-}
-
-func (TapCommand) deviceCommand() {}
-
-func (c TapCommand) Valid() bool {
-	return validPixelPoint(c.X, c.Y)
-}
-
-// SwipeCommand carries two resolved Android display points and a gesture duration.
-type SwipeCommand struct {
-	StartX     int
-	StartY     int
-	EndX       int
-	EndY       int
-	DurationMS int
-}
-
-func (SwipeCommand) deviceCommand() {}
-
-func (c SwipeCommand) Valid() bool {
-	return validPixelPoint(c.StartX, c.StartY) && validPixelPoint(c.EndX, c.EndY) &&
-		c.DurationMS > 0 && c.DurationMS <= constants.MaxAndroidSwipeDurationMS
-}
-
-// LongPressCommand holds one resolved Android display point for a fixed duration.
-type LongPressCommand struct {
-	X          int
-	Y          int
-	DurationMS int
-}
-
-func (LongPressCommand) deviceCommand() {}
-
-func (c LongPressCommand) Valid() bool {
-	return validPixelPoint(c.X, c.Y) && c.DurationMS > 0 && c.DurationMS <= constants.MaxAndroidLongPressDurationMS
-}
-
-// PressBackCommand and PressHomeCommand select fixed Android navigation keys.
-type PressBackCommand struct{}
-type PressHomeCommand struct{}
-
-func (PressBackCommand) deviceCommand() {}
-func (PressHomeCommand) deviceCommand() {}
-
-func validPixelPoint(x, y int) bool {
-	return x >= 0 && x <= constants.MaxAndroidPixelCoordinate &&
-		y >= 0 && y <= constants.MaxAndroidPixelCoordinate
-}
-
 // Dispatcher executes a typed command against one selected device.
 type Dispatcher struct {
 	resolver *Resolver
@@ -87,8 +29,21 @@ func (d *Dispatcher) Dispatch(ctx context.Context, serial string, command Device
 	if err != nil {
 		return xerror.WithOperation("validate_command", err)
 	}
-	_, err = d.runDevice(ctx, serial, "dispatch_command", args, constants.ProcessOutputLimitBytes, minimumDuration)
-	return err
+	result, err := d.runDevice(ctx, serial, "dispatch_command", args, constants.ProcessOutputLimitBytes, minimumDuration)
+	if err != nil {
+		return err
+	}
+	// fmt.Printf("stdout: %s\n", result.Stdout)
+	// fmt.Printf("stderr: %s\n", result.Stderr)
+	// fmt.Printf("outcome: %d\n", result.Outcome)
+	if launch, ok := command.(LaunchAppCommand); ok {
+		err := parseLaunchResult(launch.PackageName, result)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return xerror.WithOperation("parse_launch_result", ctxErr)
+		}
+		return err
+	}
+	return nil
 }
 
 // runDevice takes only adapter-built arguments and binds them to the selected device.
@@ -167,6 +122,11 @@ func commandArgs(command DeviceCommand) ([]string, time.Duration, error) {
 		return []string{"shell", "-T", "input", "keyevent", "KEYCODE_BACK"}, 0, nil
 	case PressHomeCommand:
 		return []string{"shell", "-T", "input", "keyevent", "KEYCODE_HOME"}, 0, nil
+	case LaunchAppCommand:
+		if !command.Valid() {
+			return nil, 0, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "invalid Android package name"}
+		}
+		return launchArgs(command.PackageName), 0, nil
 	default:
 		return nil, 0, xerror.CommandError{Code: constants.InternalError, Message: "device command has no adapter"}
 	}

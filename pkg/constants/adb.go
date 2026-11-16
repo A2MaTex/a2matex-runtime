@@ -31,6 +31,14 @@ const (
 	CommandInputUnsupported = "COMMAND_INPUT_UNSUPPORTED"
 	CommandStartFailed      = "COMMAND_START_FAILED"
 	CommandFailed           = "COMMAND_FAILED"
+	CommandTimedOut         = "COMMAND_TIMED_OUT"
+)
+
+// Android package-name bounds match the installed Launch App catalog definition.
+const (
+	MinAndroidPackageNameLength = 3
+	MaxAndroidPackageNameLength = 255
+	AndroidPackageNamePattern   = `^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$`
 )
 
 // AndroidSelectorIDPattern follows the Backend's ECMAScript whitespace rule.

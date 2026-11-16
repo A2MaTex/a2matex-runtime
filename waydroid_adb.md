@@ -6,7 +6,7 @@ Run this once per terminal. Replace `YOUR_IP:5555` with the exact serial from `d
 ADB="$HOME/Documents/platform-tools/adb"
 "$ADB" devices -l
 
-SERIAL="YOUR_IP:5555"
+SERIAL="ANDROID_IP:5555"
 ad() { "$ADB" -s "$SERIAL" "$@"; }
 ```
 

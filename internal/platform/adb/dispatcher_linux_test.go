@@ -17,8 +17,15 @@ if [ "$#" -eq 1 ] && [ "$1" = version ]; then
     printf 'Android Debug Bridge version 1.0.41\n'
     exit 0
 fi
-[ "$1" = -s ] && [ "$2" = '192.0.2.5:5555' ] &&
-    [ "$3" = shell ] && [ "$4" = -T ] && [ "$5" = input ] || exit 1
+[ "$1" = -s ] && [ "$2" = '192.0.2.5:5555' ] && [ "$3" = shell ] && [ "$4" = -T ] || exit 1
+if [ "$5" = am ]; then
+    shift 4
+    [ "$#" -eq 11 ] &&
+        [ "$*" = 'am start -W --user current -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.example.app' ] || exit 1
+    printf 'Status: ok\nActivity: com.example.app/.MainActivity\nComplete\n'
+    exit 0
+fi
+[ "$5" = input ] || exit 1
 shift 5
 case "$1" in
     tap) [ "$#" -eq 3 ] && [ "$2" = 25 ] && [ "$3" = 90 ] ;;
@@ -47,5 +54,8 @@ esac
 		if err := dispatcher.Dispatch(ctx, "192.0.2.5:5555", command); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := dispatcher.Dispatch(ctx, "192.0.2.5:5555", LaunchAppCommand{PackageName: "com.example.app"}); err != nil {
+		t.Fatal(err)
 	}
 }
