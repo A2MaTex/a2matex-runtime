@@ -29,21 +29,21 @@ func (s *ExecutionRecovery) Start(ctx context.Context) error {
 	err := s.repository.WithRecoveryTx(ctx, func(tx execution.RecoveryTx) error {
 		state, err := tx.ReadRecoveryState(ctx)
 		if err != nil {
-			return err
+			return xerror.WithOperation("read_recovery_state", err)
 		}
 		var events []execution.PendingEvent
 		recovery, events, err = recoveryPlan(state, time.Now().UTC())
 		if err != nil || recovery.RunGroupID == "" {
-			return err
+			return xerror.WithOperation("plan_execution_recovery", err)
 		}
 		if err := tx.InterruptRecovery(ctx, recovery); err != nil {
-			return err
+			return xerror.WithOperation("interrupt_unfinished_execution", err)
 		}
 		_, err = tx.AppendEvents(ctx, events)
-		return err
+		return xerror.WithOperation("append_recovery_events", err)
 	})
 	if err != nil {
-		return err
+		return xerror.WithOperation("recover_unfinished_execution", err)
 	}
 	if recovery.RunGroupID != "" {
 		s.logger.InfoContext(ctx, "interrupted unfinished execution during startup",

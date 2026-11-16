@@ -58,7 +58,7 @@ func (tx Tx) CheckpointState(ctx context.Context, ref execution.AttemptRef, atte
 		return execution.CheckpointState{}, xerror.ErrExecutionNotFound
 	}
 	if err != nil {
-		return execution.CheckpointState{}, storageError(ctx, "read checkpoint state")
+		return execution.CheckpointState{}, storageError(ctx, "read_checkpoint_state", err)
 	}
 	state.NextNodeID = next.String
 	if id.Valid {
@@ -78,7 +78,7 @@ func (tx Tx) InsertAttempt(ctx context.Context, request execution.BeginAttemptRe
 	SELECT ?, ?, ?, ?, ?, 'RUNNING', ?
 	WHERE NOT EXISTS(SELECT 1 FROM node_attempts WHERE id = ?)
 	AND NOT EXISTS(SELECT 1 FROM node_attempts WHERE device_execution_id = ? AND node_id = ? AND attempt_number = ?)`
-	return tx.UpdateExpected(ctx, query, request.AttemptID, request.DeviceExecutionID, sequence,
+	return tx.updateExpected(ctx, "insert_node_attempt", query, request.AttemptID, request.DeviceExecutionID, sequence,
 		request.NodeID, request.AttemptNumber, request.Now.UnixMilli(), request.AttemptID,
 		request.DeviceExecutionID, request.NodeID, request.AttemptNumber)
 }
@@ -86,13 +86,13 @@ func (tx Tx) InsertAttempt(ctx context.Context, request execution.BeginAttemptRe
 func (tx Tx) StartDevice(ctx context.Context, request execution.BeginAttemptRequest) error {
 	const query = `UPDATE device_executions SET status = 'RUNNING', started_at = COALESCE(started_at, ?)
 	WHERE id = ? AND run_group_id = ? AND status = 'QUEUED' AND next_node_id = ?`
-	return tx.UpdateExpected(ctx, query, request.Now.UnixMilli(), request.DeviceExecutionID, request.RunGroupID, request.NodeID)
+	return tx.updateExpected(ctx, "start_device_execution", query, request.Now.UnixMilli(), request.DeviceExecutionID, request.RunGroupID, request.NodeID)
 }
 
 func (tx Tx) FinalizeAttempt(ctx context.Context, request execution.FinishAttemptRequest) error {
 	const query = `UPDATE node_attempts SET status = ?, finished_at = ?, output_json = ?, error_json = ?
 	WHERE id = ? AND device_execution_id = ? AND node_id = ? AND status = 'RUNNING'`
-	return tx.UpdateExpected(ctx, query, request.Status, request.Now.UnixMilli(), nullableJSON(request.Output),
+	return tx.updateExpected(ctx, "finalize_node_attempt", query, request.Status, request.Now.UnixMilli(), nullableJSON(request.Output),
 		nullableJSON(request.Error), request.AttemptID, request.DeviceExecutionID, request.NodeID)
 }
 
@@ -103,7 +103,7 @@ func (tx Tx) UpdateCheckpointDevice(ctx context.Context, device execution.Device
 	}
 	const query = `UPDATE device_executions SET status = ?, next_node_id = ?, finished_at = ?, terminal_error_json = ?
 	WHERE id = ? AND run_group_id = ? AND status = 'RUNNING' AND next_node_id = ?`
-	return tx.UpdateExpected(ctx, query, device.Status, nullableID(device.NextNodeID), finished,
+	return tx.updateExpected(ctx, "update_device_checkpoint", query, device.Status, nullableID(device.NextNodeID), finished,
 		nullableJSON(device.Error), device.DeviceExecutionID, device.RunGroupID, device.NodeID)
 }
 
@@ -111,19 +111,19 @@ func (tx Tx) OtherDeviceStatuses(ctx context.Context, ref execution.AttemptRef) 
 	const query = `SELECT status FROM device_executions WHERE run_group_id = ? AND id <> ? LIMIT ?`
 	rows, err := tx.QueryContext(ctx, query, ref.RunGroupID, ref.DeviceExecutionID, constants.MaxAdmissionDevices)
 	if err != nil {
-		return nil, storageError(ctx, "read sibling device states")
+		return nil, storageError(ctx, "read_sibling_device_states", err)
 	}
 	defer rows.Close()
 	var statuses []string
 	for rows.Next() {
 		var status string
 		if err := rows.Scan(&status); err != nil {
-			return nil, storageError(ctx, "decode sibling device state")
+			return nil, storageError(ctx, "decode_sibling_device_state", err)
 		}
 		statuses = append(statuses, status)
 	}
-	if rows.Err() != nil || len(statuses) >= constants.MaxAdmissionDevices {
-		return nil, storageError(ctx, "verify sibling device states")
+	if err := rows.Err(); err != nil || len(statuses) >= constants.MaxAdmissionDevices {
+		return nil, storageError(ctx, "verify_sibling_device_states", err)
 	}
 	return statuses, nil
 }
@@ -134,7 +134,7 @@ func (tx Tx) UpdateCheckpointGroup(ctx context.Context, runGroupID, status strin
 		finished = now.UnixMilli()
 	}
 	const query = `UPDATE run_groups SET status = ?, finished_at = ? WHERE id = ? AND status = 'RUNNING'`
-	return tx.UpdateExpected(ctx, query, status, finished, runGroupID)
+	return tx.updateExpected(ctx, "update_run_group_checkpoint", query, status, finished, runGroupID)
 }
 
 func nullableJSON(raw json.RawMessage) any {

@@ -2,6 +2,7 @@ package adb
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -60,35 +61,49 @@ func NewDispatcher(resolver *Resolver) *Dispatcher {
 // Dispatch executes the command once within the caller's attempt deadline.
 func (d *Dispatcher) Dispatch(ctx context.Context, serial string, command DeviceCommand) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return xerror.WithOperation("check_attempt", err)
 	}
 	args, minimumDuration, err := commandArgs(command)
 	if err != nil {
-		return err
+		return xerror.WithOperation("validate_command", err)
 	}
-	_, err = d.runDevice(ctx, serial, args, constants.ProcessOutputLimitBytes, minimumDuration)
+	_, err = d.runDevice(ctx, serial, "dispatch_command", args, constants.ProcessOutputLimitBytes, minimumDuration)
 	return err
 }
 
 // runDevice takes only adapter-built arguments and binds them to the selected device.
-func (d *Dispatcher) runDevice(ctx context.Context, serial string, args []string, stdoutLimit int, minimumDuration time.Duration) (processrunner.Result, error) {
+func (d *Dispatcher) runDevice(ctx context.Context, serial, operation string, args []string, stdoutLimit int, minimumDuration time.Duration) (processrunner.Result, error) {
 	if err := ctx.Err(); err != nil {
-		return processrunner.Result{}, err
+		return processrunner.Result{}, xerror.WithOperation(operation, err)
 	}
 	deadline, ok := ctx.Deadline()
 	if !ok || !ValidSerial(serial) {
-		return processrunner.Result{}, xerror.CommandError{Code: constants.InternalError, Message: "invalid device dispatch request"}
+		return processrunner.Result{}, xerror.WithOperation("check_dispatch_context",
+			xerror.CommandError{Code: constants.InternalError, Message: "invalid device dispatch request"})
 	}
 	toolchain, err := d.resolver.Resolve(ctx)
 	if contextErr := ctx.Err(); contextErr != nil {
-		return processrunner.Result{}, contextErr
+		return processrunner.Result{}, xerror.WithOperation("resolve_adb", contextErr)
 	}
 	if err != nil {
-		return processrunner.Result{}, xerror.CommandError{Code: constants.ADBUnavailable, Message: "ADB is unavailable", Retryable: true}
+		return processrunner.Result{}, &xerror.OperationError{
+			Operation: "resolve_adb",
+			// Resolver errors contain only classified candidate and probe details.
+			Detail: err.Error(),
+			Err:    xerror.CommandError{Code: constants.ADBUnavailable, Message: "ADB is unavailable", Retryable: true},
+		}
 	}
 	remaining := time.Until(deadline)
 	if remaining <= minimumDuration {
-		return processrunner.Result{}, context.DeadlineExceeded
+		detail := "attempt deadline elapsed before starting the ADB process"
+		if remaining > 0 {
+			detail = "remaining attempt time cannot cover the gesture duration"
+		}
+		return processrunner.Result{}, &xerror.OperationError{
+			Operation: "check_command_deadline",
+			Detail:    detail,
+			Err:       context.DeadlineExceeded,
+		}
 	}
 
 	args = append([]string{"-s", serial}, args...)
@@ -98,7 +113,15 @@ func (d *Dispatcher) runDevice(ctx context.Context, serial string, args []string
 	} else {
 		result = processrunner.RunWithStdoutLimit(ctx, toolchain.Executable, args, remaining, stdoutLimit)
 	}
-	return result, dispatchError(result)
+	err = dispatchError(result)
+	if err == nil {
+		return result, nil
+	}
+	detail := string(result.Outcome)
+	if result.ExitCode != nil {
+		detail = fmt.Sprintf("%s (exit code %d)", result.Outcome, *result.ExitCode)
+	}
+	return result, &xerror.OperationError{Operation: operation, Detail: detail, Err: err}
 }
 
 func commandArgs(command DeviceCommand) ([]string, time.Duration, error) {

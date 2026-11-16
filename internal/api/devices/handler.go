@@ -43,13 +43,15 @@ func (h *Handler) Refresh(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, newInventoryResponse(devices))
 	case errors.Is(err, xerror.ErrADBDiscovery), errors.Is(err, xerror.ErrADBReadiness),
 		errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		apiresponse.AbortWithError(ctx, http.StatusServiceUnavailable, apiresponse.Error{
+		apiresponse.AbortWithCause(ctx, http.StatusServiceUnavailable, apiresponse.Error{
 			Code:      constants.APIErrorCodeADBUnavailable,
 			Message:   constants.APIErrorMessageADBUnavailable,
 			Retryable: true,
-		})
+		}, xerror.WithOperation("refresh_device_inventory", err))
 	default:
-		apiresponse.Abort(ctx, http.StatusInternalServerError, constants.APIErrorCodeInternal, constants.APIErrorMessageInternal)
+		apiresponse.AbortWithCause(ctx, http.StatusInternalServerError, apiresponse.Error{
+			Code: constants.APIErrorCodeInternal, Message: constants.APIErrorMessageInternal,
+		}, xerror.WithOperation("refresh_device_inventory", err))
 	}
 }
 

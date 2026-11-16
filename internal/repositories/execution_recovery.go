@@ -21,7 +21,7 @@ func (tx Tx) ReadRecoveryState(ctx context.Context) (execution.RecoveryState, er
 	const group = `SELECT id,status,created_at FROM run_groups WHERE status IN ('RUNNING','PAUSED')`
 	err := tx.QueryRowContext(ctx, group).Scan(&state.RunGroupID, &state.Status, &state.CreatedAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return execution.RecoveryState{}, storageError(ctx, "read active group for recovery")
+		return execution.RecoveryState{}, storageError(ctx, "read_active_group_for_recovery", err)
 	}
 	if state.RunGroupID != "" {
 		state.Devices, err = tx.recoveryDevices(ctx, state.RunGroupID)
@@ -42,7 +42,7 @@ func (tx Tx) recoveryDevices(ctx context.Context, groupID string) ([]execution.R
 	const query = `SELECT id,status,next_node_id,created_at,started_at FROM device_executions WHERE run_group_id = ? LIMIT ?`
 	rows, err := tx.QueryContext(ctx, query, groupID, constants.MaxAdmissionDevices+1)
 	if err != nil {
-		return nil, storageError(ctx, "read recovery devices")
+		return nil, storageError(ctx, "read_recovery_devices", err)
 	}
 	defer rows.Close()
 	var devices []execution.RecoveryDevice
@@ -51,7 +51,7 @@ func (tx Tx) recoveryDevices(ctx context.Context, groupID string) ([]execution.R
 		var next sql.NullString
 		var started sql.NullInt64
 		if err := rows.Scan(&device.ID, &device.Status, &next, &device.CreatedAt, &started); err != nil {
-			return nil, storageError(ctx, "decode recovery device")
+			return nil, storageError(ctx, "decode_recovery_device", err)
 		}
 		device.NextNodeID = next.String
 		if started.Valid {
@@ -59,8 +59,8 @@ func (tx Tx) recoveryDevices(ctx context.Context, groupID string) ([]execution.R
 		}
 		devices = append(devices, device)
 	}
-	if rows.Err() != nil {
-		return nil, storageError(ctx, "read recovery devices")
+	if err := rows.Err(); err != nil {
+		return nil, storageError(ctx, "read_recovery_devices", err)
 	}
 	if len(devices) > constants.MaxAdmissionDevices {
 		return nil, xerror.ErrRecoveryIntegrity
@@ -74,19 +74,19 @@ func (tx Tx) recoveryAttempts(ctx context.Context) ([]execution.RecoveryAttempt,
 	FROM node_attempts a INDEXED BY node_attempts_one_running WHERE a.status = 'RUNNING' LIMIT ?`
 	rows, err := tx.QueryContext(ctx, query, constants.MaxAdmissionDevices+1)
 	if err != nil {
-		return nil, storageError(ctx, "read active attempts for recovery")
+		return nil, storageError(ctx, "read_active_attempts_for_recovery", err)
 	}
 	defer rows.Close()
 	var attempts []execution.RecoveryAttempt
 	for rows.Next() {
 		var attempt execution.RecoveryAttempt
 		if err := rows.Scan(&attempt.ID, &attempt.DeviceID, &attempt.NodeID, &attempt.Number, &attempt.StartedAt, &attempt.Latest); err != nil {
-			return nil, storageError(ctx, "decode recovery attempt")
+			return nil, storageError(ctx, "decode_recovery_attempt", err)
 		}
 		attempts = append(attempts, attempt)
 	}
-	if rows.Err() != nil {
-		return nil, storageError(ctx, "read active attempts for recovery")
+	if err := rows.Err(); err != nil {
+		return nil, storageError(ctx, "read_active_attempts_for_recovery", err)
 	}
 	if len(attempts) > constants.MaxAdmissionDevices {
 		return nil, xerror.ErrRecoveryIntegrity
@@ -100,30 +100,30 @@ func (tx Tx) InterruptRecovery(ctx context.Context, recovery execution.RecoveryW
 		const attempts = `UPDATE node_attempts SET status = 'INTERRUPTED', finished_at = ?, error_json = ?
 		WHERE status = 'RUNNING' AND device_execution_id IN (
 			SELECT id FROM device_executions WHERE run_group_id = ? AND status = 'RUNNING')`
-		if err := tx.recoveryUpdate(ctx, attempts, recovery.Attempts, finished, safeError, recovery.RunGroupID); err != nil {
+		if err := tx.recoveryUpdate(ctx, "interrupt_recovery_attempts", attempts, recovery.Attempts, finished, safeError, recovery.RunGroupID); err != nil {
 			return err
 		}
 	}
 	const devices = `UPDATE device_executions SET status = 'INTERRUPTED', next_node_id = NULL, finished_at = ?, terminal_error_json = ?
 	WHERE run_group_id = ? AND status IN ('QUEUED','RUNNING','PAUSED')`
-	if err := tx.recoveryUpdate(ctx, devices, recovery.Devices, finished, safeError, recovery.RunGroupID); err != nil {
+	if err := tx.recoveryUpdate(ctx, "interrupt_recovery_devices", devices, recovery.Devices, finished, safeError, recovery.RunGroupID); err != nil {
 		return err
 	}
 	const group = `UPDATE run_groups SET status = 'INTERRUPTED', finished_at = ? WHERE id = ? AND status IN ('RUNNING','PAUSED')`
-	return tx.recoveryUpdate(ctx, group, 1, finished, recovery.RunGroupID)
+	return tx.recoveryUpdate(ctx, "interrupt_recovery_group", group, 1, finished, recovery.RunGroupID)
 }
 
-func (tx Tx) recoveryUpdate(ctx context.Context, query string, expected int, args ...any) error {
+func (tx Tx) recoveryUpdate(ctx context.Context, operation, query string, expected int, args ...any) error {
 	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		return storageError(ctx, "write interrupted execution state")
+		return storageError(ctx, operation, err)
 	}
 	count, err := result.RowsAffected()
 	if err != nil {
-		return storageError(ctx, "verify interrupted execution write")
+		return storageError(ctx, operation+"_rows_affected", err)
 	}
 	if count != int64(expected) {
-		return xerror.ErrRecoveryIntegrity
+		return &xerror.OperationError{Operation: operation, Detail: "unexpected number of updated rows", Err: xerror.ErrRecoveryIntegrity}
 	}
 	return nil
 }

@@ -15,16 +15,17 @@ import (
 // Invoke waits within the attempt deadline and returns the requested duration.
 func Invoke(ctx context.Context, call registry.Invocation) (map[string]any, error) {
 	if err := flow.CheckAttempt(ctx); err != nil {
-		return nil, err
+		return nil, xerror.WithOperation("check_attempt", err)
 	}
 	var value *float64
 	if len(call.Config) != 0 || len(call.Inputs) != 1 ||
 		json.Unmarshal(call.Inputs["durationMs"], &value) != nil || value == nil ||
 		*value < 0 || *value > constants.MaxFlowDelayMS || math.Trunc(*value) != *value {
-		return nil, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "invalid Delay config or durationMs"}
+		return nil, xerror.WithOperation("validate_inputs",
+			xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "Delay requires empty config and one integer durationMs from 0 to 300000"})
 	}
 	if err := flow.CheckAttempt(ctx); err != nil {
-		return nil, err
+		return nil, xerror.WithOperation("check_attempt", err)
 	}
 
 	durationMS := int(*value)
@@ -34,12 +35,12 @@ func Invoke(ctx context.Context, call registry.Invocation) (map[string]any, erro
 
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, xerror.WithOperation("wait_for_delay", ctx.Err())
 		case <-timer.C:
 		}
 	}
 	if err := flow.CheckAttempt(ctx); err != nil {
-		return nil, err
+		return nil, xerror.WithOperation("wait_for_delay", err)
 	}
 	return map[string]any{"durationMs": durationMS}, nil
 }

@@ -28,7 +28,7 @@ func (tx Tx) AppendEvents(ctx context.Context, events []execution.PendingEvent) 
 		return nil, err
 	}
 	if state.Watermark > math.MaxInt64-int64(len(events)) {
-		return nil, storageError(ctx, "allocate execution event cursors")
+		return nil, storageError(ctx, "allocate_execution_event_cursors", nil)
 	}
 	rows, args := make([]string, 0, len(events)), make([]any, 0, len(events)*8)
 	cursors := make([]string, 0, len(events))
@@ -52,13 +52,13 @@ AND (b.node_attempt_id IS NULL OR a.id IS NOT NULL)`
 	query := strings.Replace(insert, "%s", strings.Join(rows, ","), 1)
 	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		return nil, storageError(ctx, "append execution events")
+		return nil, storageError(ctx, "append_execution_events", err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil || affected != int64(len(events)) {
-		return nil, storageError(ctx, "verify execution event ownership")
+		return nil, storageError(ctx, "verify_execution_event_ownership", err)
 	}
-	if err := tx.UpdateExpected(ctx, `UPDATE event_stream_state SET last_committed_cursor = ?
+	if err := tx.updateExpected(ctx, "advance_event_watermark", `UPDATE event_stream_state SET last_committed_cursor = ?
 WHERE id = 1 AND last_committed_cursor = ?`, state.Watermark+int64(len(events)), state.Watermark); err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func eventState(ctx context.Context, tx Tx) (execution.EventStreamState, error) 
 	err := tx.QueryRowContext(ctx, "SELECT last_committed_cursor,replay_floor FROM event_stream_state WHERE id = 1").
 		Scan(&state.Watermark, &state.Floor)
 	if err != nil || state.Floor < 0 || state.Watermark < state.Floor {
-		return execution.EventStreamState{}, storageError(ctx, "read execution event watermark")
+		return execution.EventStreamState{}, storageError(ctx, "read_execution_event_watermark", err)
 	}
 	return state, nil
 }
@@ -117,7 +117,7 @@ func (s *ExecutionRepository) ReplayEvents(ctx context.Context, after int64, lim
 FROM execution_events WHERE cursor > ? ORDER BY cursor LIMIT ?`
 		rows, err := tx.QueryContext(ctx, query, after, limit+1)
 		if err != nil {
-			return storageError(ctx, "replay execution events")
+			return storageError(ctx, "replay_execution_events", err)
 		}
 		defer rows.Close()
 		for rows.Next() {
@@ -130,15 +130,18 @@ FROM execution_events WHERE cursor > ? ORDER BY cursor LIMIT ?`
 			var device, attempt, node sql.NullString
 			var payload []byte
 			if err := rows.Scan(&cursor, &event.Type, &event.RunGroupID, &device, &attempt, &node, &occurred, &payload); err != nil {
-				return storageError(ctx, "decode execution event")
+				return storageError(ctx, "decode_execution_event", err)
 			}
 			event.Cursor, event.OccurredAt = strconv.FormatInt(cursor, 10), stamp(occurred)
 			event.Payload = payload
 			event.DeviceExecutionID, event.NodeAttemptID, event.NodeID = device.String, attempt.String, node.String
 			page.Events = append(page.Events, event)
 		}
-		if rows.Err() != nil || rows.Close() != nil {
-			return storageError(ctx, "read execution event page")
+		if err := rows.Err(); err != nil {
+			return storageError(ctx, "read_execution_event_page", err)
+		}
+		if err := rows.Close(); err != nil {
+			return storageError(ctx, "read_execution_event_page", err)
 		}
 		return nil
 	})

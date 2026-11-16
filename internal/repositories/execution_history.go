@@ -35,7 +35,7 @@ func (s *ExecutionRepository) snapshot(ctx context.Context, query string, args .
 			return xerror.ErrExecutionNotFound
 		}
 		if err != nil {
-			return storageError(ctx, "read run group")
+			return storageError(ctx, "read_run_group", err)
 		}
 		group.CreatedAt, group.FinishedAt = stamp(created), nullableStamp(finished)
 
@@ -48,7 +48,7 @@ func (s *ExecutionRepository) snapshot(ctx context.Context, query string, args .
 		}
 		var cursor int64
 		if err := tx.QueryRowContext(ctx, "SELECT last_committed_cursor FROM event_stream_state WHERE id = 1").Scan(&cursor); err != nil {
-			return storageError(ctx, "read snapshot watermark")
+			return storageError(ctx, "read_snapshot_watermark", err)
 		}
 		snapshot.Cursor = strconv.FormatInt(cursor, 10)
 		return nil
@@ -64,7 +64,7 @@ func readDevices(ctx context.Context, tx Tx, groupID string) ([]execution.Device
 		FROM device_executions WHERE run_group_id = ? ORDER BY admission_ordinal,id LIMIT ?`
 	rows, err := tx.QueryContext(ctx, query, groupID, constants.MaxAdmissionDevices+1)
 	if err != nil {
-		return nil, storageError(ctx, "read run devices")
+		return nil, storageError(ctx, "read_run_devices", err)
 	}
 	defer rows.Close()
 
@@ -76,14 +76,14 @@ func readDevices(ctx context.Context, tx Tx, groupID string) ([]execution.Device
 		var terminalError []byte
 		if err := rows.Scan(&device.ID, &device.ADBSerial, &device.Status, &device.NextNodeID, &created,
 			&started, &finished, &terminalError); err != nil {
-			return nil, storageError(ctx, "decode device state")
+			return nil, storageError(ctx, "decode_device_state", err)
 		}
 		device.CreatedAt, device.StartedAt, device.FinishedAt = stamp(created), nullableStamp(started), nullableStamp(finished)
 		device.TerminalError = terminalError
 		devices = append(devices, device)
 	}
-	if rows.Err() != nil || len(devices) == 0 || len(devices) > constants.MaxAdmissionDevices {
-		return nil, storageError(ctx, "verify run devices")
+	if err := rows.Err(); err != nil || len(devices) == 0 || len(devices) > constants.MaxAdmissionDevices {
+		return nil, storageError(ctx, "verify_run_devices", err)
 	}
 	return devices, nil
 }
@@ -119,7 +119,7 @@ func (s *ExecutionRepository) Attempts(ctx context.Context, deviceID string, aft
 	err := s.withReadTx(ctx, func(tx Tx) error {
 		var exists bool
 		if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM device_executions WHERE id = ?)", deviceID).Scan(&exists); err != nil {
-			return storageError(ctx, "look up attempt owner")
+			return storageError(ctx, "look_up_attempt_owner", err)
 		}
 		if !exists {
 			return xerror.ErrExecutionNotFound
@@ -128,7 +128,7 @@ func (s *ExecutionRepository) Attempts(ctx context.Context, deviceID string, aft
 			FROM node_attempts WHERE device_execution_id = ? AND sequence > ? ORDER BY sequence LIMIT ?`
 		rows, err := tx.QueryContext(ctx, query, deviceID, afterSequence, limit+1)
 		if err != nil {
-			return storageError(ctx, "read attempt history")
+			return storageError(ctx, "read_attempt_history", err)
 		}
 		defer rows.Close()
 		for rows.Next() {
@@ -143,17 +143,17 @@ func (s *ExecutionRepository) Attempts(ctx context.Context, deviceID string, aft
 			var output, attemptError []byte
 			if err := rows.Scan(&attempt.ID, &attempt.Sequence, &attempt.NodeID, &attempt.AttemptNumber,
 				&attempt.Status, &started, &finished, &output, &attemptError); err != nil {
-				return storageError(ctx, "decode attempt history")
+				return storageError(ctx, "decode_attempt_history", err)
 			}
 			attempt.StartedAt, attempt.FinishedAt = stamp(started), nullableStamp(finished)
 			attempt.Output, attempt.Error = output, attemptError
 			page.Attempts = append(page.Attempts, attempt)
 		}
-		if rows.Err() != nil {
-			return storageError(ctx, "read attempt history page")
+		if err := rows.Err(); err != nil {
+			return storageError(ctx, "read_attempt_history_page", err)
 		}
 		if err := rows.Close(); err != nil {
-			return storageError(ctx, "close attempt history page")
+			return storageError(ctx, "close_attempt_history_page", err)
 		}
 		return nil
 	})

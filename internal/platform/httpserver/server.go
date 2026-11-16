@@ -8,7 +8,10 @@ import (
 	"net/http"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/config"
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
+
+var ErrAddressInUse = errors.New("local HTTP address already in use")
 
 // Server owns only the network listener and HTTP server lifecycle.
 type Server struct {
@@ -36,7 +39,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 	listener, err := listenConfig.Listen(ctx, "tcp", s.httpServer.Addr)
 	if err != nil {
-		return fmt.Errorf("listen on %s: %w", s.httpServer.Addr, err)
+		if errors.Is(err, addressInUse) {
+			err = errors.Join(ErrAddressInUse, err)
+		}
+		return xerror.WithOperation("bind_loopback_listener", fmt.Errorf("listen on %s: %w", s.httpServer.Addr, err))
 	}
 
 	go func() {
@@ -44,7 +50,7 @@ func (s *Server) Start(ctx context.Context) error {
 		if errors.Is(err, http.ErrServerClosed) {
 			err = nil
 		}
-		s.serveResult <- err
+		s.serveResult <- xerror.WithOperation("serve_local_http", err)
 	}()
 
 	return nil
@@ -56,9 +62,9 @@ func (s *Server) Wait() error {
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	if err := s.httpServer.Shutdown(ctx); err != nil {
-		shutdownErr := fmt.Errorf("graceful shutdown: %w", err)
+		shutdownErr := xerror.WithOperation("shutdown_local_http", fmt.Errorf("graceful shutdown: %w", err))
 		if closeErr := s.httpServer.Close(); closeErr != nil {
-			return errors.Join(shutdownErr, fmt.Errorf("force close: %w", closeErr))
+			return errors.Join(shutdownErr, xerror.WithOperation("force_close_local_http", closeErr))
 		}
 
 		return shutdownErr

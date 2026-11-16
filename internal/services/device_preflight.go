@@ -34,17 +34,17 @@ func NewDevicePreflight(source DeviceInventorySource) *DevicePreflight {
 // Invalid input and failures to observe device state are returned as errors.
 func (p *DevicePreflight) Check(ctx context.Context, serials []string) (DeviceSelectionResult, error) {
 	if err := ctx.Err(); err != nil {
-		return DeviceSelectionResult{}, err
+		return DeviceSelectionResult{}, xerror.WithOperation("check_device_preflight", err)
 	}
 	if err := validateSelection(serials); err != nil {
-		return DeviceSelectionResult{}, err
+		return DeviceSelectionResult{}, xerror.WithOperation("validate_device_selection", err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, constants.DevicePreflightTimeout)
 	defer cancel()
 
 	result, err := p.check(ctx, serials)
 	if contextErr := ctx.Err(); contextErr != nil {
-		return DeviceSelectionResult{}, contextErr
+		return DeviceSelectionResult{}, xerror.WithOperation("check_device_preflight", contextErr)
 	}
 	return result, err
 }
@@ -52,7 +52,7 @@ func (p *DevicePreflight) Check(ctx context.Context, serials []string) (DeviceSe
 func (p *DevicePreflight) check(ctx context.Context, serials []string) (DeviceSelectionResult, error) {
 	endpoints, err := p.source.Discover(ctx)
 	if err != nil {
-		return DeviceSelectionResult{}, err
+		return DeviceSelectionResult{}, xerror.WithOperation("discover_devices", err)
 	}
 	bySerial := make(map[string]adb.Endpoint, len(endpoints))
 	for _, endpoint := range endpoints {
@@ -81,7 +81,7 @@ func (p *DevicePreflight) check(ctx context.Context, serials []string) (DeviceSe
 		device := devices[probeIndex]
 		probeIndex++
 		if device.ADBSerial != serial || (!device.Ready && device.Reason == nil) {
-			return DeviceSelectionResult{}, xerror.ErrADBReadiness
+			return DeviceSelectionResult{}, xerror.WithOperation("validate_device_readiness_result", xerror.ErrADBReadiness)
 		}
 		if device.Reason != nil {
 			unavailable = append(unavailable, DeviceSelectionIssue{Index: index, ADBSerial: serial, Reason: *device.Reason})

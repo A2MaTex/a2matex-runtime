@@ -31,6 +31,17 @@ type componentResult struct {
 	err   error
 }
 
+// LifecycleError identifies the failed stage and component without parsing the cause.
+type LifecycleError struct {
+	Operation string
+	Component string
+	Err       error
+}
+
+func (e *LifecycleError) Error() string { return e.Err.Error() }
+
+func (e *LifecycleError) Unwrap() error { return e.Err }
+
 type App struct {
 	components      []component
 	shutdownTimeout time.Duration
@@ -111,7 +122,7 @@ func (a *App) Run(ctx context.Context) error {
 			if result, stopped := pollComponentResult(results); stopped {
 				var startErr error
 				if !errors.Is(err, context.Canceled) {
-					startErr = fmt.Errorf("start %s: %w", current.name, err)
+					startErr = componentStartError(ctx, current, err)
 				}
 
 				return errors.Join(
@@ -215,7 +226,7 @@ func componentStartError(parentCtx context.Context, current component, err error
 		return nil
 	}
 
-	return fmt.Errorf("start %s: %w", current.name, err)
+	return &LifecycleError{Operation: "start", Component: current.name, Err: fmt.Errorf("start %s: %w", current.name, err)}
 }
 
 func componentStopError(
@@ -227,10 +238,12 @@ func componentStopError(
 		return nil
 	}
 	if result.err != nil {
-		return fmt.Errorf("%s stopped: %w", started[result.index].name, result.err)
+		name := started[result.index].name
+		return &LifecycleError{Operation: "run", Component: name, Err: fmt.Errorf("%s stopped: %w", name, result.err)}
 	}
 	if parentCtx.Err() == nil {
-		return fmt.Errorf("%s stopped unexpectedly", started[result.index].name)
+		name := started[result.index].name
+		return &LifecycleError{Operation: "run", Component: name, Err: fmt.Errorf("%s stopped unexpectedly", name)}
 	}
 
 	return nil
@@ -274,7 +287,7 @@ func (a *App) cleanup(
 		if err := current.lifecycle.Shutdown(shutdownCtx); err != nil {
 			cleanupErrors = append(
 				cleanupErrors,
-				fmt.Errorf("shutdown %s: %w", current.name, err),
+				&LifecycleError{Operation: "shutdown", Component: current.name, Err: fmt.Errorf("shutdown %s: %w", current.name, err)},
 			)
 		}
 	}
@@ -314,7 +327,7 @@ func (a *App) cleanup(
 
 			cleanupErrors = append(
 				cleanupErrors,
-				fmt.Errorf("wait for components: %w", shutdownCtx.Err()),
+				&LifecycleError{Operation: "wait", Err: fmt.Errorf("wait for components: %w", shutdownCtx.Err())},
 			)
 			return errors.Join(cleanupErrors...)
 		}
@@ -336,7 +349,8 @@ func collectComponentResult(
 	observed[result.index] = struct{}{}
 	remaining--
 	if result.err != nil {
-		return remaining, fmt.Errorf("wait for %s: %w", started[result.index].name, result.err)
+		name := started[result.index].name
+		return remaining, &LifecycleError{Operation: "wait", Component: name, Err: fmt.Errorf("wait for %s: %w", name, result.err)}
 	}
 
 	return remaining, nil

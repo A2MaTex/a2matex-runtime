@@ -2,11 +2,13 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"runtime"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
 // EventRetention performs bounded maintenance outside execution checkpoints.
@@ -43,7 +45,7 @@ func (s *EventRetention) run(ctx context.Context) {
 			return
 		}
 		if err != nil {
-			s.logger.Error("execution event retention failed", "component", "event_retention", "event", "event_prune_failed")
+			s.logPruneFailure(ctx, err)
 		}
 		if err == nil && removed == constants.EventPruneBatchSize {
 			runtime.Gosched()
@@ -55,6 +57,24 @@ func (s *EventRetention) run(ctx context.Context) {
 		case <-s.repository.EventMaintenance():
 		}
 	}
+}
+
+func (s *EventRetention) logPruneFailure(ctx context.Context, err error) {
+	failure := xerror.WithOperation("prune_execution_events", err)
+	var operation *xerror.OperationError
+	errors.As(failure, &operation)
+	attrs := []slog.Attr{
+		slog.String("component", "event_retention"),
+		slog.String("event", "event_prune_failed"),
+		slog.String("operation", operation.Operation),
+	}
+	if operation.Detail != "" {
+		attrs = append(attrs, slog.String("reason", operation.Detail))
+	}
+	if code := xerror.ExecutionFailureCode(err); code != "" {
+		attrs = append(attrs, slog.String("error_code", code))
+	}
+	s.logger.LogAttrs(ctx, slog.LevelError, "execution event retention failed", attrs...)
 }
 
 func (s *EventRetention) Wait() error {

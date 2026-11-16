@@ -16,6 +16,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 	validationservice "github.com/A2MaTex/a2matex-runtime/internal/validation/service"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
 type Handler struct {
@@ -48,7 +49,8 @@ func (h *Handler) Validate(ctx *gin.Context) {
 		return
 	}
 	if err != nil {
-		panic(err)
+		internalFailure(ctx, "validate_workflow", err)
+		return
 	}
 	ctx.JSON(http.StatusOK, result)
 }
@@ -69,7 +71,8 @@ func (h *Handler) Compile(ctx *gin.Context) {
 		return
 	}
 	if err != nil {
-		panic(err)
+		internalFailure(ctx, "compile_workflow", err)
+		return
 	}
 	ctx.JSON(http.StatusOK, result)
 }
@@ -179,4 +182,10 @@ func invalidRequest(ctx *gin.Context) {
 
 func payloadTooLarge(ctx *gin.Context) {
 	apiresponse.Abort(ctx, http.StatusRequestEntityTooLarge, constants.APIErrorCodePayloadTooLarge, constants.APIErrorMessagePayloadTooLarge)
+}
+
+func internalFailure(ctx *gin.Context, operation string, cause error) {
+	apiresponse.AbortWithCause(ctx, http.StatusInternalServerError, apiresponse.Error{
+		Code: constants.APIErrorCodeInternal, Message: constants.APIErrorMessageInternal,
+	}, xerror.WithOperation(operation, cause))
 }

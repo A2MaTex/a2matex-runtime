@@ -13,7 +13,7 @@ func stateDirectory() (string, error) {
 	if !filepath.IsAbs(root) {
 		home, err := os.UserHomeDir()
 		if err != nil || !filepath.IsAbs(home) {
-			return "", errors.New("resolve Runtime state directory")
+			return "", storeFailure("resolve_state_directory", "resolve Runtime state directory", err)
 		}
 		root = filepath.Join(home, ".local", "state")
 	}
@@ -27,11 +27,11 @@ func lockExclusive(file *os.File) error {
 func checkFilesystem(root string) error {
 	var stat unix.Statfs_t
 	if err := unix.Statfs(root, &stat); err != nil {
-		return errors.New("inspect execution store filesystem")
+		return storeFailure("inspect_store_filesystem", "inspect execution store filesystem", err)
 	}
 	switch uint32(stat.Type) {
 	case unix.NFS_SUPER_MAGIC, unix.CIFS_SUPER_MAGIC, unix.SMB_SUPER_MAGIC, unix.V9FS_MAGIC:
-		return errors.New("execution store requires a supported local filesystem")
+		return storeFailure("check_store_filesystem", "execution store requires a supported local filesystem", nil)
 	}
 	return nil
 }

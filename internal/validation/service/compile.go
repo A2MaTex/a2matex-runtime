@@ -9,6 +9,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
 type CompilationResult struct {
@@ -72,11 +73,11 @@ func (s *Service) Compile(rawGraph, rawInputSchema []byte) (CompilationResult, e
 
 	ir, err := s.buildIR(graph, rawInputSchema)
 	if err != nil {
-		return CompilationResult{}, err
+		return CompilationResult{}, xerror.WithOperation("build_runtime_ir", err)
 	}
 	encoded, err := json.Marshal(ir)
 	if err != nil {
-		return CompilationResult{}, err
+		return CompilationResult{}, xerror.WithOperation("encode_runtime_ir", err)
 	}
 	if len(encoded) > constants.RuntimeIRMaxContentBytes {
 		result.Validation = validation.BuildResult([]validation.Diagnostic{

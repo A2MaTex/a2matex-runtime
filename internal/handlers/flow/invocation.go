@@ -27,13 +27,14 @@ func CheckAttempt(ctx context.Context) error {
 // CompleteEmpty implements the shared behavior of Start and End.
 func CompleteEmpty(ctx context.Context, call registry.Invocation) (map[string]any, error) {
 	if err := CheckAttempt(ctx); err != nil {
-		return nil, err
+		return nil, xerror.WithOperation("check_attempt", err)
 	}
 	if len(call.Config) != 0 || len(call.Inputs) != 0 {
-		return nil, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "node requires empty config and inputs"}
+		return nil, xerror.WithOperation("validate_inputs",
+			xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "node requires empty config and inputs"})
 	}
 	if err := CheckAttempt(ctx); err != nil {
-		return nil, err
+		return nil, xerror.WithOperation("check_attempt", err)
 	}
 	return map[string]any{}, nil
 }

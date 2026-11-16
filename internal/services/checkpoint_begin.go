@@ -29,7 +29,7 @@ func (s *CheckpointService) BeginAttempt(ctx context.Context, request execution.
 			return checkpointWrite{}, xerror.ErrExecutionInvalidInput
 		}
 		if state.LatestSequence == math.MaxInt64 {
-			return checkpointWrite{}, xerror.ErrExecutionPersistence
+			return checkpointWrite{}, xerror.WithOperation("allocate_attempt_sequence", xerror.ErrExecutionPersistence)
 		}
 		sequence := state.LatestSequence + 1
 		if err := tx.InsertAttempt(ctx, request, sequence); err != nil {

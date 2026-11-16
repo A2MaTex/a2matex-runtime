@@ -56,7 +56,7 @@ func checkpointEvent(event execution.PendingEvent, payload any) (execution.Pendi
 	data, err := json.Marshal(payload)
 	event.Payload = data
 	if err != nil || !execution.ValidEvent(event) {
-		return execution.PendingEvent{}, xerror.ErrExecutionInvalidInput
+		return execution.PendingEvent{}, xerror.WithOperation("encode_checkpoint_event", xerror.ErrExecutionInvalidInput)
 	}
 	return event, nil
 }

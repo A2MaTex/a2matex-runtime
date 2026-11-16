@@ -34,7 +34,7 @@ type Endpoint struct {
 func (r *Resolver) Discover(ctx context.Context) ([]Endpoint, error) {
 	toolchain, err := r.Resolve(ctx)
 	if contextErr := ctx.Err(); contextErr != nil {
-		return nil, contextErr
+		return nil, xerror.WithOperation("resolve_adb", contextErr)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", xerror.ErrADBDiscovery, err)
@@ -42,15 +42,16 @@ func (r *Resolver) Discover(ctx context.Context) ([]Endpoint, error) {
 
 	result := r.run(ctx, toolchain.Executable, []string{"devices", "-l"}, constants.ADBDiscoveryTimeout)
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, xerror.WithOperation("list_adb_devices", err)
 	}
 	if result.Outcome != processrunner.Succeeded || result.ExitCode == nil || *result.ExitCode != 0 {
-		return nil, fmt.Errorf("%w: command did not succeed (%s)", xerror.ErrADBDiscovery, result.Outcome)
+		return nil, xerror.WithOperation("list_adb_devices", fmt.Errorf("%w: command did not succeed (%s)", xerror.ErrADBDiscovery, result.Outcome))
 	}
 	if result.StdoutTruncated {
-		return nil, fmt.Errorf("%w: truncated output", xerror.ErrADBDiscovery)
+		return nil, xerror.WithOperation("parse_device_list", fmt.Errorf("%w: truncated output", xerror.ErrADBDiscovery))
 	}
-	return parseDeviceList(result.Stdout)
+	endpoints, err := parseDeviceList(result.Stdout)
+	return endpoints, xerror.WithOperation("parse_device_list", err)
 }
 
 func parseDeviceList(stdout []byte) ([]Endpoint, error) {

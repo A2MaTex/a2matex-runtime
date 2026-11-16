@@ -25,17 +25,17 @@ type UnavailableReason struct {
 // an observed device state. An error indicates the observation could not be made.
 func (r *Resolver) ProbeReadiness(ctx context.Context, endpoint Endpoint) (Readiness, error) {
 	if err := ctx.Err(); err != nil {
-		return Readiness{}, err
+		return Readiness{}, xerror.WithOperation("check_device_readiness", err)
 	}
 	if !ValidSerial(endpoint.ADBSerial) {
-		return Readiness{}, xerror.ErrADBInvalidEndpoint
+		return Readiness{}, xerror.WithOperation("validate_device_endpoint", xerror.ErrADBInvalidEndpoint)
 	}
 	switch endpoint.State {
 	case Offline, Unauthorized, OtherUnavailable:
 		return unavailableForState(endpoint), nil
 	case Connected:
 	default:
-		return Readiness{}, xerror.ErrADBInvalidEndpoint
+		return Readiness{}, xerror.WithOperation("validate_device_endpoint", xerror.ErrADBInvalidEndpoint)
 	}
 
 	probeCtx, cancel := context.WithTimeout(ctx, constants.ADBReadinessTimeout)
@@ -43,7 +43,7 @@ func (r *Resolver) ProbeReadiness(ctx context.Context, endpoint Endpoint) (Readi
 
 	result, err := r.probeBoot(probeCtx, endpoint)
 	if contextErr := ctx.Err(); contextErr != nil {
-		return Readiness{}, contextErr
+		return Readiness{}, xerror.WithOperation("check_device_readiness", contextErr)
 	}
 	if probeCtx.Err() != nil {
 		return unavailableForState(endpoint), nil
@@ -60,12 +60,12 @@ func (r *Resolver) probeBoot(ctx context.Context, endpoint Endpoint) (Readiness,
 	args := []string{"-s", endpoint.ADBSerial, "shell", "-T", "getprop", "sys.boot_completed"}
 	result := r.run(ctx, toolchain.Executable, args, constants.ADBReadinessTimeout)
 	if err := ctx.Err(); err != nil {
-		return Readiness{}, err
+		return Readiness{}, xerror.WithOperation("read_boot_status", err)
 	}
 	switch result.Outcome {
 	case processrunner.Succeeded:
 		if result.ExitCode == nil || *result.ExitCode != 0 {
-			return Readiness{}, xerror.ErrADBReadiness
+			return Readiness{}, xerror.WithOperation("read_boot_status", xerror.ErrADBReadiness)
 		}
 		if !result.StdoutTruncated && bytes.Equal(bytes.Trim(result.Stdout, " \t\r\n"), []byte("1")) {
 			return Readiness{ADBSerial: endpoint.ADBSerial, Ready: true}, nil
@@ -76,7 +76,7 @@ func (r *Resolver) probeBoot(ctx context.Context, endpoint Endpoint) (Readiness,
 	case processrunner.NonzeroExit:
 		return r.recheckTransport(ctx, endpoint.ADBSerial)
 	default:
-		return Readiness{}, fmt.Errorf("%w: command did not succeed (%s)", xerror.ErrADBReadiness, result.Outcome)
+		return Readiness{}, xerror.WithOperation("read_boot_status", fmt.Errorf("%w: command did not succeed (%s)", xerror.ErrADBReadiness, result.Outcome))
 	}
 }
 

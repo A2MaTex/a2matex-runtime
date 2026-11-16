@@ -21,25 +21,28 @@ SELECT cursor FROM execution_events ORDER BY cursor DESC LIMIT 1 OFFSET ?)
 ORDER BY cursor LIMIT ?) RETURNING cursor`
 		rows, err := tx.QueryContext(ctx, query, retain, batch)
 		if err != nil {
-			return storageError(ctx, "prune execution events")
+			return storageError(ctx, "prune_execution_events", err)
 		}
 		defer rows.Close()
 		var floor int64
 		for rows.Next() {
 			var cursor int64
 			if err := rows.Scan(&cursor); err != nil {
-				return storageError(ctx, "read pruned event cursor")
+				return storageError(ctx, "read_pruned_event_cursor", err)
 			}
 			floor = max(floor, cursor)
 			removed++
 		}
-		if rows.Err() != nil || rows.Close() != nil {
-			return storageError(ctx, "finish pruning execution events")
+		if err := rows.Err(); err != nil {
+			return storageError(ctx, "finish_pruning_execution_events", err)
+		}
+		if err := rows.Close(); err != nil {
+			return storageError(ctx, "finish_pruning_execution_events", err)
 		}
 		if removed == 0 {
 			return nil
 		}
-		return tx.UpdateExpected(ctx, "UPDATE event_stream_state SET replay_floor = ? WHERE id = 1 AND replay_floor < ?", floor, floor)
+		return tx.updateExpected(ctx, "advance_event_replay_floor", "UPDATE event_stream_state SET replay_floor = ? WHERE id = 1 AND replay_floor < ?", floor, floor)
 	})
 	if err != nil {
 		return 0, err

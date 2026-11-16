@@ -32,7 +32,7 @@ func lookupRequest(ctx context.Context, tx Tx, requestID string) (string, error)
 	case errors.Is(err, sql.ErrNoRows):
 		return "", xerror.ErrExecutionNotFound
 	case err != nil:
-		return "", storageError(ctx, "look up admitted request")
+		return "", storageError(ctx, "look_up_admitted_request", err)
 	default:
 		return id, nil
 	}
@@ -59,7 +59,7 @@ func (s *ExecutionRepository) Admit(ctx context.Context, admission execution.Adm
 		var busy bool
 		const active = "SELECT EXISTS(SELECT 1 FROM run_groups WHERE status IN ('RUNNING','PAUSED'))"
 		if err := tx.QueryRowContext(ctx, active).Scan(&busy); err != nil {
-			return storageError(ctx, "check active run")
+			return storageError(ctx, "check_active_run", err)
 		}
 		if busy {
 			result = execution.AdmissionResult{Disposition: constants.AdmissionBusy}
@@ -81,7 +81,7 @@ func insertAdmission(ctx context.Context, tx Tx, admission execution.Admission) 
 	now := admission.Now.UnixMilli()
 	const group = "INSERT INTO run_groups(id,request_id,status,created_at) VALUES (?,?,'RUNNING',?)"
 	if _, err := tx.ExecContext(ctx, group, admission.RunGroupID, admission.RequestID, now); err != nil {
-		return storageError(ctx, "insert run group")
+		return storageError(ctx, "insert_run_group", err)
 	}
 	deviceRows, deviceArgs := make([]string, 0, len(admission.Devices)), make([]any, 0, len(admission.Devices)*6)
 	for ordinal, device := range admission.Devices {
@@ -90,7 +90,7 @@ func insertAdmission(ctx context.Context, tx Tx, admission execution.Admission) 
 	}
 	const devices = "INSERT INTO device_executions(id,run_group_id,adb_serial,admission_ordinal,status,next_node_id,created_at) VALUES "
 	if _, err := tx.ExecContext(ctx, devices+strings.Join(deviceRows, ","), deviceArgs...); err != nil {
-		return storageError(ctx, "insert selected devices")
+		return storageError(ctx, "insert_selected_devices", err)
 	}
 	return appendAdmissionEvents(ctx, tx, admission)
 }
@@ -105,7 +105,7 @@ func appendAdmissionEvents(ctx context.Context, tx Tx, admission execution.Admis
 			NextNodeID string `json:"nextNodeId"`
 		}{"QUEUED", device.EntryNodeID})
 		if err != nil {
-			return storageError(ctx, "encode device admission event")
+			return storageError(ctx, "encode_device_admission_event", err)
 		}
 		events = append(events, execution.PendingEvent{Type: constants.EventDeviceStateChanged,
 			RunGroupID: admission.RunGroupID, DeviceExecutionID: device.DeviceExecutionID,

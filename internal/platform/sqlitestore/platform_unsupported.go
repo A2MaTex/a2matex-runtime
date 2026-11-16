@@ -2,21 +2,18 @@
 
 package sqlitestore
 
-import (
-	"errors"
-	"os"
-)
+import "os"
 
 func stateDirectory() (string, error) {
-	return "", errors.New("execution storage is unsupported on this platform")
+	return "", storeFailure("resolve_state_directory", "execution storage is unsupported on this platform", nil)
 }
 
 func lockExclusive(_ *os.File) error {
-	return errors.New("execution store locking is unsupported on this platform")
+	return storeFailure("acquire_store_lock", "execution store locking is unsupported on this platform", nil)
 }
 
 func checkFilesystem(_ string) error {
-	return errors.New("execution storage is unsupported on this platform")
+	return storeFailure("check_store_filesystem", "execution storage is unsupported on this platform", nil)
 }
 
 func isLockContention(err error) bool { return false }

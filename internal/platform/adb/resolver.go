@@ -59,7 +59,7 @@ func NewResolver(cfg config.ADBConfig) *Resolver {
 
 func (r *Resolver) Resolve(ctx context.Context) (Toolchain, error) {
 	if err := ctx.Err(); err != nil {
-		return Toolchain{}, err
+		return Toolchain{}, xerror.WithOperation("resolve_adb", err)
 	}
 	r.mu.Lock()
 	if r.verified.Executable != "" {
@@ -72,11 +72,11 @@ func (r *Resolver) Resolve(ctx context.Context) (Toolchain, error) {
 		select {
 		case <-pending.done:
 			if err := ctx.Err(); err != nil {
-				return Toolchain{}, err
+				return Toolchain{}, xerror.WithOperation("resolve_adb", err)
 			}
 			return pending.toolchain, pending.err
 		case <-ctx.Done():
-			return Toolchain{}, ctx.Err()
+			return Toolchain{}, xerror.WithOperation("resolve_adb", ctx.Err())
 		}
 	}
 	pending := &resolution{done: make(chan struct{})}
@@ -87,7 +87,7 @@ func (r *Resolver) Resolve(ctx context.Context) (Toolchain, error) {
 
 	r.mu.Lock()
 	if contextErr := ctx.Err(); contextErr != nil {
-		toolchain, err = Toolchain{}, contextErr
+		toolchain, err = Toolchain{}, xerror.WithOperation("resolve_adb", contextErr)
 	}
 	if err == nil {
 		r.verified = toolchain
@@ -104,24 +104,24 @@ var versionLine = regexp.MustCompile(`(?m)^Android Debug Bridge version[ \t]+([0
 func (r *Resolver) resolve(ctx context.Context) (Toolchain, error) {
 	candidate, err := r.selectCandidate()
 	if err != nil {
-		return Toolchain{}, err
+		return Toolchain{}, xerror.WithOperation("select_adb_executable", err)
 	}
 	if err := ctx.Err(); err != nil {
-		return Toolchain{}, err
+		return Toolchain{}, xerror.WithOperation("probe_adb_version", err)
 	}
 	result := r.run(ctx, candidate.Executable, []string{"version"}, constants.ADBVersionProbeTimeout)
 	if err := ctx.Err(); err != nil {
-		return Toolchain{}, err
+		return Toolchain{}, xerror.WithOperation("probe_adb_version", err)
 	}
 	if result.Outcome != processrunner.Succeeded || result.ExitCode == nil || *result.ExitCode != 0 {
-		return Toolchain{}, fmt.Errorf("%w (%s, %s)", xerror.ErrADBVersionProbe, candidate.Source, result.Outcome)
+		return Toolchain{}, xerror.WithOperation("probe_adb_version", fmt.Errorf("%w (%s, %s)", xerror.ErrADBVersionProbe, candidate.Source, result.Outcome))
 	}
 	if result.StdoutTruncated {
-		return Toolchain{}, fmt.Errorf("%w (%s, truncated output)", xerror.ErrADBVersionProbe, candidate.Source)
+		return Toolchain{}, xerror.WithOperation("parse_adb_version", fmt.Errorf("%w (%s, truncated output)", xerror.ErrADBVersionProbe, candidate.Source))
 	}
 	match := versionLine.FindSubmatch(bytes.TrimPrefix(result.Stdout, []byte{0xef, 0xbb, 0xbf}))
 	if match == nil {
-		return Toolchain{}, fmt.Errorf("%w (%s, invalid version output)", xerror.ErrADBVersionProbe, candidate.Source)
+		return Toolchain{}, xerror.WithOperation("parse_adb_version", fmt.Errorf("%w (%s, invalid version output)", xerror.ErrADBVersionProbe, candidate.Source))
 	}
 	candidate.Version = string(match[1])
 	return candidate, nil

@@ -8,6 +8,7 @@ import (
 
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/adb"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
 type DeviceInventorySource interface {
@@ -43,17 +44,17 @@ func (s *DeviceInventory) Snapshot() []adb.Readiness {
 
 func (s *DeviceInventory) Refresh(ctx context.Context) ([]adb.Readiness, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, xerror.WithOperation("refresh_device_inventory", err)
 	}
 	s.mu.Lock()
 	if pending := s.pending; pending != nil {
 		s.mu.Unlock()
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, xerror.WithOperation("wait_for_device_refresh", ctx.Err())
 		case <-pending.done:
 			if err := ctx.Err(); err != nil {
-				return nil, err
+				return nil, xerror.WithOperation("wait_for_device_refresh", err)
 			}
 			if pending.err != nil {
 				return nil, pending.err
@@ -72,7 +73,7 @@ func (s *DeviceInventory) Refresh(ctx context.Context) ([]adb.Readiness, error) 
 
 	s.mu.Lock()
 	if contextErr := refreshCtx.Err(); contextErr != nil {
-		err = contextErr
+		err = xerror.WithOperation("refresh_device_inventory", contextErr)
 	}
 	if err == nil {
 		s.devices = devices
@@ -92,7 +93,7 @@ func (s *DeviceInventory) Refresh(ctx context.Context) ([]adb.Readiness, error) 
 func (s *DeviceInventory) collect(ctx context.Context) ([]adb.Readiness, error) {
 	endpoints, err := s.source.Discover(ctx)
 	if err != nil {
-		return nil, err
+		return nil, xerror.WithOperation("discover_devices", err)
 	}
 
 	devices, err := evaluateDeviceReadiness(ctx, s.source, endpoints, constants.DeviceInventoryProbeLimit)

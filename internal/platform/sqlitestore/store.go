@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	_ "modernc.org/sqlite"
-
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
@@ -32,52 +30,52 @@ func New() *Store {
 func (s *Store) Start(ctx context.Context) error {
 	root, err := stateDirectory()
 	if err != nil {
-		return err
+		return xerror.WithOperation("resolve_state_directory", err)
 	}
 	return s.startAt(ctx, root)
 }
 
 func (s *Store) startAt(ctx context.Context, root string) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return xerror.WithOperation("open_execution_store", err)
 	}
 	if err := os.MkdirAll(root, 0700); err != nil {
-		return errors.New("create execution store directory")
+		return storeFailure("create_store_directory", "create execution store directory", err)
 	}
 	root, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return errors.New("resolve execution store directory")
+		return storeFailure("resolve_store_directory", "resolve execution store directory", err)
 	}
 	if err := checkFilesystem(root); err != nil {
-		return err
+		return xerror.WithOperation("check_store_filesystem", err)
 	}
 	lock, err := openPrivateFile(filepath.Join(root, "execution.lock"))
 	if err != nil {
-		return errors.New("open execution store lock")
+		return storeFailure("open_store_lock", "open execution store lock", err)
 	}
 	if err := lockExclusive(lock); err != nil {
 		_ = lock.Close()
 		if isLockContention(err) {
-			return xerror.ErrExecutionStoreInUse
+			return xerror.WithOperation("acquire_store_lock", xerror.ErrExecutionStoreInUse)
 		}
-		return errors.New("acquire execution store lock")
+		return storeFailure("acquire_store_lock", "acquire execution store lock", err)
 	}
 	s.lock = lock
 	db, err := openDatabase(ctx, filepath.Join(root, databaseName))
 	if err != nil {
 		_ = s.release()
-		return err
+		return xerror.WithOperation("open_execution_store", err)
 	}
 	report, err := migrate(ctx, db, migrations)
 	if err != nil {
 		_ = db.Close()
 		_ = s.release()
-		return err
+		return xerror.WithOperation("migrate_execution_store", err)
 	}
 	if err := ctx.Err(); err != nil {
 		_ = db.Close()
 		_ = s.release()
-		return err
+		return xerror.WithOperation("open_execution_store", err)
 	}
 	s.dbMu.Lock()
 	s.db = db
@@ -104,13 +102,13 @@ func (s *Store) release() error {
 	s.db = nil
 	s.dbMu.Unlock()
 	if db != nil {
-		if db.Close() != nil {
-			err = errors.New("close execution database")
+		if closeErr := db.Close(); closeErr != nil {
+			err = storeFailure("close_execution_database", "close execution database", closeErr)
 		}
 	}
 	if s.lock != nil {
-		if s.lock.Close() != nil {
-			err = errors.Join(err, errors.New("release execution store lock"))
+		if closeErr := s.lock.Close(); closeErr != nil {
+			err = errors.Join(err, storeFailure("release_store_lock", "release execution store lock", closeErr))
 		}
 		s.lock = nil
 	}
@@ -139,15 +137,15 @@ func openDatabase(ctx context.Context, path string) (*sql.DB, error) {
 	for _, suffix := range []string{"-wal", "-shm", "-journal"} {
 		info, err := os.Lstat(path + suffix)
 		if err == nil && !info.Mode().IsRegular() || err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, errors.New("invalid execution database companion file")
+			return nil, storeFailure("check_database_companion_files", "invalid execution database companion file", err)
 		}
 	}
 	file, err := openPrivateFile(path)
 	if err != nil {
-		return nil, errors.New("open execution database file")
+		return nil, storeFailure("open_execution_database", "open execution database file", err)
 	}
-	if file.Close() != nil {
-		return nil, errors.New("prepare execution database file")
+	if err := file.Close(); err != nil {
+		return nil, storeFailure("prepare_database_file", "prepare execution database file", err)
 	}
 
 	uriPath := filepath.ToSlash(path)
@@ -162,14 +160,14 @@ func openDatabase(ctx context.Context, path string) (*sql.DB, error) {
 	uri.RawQuery = settings.Encode()
 	db, err := sql.Open("sqlite", uri.String())
 	if err != nil {
-		return nil, errors.New("initialize execution database")
+		return nil, storeFailure("initialize_execution_database", "initialize execution database", err)
 	}
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	if err := configure(ctx, db); err != nil {
 		_ = db.Close()
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			return nil, xerror.WithOperation("configure_execution_database", ctx.Err())
 		}
 		return nil, err
 	}
@@ -179,7 +177,7 @@ func openDatabase(ctx context.Context, path string) (*sql.DB, error) {
 func configure(ctx context.Context, db *sql.DB) error {
 	var mode string
 	if err := db.QueryRowContext(ctx, "PRAGMA journal_mode=WAL").Scan(&mode); err != nil || mode != "wal" {
-		return errors.New("enable execution database WAL")
+		return storeFailure("enable_database_wal", "enable execution database WAL", err)
 	}
 	for _, setting := range []struct {
 		query string
@@ -191,7 +189,7 @@ func configure(ctx context.Context, db *sql.DB) error {
 	} {
 		var actual int
 		if err := db.QueryRowContext(ctx, setting.query).Scan(&actual); err != nil || actual != setting.value {
-			return errors.New("verify execution database connection settings")
+			return storeFailure("verify_database_settings", "verify execution database connection settings", err)
 		}
 	}
 	return nil

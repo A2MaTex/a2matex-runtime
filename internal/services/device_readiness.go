@@ -6,6 +6,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/adb"
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
 func evaluateDeviceReadiness(ctx context.Context, source DeviceInventorySource, endpoints []adb.Endpoint, limit int) ([]adb.Readiness, error) {
@@ -18,11 +19,11 @@ func evaluateDeviceReadiness(ctx context.Context, source DeviceInventorySource, 
 		}
 		group.Go(func() error {
 			if err := probeCtx.Err(); err != nil {
-				return err
+				return xerror.WithOperation("probe_device_readiness", err)
 			}
 			result, err := source.ProbeReadiness(probeCtx, endpoint)
 			if err != nil {
-				return err
+				return xerror.WithOperation("probe_device_readiness", err)
 			}
 			devices[index] = result
 			return nil
@@ -32,7 +33,7 @@ func evaluateDeviceReadiness(ctx context.Context, source DeviceInventorySource, 
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, xerror.WithOperation("evaluate_device_readiness", err)
 	}
 
 	return devices, nil

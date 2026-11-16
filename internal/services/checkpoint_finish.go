@@ -57,7 +57,7 @@ func finishAttempt(ctx context.Context, tx execution.CheckpointTx, request execu
 		}
 		groupStatus, err = checkpointGroupStatus(append(siblings, device.Status), request.GroupCancellation)
 		if err != nil {
-			return checkpointWrite{}, err
+			return checkpointWrite{}, xerror.WithOperation("resolve_checkpoint_group_status", err)
 		}
 	}
 	deviceChanged := device.Status != state.DeviceStatus || device.NextNodeID != state.NextNodeID

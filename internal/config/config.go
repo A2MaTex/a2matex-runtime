@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
 const (
@@ -63,14 +65,14 @@ func Load(overrides Overrides) (Config, error) {
 	setDefaults(loader)
 
 	if err := readConfigFile(loader, overrides.ConfigFile); err != nil {
-		return Config{}, err
+		return Config{}, xerror.WithOperation("read_config_file", err)
 	}
 
 	if _, ok := loader.Get("adb.executable_path").(string); !ok {
-		return Config{}, fmt.Errorf("adb.executable_path must be a string")
+		return Config{}, invalidSetting("adb.executable_path", fmt.Errorf("adb.executable_path must be a string"))
 	}
 	if _, ok := loader.Get("adb.allow_path_fallback").(bool); !ok {
-		return Config{}, fmt.Errorf("adb.allow_path_fallback must be a boolean")
+		return Config{}, invalidSetting("adb.allow_path_fallback", fmt.Errorf("adb.allow_path_fallback must be a boolean"))
 	}
 	configureEnvironment(loader)
 
@@ -83,7 +85,7 @@ func Load(overrides Overrides) (Config, error) {
 
 	var cfg Config
 	if err := loader.UnmarshalExact(&cfg); err != nil {
-		return Config{}, fmt.Errorf("decode configuration: %w", err)
+		return Config{}, xerror.WithOperation("decode_config", fmt.Errorf("decode configuration: %w", err))
 	}
 	cfg.normalize()
 
@@ -133,17 +135,17 @@ func (c *Config) normalize() {
 
 func (c Config) Validate() error {
 	if err := c.ADB.Validate(); err != nil {
-		return err
+		return invalidSetting("adb.executable_path", err)
 	}
 	address, err := netip.ParseAddrPort(c.HTTP.ListenAddress)
 	if err != nil {
-		return fmt.Errorf("http.listen_address must be an IP address and port: %w", err)
+		return invalidSetting("http.listen_address", fmt.Errorf("http.listen_address must be an IP address and port: %w", err))
 	}
 	if !address.Addr().IsLoopback() {
-		return fmt.Errorf("http.listen_address must use a loopback IP, got %q", c.HTTP.ListenAddress)
+		return invalidSetting("http.listen_address", fmt.Errorf("http.listen_address must use a loopback IP, got %q", c.HTTP.ListenAddress))
 	}
 	if address.Port() == 0 {
-		return fmt.Errorf("http.listen_address must use a non-zero port, got %q", c.HTTP.ListenAddress)
+		return invalidSetting("http.listen_address", fmt.Errorf("http.listen_address must use a non-zero port, got %q", c.HTTP.ListenAddress))
 	}
 
 	if err := validateDurationRange("shutdown_timeout", c.ShutdownTimeout, minShutdownTimeout, maxShutdownTimeout); err != nil {
@@ -165,13 +167,13 @@ func (c Config) Validate() error {
 	switch c.Logging.Level {
 	case "debug", "info", "warn", "error":
 	default:
-		return fmt.Errorf("logging.level must be debug, info, warn, or error, got %q", c.Logging.Level)
+		return invalidSetting("logging.level", fmt.Errorf("logging.level must be debug, info, warn, or error, got %q", c.Logging.Level))
 	}
 
 	switch c.Logging.Format {
 	case "json", "text":
 	default:
-		return fmt.Errorf("logging.format must be json or text, got %q", c.Logging.Format)
+		return invalidSetting("logging.format", fmt.Errorf("logging.format must be json or text, got %q", c.Logging.Format))
 	}
 
 	return nil
@@ -179,8 +181,12 @@ func (c Config) Validate() error {
 
 func validateDurationRange(name string, value, minimum, maximum time.Duration) error {
 	if value < minimum || value > maximum {
-		return fmt.Errorf("%s must be between %s and %s, got %s", name, minimum, maximum, value)
+		return invalidSetting(name, fmt.Errorf("%s must be between %s and %s, got %s", name, minimum, maximum, value))
 	}
 
 	return nil
+}
+
+func invalidSetting(name string, err error) error {
+	return &xerror.OperationError{Operation: "validate_config", Detail: name, Err: err}
 }

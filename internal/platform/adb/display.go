@@ -15,19 +15,23 @@ type DisplaySize struct {
 
 // DefaultDisplaySize reads the current logical size rather than the base size.
 func (d *Dispatcher) DefaultDisplaySize(ctx context.Context, serial string) (DisplaySize, error) {
-	result, err := d.runDevice(ctx, serial, []string{"shell", "-T", "dumpsys", "window", "displays"}, constants.ProcessOutputLimitBytes, 0)
+	result, err := d.runDevice(ctx, serial, "read_display", []string{"shell", "-T", "dumpsys", "window", "displays"}, constants.ProcessOutputLimitBytes, 0)
 	if err != nil {
 		return DisplaySize{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return DisplaySize{}, err
+		return DisplaySize{}, xerror.WithOperation("read_display", err)
 	}
 	if !result.StdoutTruncated {
 		if size, ok := parseDefaultDisplaySize(string(result.Stdout)); ok {
 			return size, nil
 		}
 	}
-	return DisplaySize{}, xerror.CommandError{Code: constants.CommandFailed, Message: "cannot determine the current default display size"}
+	message := "cannot determine the current default display size"
+	if result.StdoutTruncated {
+		message = "Android display output exceeds the size limit"
+	}
+	return DisplaySize{}, xerror.WithOperation("parse_display_size", xerror.CommandError{Code: constants.CommandFailed, Message: message})
 }
 
 func parseDefaultDisplaySize(output string) (DisplaySize, bool) {

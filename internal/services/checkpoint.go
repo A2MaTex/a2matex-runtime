@@ -65,7 +65,7 @@ func (s *CheckpointService) write(ctx context.Context, ref execution.AttemptRef,
 	case <-s.done:
 		return execution.CheckpointResult{}, s.stoppedError()
 	case <-ctx.Done():
-		return execution.CheckpointResult{}, s.checkpointError(finishing, ctx.Err())
+		return execution.CheckpointResult{}, s.checkpointError(finishing, xerror.WithOperation("wait_for_checkpoint_writer", ctx.Err()))
 	case s.gate <- struct{}{}:
 	}
 	defer func() { <-s.gate }()
@@ -75,7 +75,7 @@ func (s *CheckpointService) write(ctx context.Context, ref execution.AttemptRef,
 	default:
 	}
 	if err := ctx.Err(); err != nil {
-		return execution.CheckpointResult{}, s.checkpointError(finishing, err)
+		return execution.CheckpointResult{}, s.checkpointError(finishing, xerror.WithOperation("start_checkpoint_write", err))
 	}
 	var write checkpointWrite
 	err := s.repository.WithCheckpointTx(ctx, func(tx execution.CheckpointTx) error {
@@ -100,7 +100,22 @@ func (s *CheckpointService) write(ctx context.Context, ref execution.AttemptRef,
 			s.repository.NotifyRecoveredCheckpoint()
 			return s.result(write.result)
 		}
-		return execution.CheckpointResult{}, s.fail("reconcile attempt checkpoint", err)
+		failure := &xerror.OperationError{
+			Operation: "reconcile_attempt_checkpoint",
+			Detail:    "commit outcome could not be confirmed",
+			Err:       err,
+		}
+		if readErr != nil {
+			failure.Detail = "checkpoint read-back failed"
+			var readOperation *xerror.OperationError
+			if errors.As(readErr, &readOperation) {
+				failure.Detail += ": " + readOperation.Operation
+				if readOperation.Detail != "" {
+					failure.Detail += " (" + readOperation.Detail + ")"
+				}
+			}
+		}
+		return execution.CheckpointResult{}, s.fail(failure)
 	}
 	return execution.CheckpointResult{}, s.checkpointError(finishing, err)
 }
@@ -116,13 +131,13 @@ func (s *CheckpointService) result(result execution.CheckpointResult) (execution
 
 func (s *CheckpointService) checkpointError(finishing bool, err error) error {
 	if finishing && !errors.Is(err, xerror.ErrExecutionInvalidInput) {
-		return s.fail("finish attempt checkpoint", err)
+		return s.fail(xerror.WithOperation("finish_attempt_checkpoint", err))
 	}
-	return err
+	return xerror.WithOperation("write_attempt_checkpoint", err)
 }
 
-func (s *CheckpointService) fail(operation string, cause error) error {
-	err := fmt.Errorf("%w: %s: %w", xerror.ErrCheckpointFatal, operation, cause)
+func (s *CheckpointService) fail(cause error) error {
+	err := fmt.Errorf("%w: %w", xerror.ErrCheckpointFatal, cause)
 	s.stop.Do(func() {
 		s.failure = err
 		close(s.done)

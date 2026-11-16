@@ -92,5 +92,9 @@ func fileCandidate(path, within string, source Source) (Toolchain, error) {
 }
 
 func invalidCandidate(source Source) error {
-	return fmt.Errorf("%w (%s)", xerror.ErrADBInvalidCandidate, source)
+	return &xerror.OperationError{
+		Operation: "select_adb_executable",
+		Detail:    fmt.Sprintf("unusable %s ADB executable", source),
+		Err:       fmt.Errorf("%w (%s)", xerror.ErrADBInvalidCandidate, source),
+	}
 }

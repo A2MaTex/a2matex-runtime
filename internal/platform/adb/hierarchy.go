@@ -25,29 +25,30 @@ func (d *Dispatcher) SelectorPoint(ctx context.Context, serial, resourceID strin
 		return TapCommand{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return TapCommand{}, err
+		return TapCommand{}, xerror.WithOperation("resolve_selector", err)
 	}
-	return findSelectorPoint(ctx, data, resourceID, size)
+	point, err := findSelectorPoint(ctx, data, resourceID, size)
+	return point, xerror.WithOperation("resolve_selector", err)
 }
 
 func (d *Dispatcher) readHierarchy(ctx context.Context, serial string) ([]byte, error) {
 	directory := "/data/local/tmp/a2matex-" + rand.Text()
 	filename := directory + "/window.xml"
 	limit := constants.ProcessOutputLimitBytes
-	if _, err := d.runDevice(ctx, serial, []string{"shell", "-T", "mkdir", "-m", "700", directory}, limit, 0); err != nil {
+	if _, err := d.runDevice(ctx, serial, "create_hierarchy_directory", []string{"shell", "-T", "mkdir", "-m", "700", directory}, limit, 0); err != nil {
 		return nil, err
 	}
 	defer d.removeHierarchy(ctx, serial, directory, filename)
-	if _, err := d.runDevice(ctx, serial, []string{"shell", "-T", "uiautomator", "dump", filename}, limit, 0); err != nil {
+	if _, err := d.runDevice(ctx, serial, "dump_hierarchy", []string{"shell", "-T", "uiautomator", "dump", filename}, limit, 0); err != nil {
 		return nil, err
 	}
 	// exec-out keeps XML bytes intact. Only the generated path reaches the shell.
-	result, err := d.runDevice(ctx, serial, []string{"exec-out", "cat", filename}, constants.AndroidHierarchyMaxBytes, 0)
+	result, err := d.runDevice(ctx, serial, "read_hierarchy", []string{"exec-out", "cat", filename}, constants.AndroidHierarchyMaxBytes, 0)
 	if err != nil {
 		return nil, err
 	}
 	if result.StdoutTruncated {
-		return nil, hierarchyError("Android UI hierarchy exceeds the size limit")
+		return nil, xerror.WithOperation("read_hierarchy", hierarchyError("Android UI hierarchy exceeds the size limit"))
 	}
 	return result.Stdout, nil
 }
@@ -59,8 +60,8 @@ func (d *Dispatcher) removeHierarchy(ctx context.Context, serial, directory, fil
 	ctx, cancel := context.WithTimeout(ctx, constants.AndroidHierarchyCleanup)
 	defer cancel()
 	limit := constants.ProcessOutputLimitBytes
-	_, _ = d.runDevice(ctx, serial, []string{"shell", "-T", "rm", "-f", filename}, limit, 0)
-	_, _ = d.runDevice(ctx, serial, []string{"shell", "-T", "rmdir", directory}, limit, 0)
+	_, _ = d.runDevice(ctx, serial, "remove_hierarchy_file", []string{"shell", "-T", "rm", "-f", filename}, limit, 0)
+	_, _ = d.runDevice(ctx, serial, "remove_hierarchy_directory", []string{"shell", "-T", "rmdir", directory}, limit, 0)
 }
 
 func hierarchyError(message string) error {
