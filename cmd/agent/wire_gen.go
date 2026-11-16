@@ -42,11 +42,15 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	resolver := adb.NewResolver(adbConfig)
 	deviceInventory := services.NewDeviceInventory(resolver)
 	devicesHandler := devices.NewHandler(deviceInventory)
+	registryRegistry, err := newHandlerRegistry(registry)
+	if err != nil {
+		return nil, err
+	}
 	logger, err := logging.New(cfg)
 	if err != nil {
 		return nil, err
 	}
-	httpHandler := api.NewHandler(info, session, handler, devicesHandler, logger)
+	httpHandler := api.NewHandler(info, session, handler, devicesHandler, registryRegistry, logger)
 	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewOwnerPublisher(cfg, session, owner)
 	store := sqlitestore.New()

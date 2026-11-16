@@ -6,17 +6,16 @@ import (
 
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
+	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
 
 const (
 	targetModeField = "targetMode"
-	absolutePixels  = "ABSOLUTE_PIXELS"
-	screenPercent   = "SCREEN_PERCENT"
-	selectorID      = "SELECTOR_ID"
+	absolutePixels  = constants.AndroidTargetPixels
+	screenPercent   = constants.AndroidTargetPercent
+	selectorID      = constants.AndroidTargetSelector
 	longPress       = "android.long_press"
 
-	maxPixelCoordinate = 100_000
-	maxScreenPercent   = 100
 	maxSwipeDurationMS = 60_000
 	maxSafeInteger     = 9_007_199_254_740_991
 )
@@ -29,16 +28,14 @@ func newTargetingInputs() map[string]map[string]map[string]compiledField {
 			Type: FieldTypeInteger, Minimum: &minimum, Maximum: &maximum,
 		}}
 	}
-	pixel := integer(0, maxPixelCoordinate)
-	percent := integer(0, maxScreenPercent)
+	pixel := integer(0, constants.MaxAndroidPixelCoordinate)
+	percent := integer(0, constants.MaxAndroidScreenPercent)
 	swipeDuration := integer(1, maxSwipeDurationMS)
 	holdDuration := integer(1, maxSafeInteger)
 
-	// Match the Backend selector pattern's ECMAScript whitespace class.
-	const space = `\x09-\x0D\x20\x{00A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}`
 	selector := compiledField{
 		FieldSchema: FieldSchema{Type: FieldTypeString},
-		pattern:     regexp.MustCompile(`^[^` + space + `:]+:id/[^/` + space + `]+$`),
+		pattern:     regexp.MustCompile(constants.AndroidSelectorIDPattern),
 	}
 	return map[string]map[string]map[string]compiledField{
 		"android.tap": {

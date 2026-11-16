@@ -38,7 +38,12 @@ type Result struct {
 // Run invokes an absolute executable path supplied by trusted Runtime code.
 // The caller owns argument construction and interpretation of the result.
 func Run(ctx context.Context, executable string, args []string, timeout time.Duration) Result {
-	if !filepath.IsAbs(executable) || strings.ContainsRune(executable, 0) || timeout <= 0 {
+	return RunWithStdoutLimit(ctx, executable, args, timeout, constants.ProcessOutputLimitBytes)
+}
+
+// RunWithStdoutLimit changes only the stdout limit for a trusted adapter read.
+func RunWithStdoutLimit(ctx context.Context, executable string, args []string, timeout time.Duration, limit int) Result {
+	if !filepath.IsAbs(executable) || strings.ContainsRune(executable, 0) || timeout <= 0 || limit <= 0 {
 		return Result{Outcome: InvalidRequest}
 	}
 	for _, arg := range args {
@@ -55,7 +60,8 @@ func Run(ctx context.Context, executable string, args []string, timeout time.Dur
 
 	cmd := exec.CommandContext(runCtx, executable, args...)
 	cmd.WaitDelay = constants.ProcessCleanupTimeout
-	var stdout, stderr capture
+	stdout := capture{limit: limit}
+	stderr := capture{limit: constants.ProcessOutputLimitBytes}
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 
 	// Wait joins the context watcher. Record whether cancellation actually
@@ -122,13 +128,14 @@ func processOutcome(err error, stopOutcome Outcome) Outcome {
 type capture struct {
 	data      []byte
 	truncated bool
+	limit     int
 }
 
 func (c *capture) Write(p []byte) (int, error) {
-	keep := min(len(p), constants.ProcessOutputLimitBytes-len(c.data))
+	keep := min(len(p), c.limit-len(c.data))
 	if keep != 0 {
 		if c.data == nil {
-			c.data = make([]byte, 0, constants.ProcessOutputLimitBytes)
+			c.data = make([]byte, 0, c.limit)
 		}
 		c.data = append(c.data, p[:keep]...)
 	}

@@ -33,6 +33,7 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		auth.NewSession,
 		discovery.NewOwnerPublisher,
 		nodecontract.NewDefaultRegistry,
+		newHandlerRegistry,
 		validationservice.New,
 		workflowvalidation.NewHandler,
 		wire.FieldsOf(new(config.Config), "ADB"),

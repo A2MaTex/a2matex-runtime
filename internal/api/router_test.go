@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	validationservice "github.com/A2MaTex/a2matex-runtime/internal/validation/service"
@@ -413,14 +415,35 @@ func newTestRouter(output io.Writer) *gin.Engine {
 	return newTestRouterWithInventory(output, services.NewDeviceInventory(&inventorySource{}))
 }
 
-func newTestRouterWithInventory(output io.Writer, inventory devices.Inventory) *gin.Engine {
+func newTestRouterWithInventory(output io.Writer, inventory devices.Inventory, entries ...registry.Registration) *gin.Engine {
 	logger := slog.New(slog.NewJSONHandler(output, nil))
 	info := buildinfo.Info{Version: "1.2.3"}
-	registry, err := nodecontract.NewDefaultRegistry()
+	catalog, err := nodecontract.NewDefaultRegistry()
 	if err != nil {
 		panic(err)
 	}
-	workflowValidation := workflowvalidation.NewHandler(validationservice.New(registry))
+	handlers, err := registry.New(catalog, entries)
+	if err != nil {
+		panic(err)
+	}
+	workflowValidation := workflowvalidation.NewHandler(validationservice.New(catalog))
 
-	return newRouter(info, exactAuthorizationVerifier{}, workflowValidation, devices.NewHandler(inventory), logger)
+	return newRouter(info, exactAuthorizationVerifier{}, workflowValidation, devices.NewHandler(inventory), handlers.SupportedNodes(), logger)
+}
+
+func TestRuntimeInfoReportsRegisteredNodesInOrder(t *testing.T) {
+	t.Parallel()
+	unexpectedCall := func(context.Context, registry.Invocation) (map[string]any, error) {
+		t.Fatal("Runtime Info invoked a registered handler")
+		return nil, nil
+	}
+	router := newTestRouterWithInventory(io.Discard, services.NewDeviceInventory(&inventorySource{}),
+		registry.Registration{Type: "flow.start", RuntimeHandler: "flow.start", Run: unexpectedCall},
+		registry.Registration{Type: "android.tap", RuntimeHandler: "android.tap", Run: unexpectedCall},
+	)
+	req := httptest.NewRequest(http.MethodGet, localAPIRuntimeInfoPath, nil)
+	req.Header.Set("Authorization", validAuthorization)
+	want := `{"runtimeVersion":"1.2.3","runtimeIrFormatVersions":[1],"supportedNodes":[` +
+		`{"type":"android.tap","runtimeHandler":"android.tap"},{"type":"flow.start","runtimeHandler":"flow.start"}]}`
+	checkDeviceResponse(t, router, req, http.StatusOK, want)
 }

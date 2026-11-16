@@ -14,8 +14,8 @@ const (
 	APIErrorCodeUnauthorized     = "UNAUTHORIZED"
 	APIErrorCodeResourceNotFound = "RESOURCE_NOT_FOUND"
 	APIErrorCodePayloadTooLarge  = "PAYLOAD_TOO_LARGE"
-	APIErrorCodeInternal         = "INTERNAL_ERROR"
-	APIErrorCodeADBUnavailable   = "ADB_UNAVAILABLE"
+	APIErrorCodeInternal         = InternalError
+	APIErrorCodeADBUnavailable   = ADBUnavailable
 
 	APIErrorMessageInvalidRequest   = "request is invalid"
 	APIErrorMessageUnauthorized     = "local session token is missing or invalid"

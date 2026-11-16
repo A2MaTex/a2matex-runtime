@@ -11,6 +11,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
 )
 
 // NewHandler assembles the Runtime HTTP API independently of listener
@@ -20,11 +21,12 @@ func NewHandler(
 	verifier middleware.AuthorizationVerifier,
 	workflowValidation *workflowvalidation.Handler,
 	deviceInventory *devices.Handler,
+	handlers *registry.Registry,
 	logger *slog.Logger,
 ) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 
-	return newRouter(info, verifier, workflowValidation, deviceInventory, logger)
+	return newRouter(info, verifier, workflowValidation, deviceInventory, handlers.SupportedNodes(), logger)
 }
 
 func newRouter(
@@ -32,6 +34,7 @@ func newRouter(
 	verifier middleware.AuthorizationVerifier,
 	workflowValidation *workflowvalidation.Handler,
 	deviceInventory *devices.Handler,
+	supported []registry.SupportedNode,
 	logger *slog.Logger,
 ) *gin.Engine {
 	router := gin.New()
@@ -47,7 +50,7 @@ func newRouter(
 	v1 := router.Group("/api/v1")
 	{
 		v1.GET("/health", foundation.Health)
-		v1.GET("/runtime-info", foundation.RuntimeInfo(info))
+		v1.GET("/runtime-info", foundation.RuntimeInfo(info, supported))
 		v1.POST("/workflow-validation", workflowValidation.Validate)
 		v1.POST("/workflow-compilation", workflowValidation.Compile)
 		v1.GET("/devices", deviceInventory.Snapshot)

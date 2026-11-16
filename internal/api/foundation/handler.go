@@ -7,6 +7,7 @@ import (
 
 	apiresponse "github.com/A2MaTex/a2matex-runtime/internal/api/response"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
 
@@ -20,11 +21,15 @@ func Health(ctx *gin.Context) {
 }
 
 // RuntimeInfo returns the Runtime capabilities currently available to clients.
-func RuntimeInfo(info buildinfo.Info) gin.HandlerFunc {
+func RuntimeInfo(info buildinfo.Info, supported []registry.SupportedNode) gin.HandlerFunc {
+	nodes := make([]supportedNode, len(supported))
+	for index, node := range supported {
+		nodes[index] = supportedNode{Type: node.Type, RuntimeHandler: node.RuntimeHandler}
+	}
 	response := runtimeInfoResponse{
 		RuntimeVersion:          info.Version,
 		RuntimeIRFormatVersions: []int{constants.RuntimeIRFormatVersion},
-		SupportedNodes:          []supportedNode{},
+		SupportedNodes:          nodes,
 	}
 
 	return func(ctx *gin.Context) {
