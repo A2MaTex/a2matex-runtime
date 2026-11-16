@@ -57,6 +57,13 @@ func (c LongPressCommand) Valid() bool {
 	return validPixelPoint(c.X, c.Y) && c.DurationMS > 0 && c.DurationMS <= constants.MaxAndroidLongPressDurationMS
 }
 
+// PressBackCommand and PressHomeCommand select fixed Android navigation keys.
+type PressBackCommand struct{}
+type PressHomeCommand struct{}
+
+func (PressBackCommand) deviceCommand() {}
+func (PressHomeCommand) deviceCommand() {}
+
 func validPixelPoint(x, y int) bool {
 	return x >= 0 && x <= constants.MaxAndroidPixelCoordinate &&
 		y >= 0 && y <= constants.MaxAndroidPixelCoordinate
@@ -156,6 +163,10 @@ func commandArgs(command DeviceCommand) ([]string, time.Duration, error) {
 		}
 		args := swipeArgs(command.X, command.Y, command.X, command.Y, command.DurationMS)
 		return args, time.Duration(command.DurationMS) * time.Millisecond, nil
+	case PressBackCommand:
+		return []string{"shell", "-T", "input", "keyevent", "KEYCODE_BACK"}, 0, nil
+	case PressHomeCommand:
+		return []string{"shell", "-T", "input", "keyevent", "KEYCODE_HOME"}, 0, nil
 	default:
 		return nil, 0, xerror.CommandError{Code: constants.InternalError, Message: "device command has no adapter"}
 	}

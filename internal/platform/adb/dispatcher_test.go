@@ -112,10 +112,18 @@ func TestDispatchBindsExactSerial(t *testing.T) {
 	if err := dispatcher.Dispatch(ctx, "[2001:db8::1]:5555", LongPressCommand{X: 120, Y: 300, DurationMS: 800}); err != nil {
 		t.Fatal(err)
 	}
+	if err := dispatcher.Dispatch(ctx, "emulator-5554", PressBackCommand{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := dispatcher.Dispatch(ctx, "[2001:db8::1]:5555", PressHomeCommand{}); err != nil {
+		t.Fatal(err)
+	}
 	want := [][]string{
 		{"-s", "emulator-5554", "shell", "-T", "input", "tap", "0", "100000"},
 		{"-s", "[2001:db8::1]:5555", "shell", "-T", "input", "tap", "0", "100000"},
 		{"-s", "[2001:db8::1]:5555", "shell", "-T", "input", "swipe", "120", "300", "120", "300", "800"},
+		{"-s", "emulator-5554", "shell", "-T", "input", "keyevent", "KEYCODE_BACK"},
+		{"-s", "[2001:db8::1]:5555", "shell", "-T", "input", "keyevent", "KEYCODE_HOME"},
 	}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)

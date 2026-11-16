@@ -24,6 +24,7 @@ case "$1" in
     tap) [ "$#" -eq 3 ] && [ "$2" = 25 ] && [ "$3" = 90 ] ;;
     swipe) [ "$#" -eq 6 ] &&
         { [ "$*" = 'swipe 540 1535 540 384 300' ] || [ "$*" = 'swipe 25 90 25 90 800' ]; } ;;
+    keyevent) [ "$#" -eq 2 ] && { [ "$2" = KEYCODE_BACK ] || [ "$2" = KEYCODE_HOME ]; } ;;
     *) exit 1 ;;
 esac
 `
@@ -41,5 +42,10 @@ esac
 	}
 	if err := dispatcher.Dispatch(ctx, "192.0.2.5:5555", LongPressCommand{X: 25, Y: 90, DurationMS: 800}); err != nil {
 		t.Fatal(err)
+	}
+	for _, command := range []DeviceCommand{PressBackCommand{}, PressHomeCommand{}} {
+		if err := dispatcher.Dispatch(ctx, "192.0.2.5:5555", command); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
