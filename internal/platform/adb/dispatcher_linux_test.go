@@ -22,8 +22,8 @@ fi
 shift 5
 case "$1" in
     tap) [ "$#" -eq 3 ] && [ "$2" = 25 ] && [ "$3" = 90 ] ;;
-    swipe) [ "$#" -eq 6 ] && [ "$2" = 540 ] && [ "$3" = 1535 ] &&
-        [ "$4" = 540 ] && [ "$5" = 384 ] && [ "$6" = 300 ] ;;
+    swipe) [ "$#" -eq 6 ] &&
+        { [ "$*" = 'swipe 540 1535 540 384 300' ] || [ "$*" = 'swipe 25 90 25 90 800' ]; } ;;
     *) exit 1 ;;
 esac
 `
@@ -37,6 +37,9 @@ esac
 		t.Fatal(err)
 	}
 	if err := dispatcher.Dispatch(ctx, "192.0.2.5:5555", SwipeCommand{StartX: 540, StartY: 1535, EndX: 540, EndY: 384, DurationMS: 300}); err != nil {
+		t.Fatal(err)
+	}
+	if err := dispatcher.Dispatch(ctx, "192.0.2.5:5555", LongPressCommand{X: 25, Y: 90, DurationMS: 800}); err != nil {
 		t.Fatal(err)
 	}
 }

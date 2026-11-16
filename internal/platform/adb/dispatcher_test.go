@@ -17,15 +17,19 @@ import (
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
-func TestSwipeBudgetCheckedAfterToolchainResolution(t *testing.T) {
+func TestGestureBudgetCheckedAfterToolchainResolution(t *testing.T) {
 	for _, test := range []struct {
 		name     string
+		command  DeviceCommand
 		budget   time.Duration
 		wantExit bool
 	}{
-		{"still enough time", 501 * time.Millisecond, true},
-		{"duration equals remaining budget", 500 * time.Millisecond, false},
-		{"duration exceeds remaining budget", 450 * time.Millisecond, false},
+		{"swipe has time", SwipeCommand{DurationMS: 300}, 501 * time.Millisecond, true},
+		{"swipe equals remaining budget", SwipeCommand{DurationMS: 300}, 500 * time.Millisecond, false},
+		{"swipe exceeds remaining budget", SwipeCommand{DurationMS: 300}, 450 * time.Millisecond, false},
+		{"long press has time", LongPressCommand{DurationMS: 800}, 1001 * time.Millisecond, true},
+		{"long press equals remaining budget", LongPressCommand{DurationMS: 800}, time.Second, false},
+		{"long press exceeds remaining budget", LongPressCommand{DurationMS: 800}, 950 * time.Millisecond, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			binary := filepath.Join(t.TempDir(), executableName())
@@ -34,7 +38,7 @@ func TestSwipeBudgetCheckedAfterToolchainResolution(t *testing.T) {
 			}
 			synctest.Test(t, func(t *testing.T) {
 				resolver := NewResolver(config.ADBConfig{ExecutablePath: binary})
-				versionCalls, swipes := 0, 0
+				versionCalls, gestures := 0, 0
 				resolver.run = func(_ context.Context, _ string, args []string, _ time.Duration) processrunner.Result {
 					code := 0
 					if reflect.DeepEqual(args, []string{"version"}) {
@@ -42,28 +46,28 @@ func TestSwipeBudgetCheckedAfterToolchainResolution(t *testing.T) {
 						time.Sleep(200 * time.Millisecond)
 						return processrunner.Result{Outcome: processrunner.Succeeded, ExitCode: &code, Stdout: []byte("Android Debug Bridge version 1.0.41\n")}
 					}
-					swipes++
+					gestures++
 					return processrunner.Result{Outcome: processrunner.Succeeded, ExitCode: &code}
 				}
 				ctx, cancel := context.WithTimeout(t.Context(), test.budget)
 				defer cancel()
-				err := NewDispatcher(resolver).Dispatch(ctx, "emulator-5554", SwipeCommand{DurationMS: 300})
+				err := NewDispatcher(resolver).Dispatch(ctx, "emulator-5554", test.command)
 				if versionCalls != 1 {
 					t.Fatalf("version probes = %d, want 1", versionCalls)
 				}
 				if test.wantExit {
-					if err != nil || swipes != 1 {
-						t.Fatalf("error = %v, swipes = %d, want one successful swipe", err, swipes)
+					if err != nil || gestures != 1 {
+						t.Fatalf("error = %v, gestures = %d, want one successful gesture", err, gestures)
 					}
-				} else if !errors.Is(err, context.DeadlineExceeded) || swipes != 0 {
-					t.Fatalf("error = %v, swipes = %d, want deadline failure before dispatch", err, swipes)
+				} else if !errors.Is(err, context.DeadlineExceeded) || gestures != 0 {
+					t.Fatalf("error = %v, gestures = %d, want deadline failure before dispatch", err, gestures)
 				}
 			})
 		})
 	}
 }
 
-func TestDispatchRejectsInvalidSwipeBeforeResolving(t *testing.T) {
+func TestDispatchRejectsInvalidGesturesBeforeResolving(t *testing.T) {
 	resolver := NewResolver(config.ADBConfig{})
 	resolver.executable = func() (string, error) {
 		t.Fatal("invalid command reached ADB resolution")
@@ -72,10 +76,13 @@ func TestDispatchRejectsInvalidSwipeBeforeResolving(t *testing.T) {
 	dispatcher := NewDispatcher(resolver)
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	for _, command := range []SwipeCommand{
-		{DurationMS: 0},
-		{DurationMS: constants.MaxAndroidSwipeDurationMS + 1},
-		{EndX: -1, DurationMS: 1},
+	for _, command := range []DeviceCommand{
+		SwipeCommand{DurationMS: 0},
+		SwipeCommand{DurationMS: constants.MaxAndroidSwipeDurationMS + 1},
+		SwipeCommand{EndX: -1, DurationMS: 1},
+		LongPressCommand{DurationMS: 0},
+		LongPressCommand{DurationMS: constants.MaxAndroidLongPressDurationMS + 1},
+		LongPressCommand{Y: -1, DurationMS: 1},
 	} {
 		assertCommandError(t, dispatcher.Dispatch(ctx, "emulator-5554", command), constants.CommandInputUnsupported, false)
 	}
@@ -102,9 +109,13 @@ func TestDispatchBindsExactSerial(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if err := dispatcher.Dispatch(ctx, "[2001:db8::1]:5555", LongPressCommand{X: 120, Y: 300, DurationMS: 800}); err != nil {
+		t.Fatal(err)
+	}
 	want := [][]string{
 		{"-s", "emulator-5554", "shell", "-T", "input", "tap", "0", "100000"},
 		{"-s", "[2001:db8::1]:5555", "shell", "-T", "input", "tap", "0", "100000"},
+		{"-s", "[2001:db8::1]:5555", "shell", "-T", "input", "swipe", "120", "300", "120", "300", "800"},
 	}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)

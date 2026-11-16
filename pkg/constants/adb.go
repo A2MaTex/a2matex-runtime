@@ -16,11 +16,12 @@ const (
 )
 
 const (
-	MaxAndroidPixelCoordinate = 100_000
-	MaxAndroidScreenPercent   = 100
-	MaxAndroidSwipeDurationMS = 60_000
-	AndroidHierarchyMaxBytes  = 1 << 20
-	AndroidHierarchyCleanup   = time.Second
+	MaxAndroidPixelCoordinate     = 100_000
+	MaxAndroidScreenPercent       = 100
+	MaxAndroidSwipeDurationMS     = 60_000
+	MaxAndroidLongPressDurationMS = 60_000
+	AndroidHierarchyMaxBytes      = 1 << 20
+	AndroidHierarchyCleanup       = time.Second
 
 	AndroidTargetPixels   = "ABSOLUTE_PIXELS"
 	AndroidTargetPercent  = "SCREEN_PERCENT"

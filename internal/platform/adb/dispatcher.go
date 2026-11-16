@@ -44,6 +44,19 @@ func (c SwipeCommand) Valid() bool {
 		c.DurationMS > 0 && c.DurationMS <= constants.MaxAndroidSwipeDurationMS
 }
 
+// LongPressCommand holds one resolved Android display point for a fixed duration.
+type LongPressCommand struct {
+	X          int
+	Y          int
+	DurationMS int
+}
+
+func (LongPressCommand) deviceCommand() {}
+
+func (c LongPressCommand) Valid() bool {
+	return validPixelPoint(c.X, c.Y) && c.DurationMS > 0 && c.DurationMS <= constants.MaxAndroidLongPressDurationMS
+}
+
 func validPixelPoint(x, y int) bool {
 	return x >= 0 && x <= constants.MaxAndroidPixelCoordinate &&
 		y >= 0 && y <= constants.MaxAndroidPixelCoordinate
@@ -135,13 +148,23 @@ func commandArgs(command DeviceCommand) ([]string, time.Duration, error) {
 		if !command.Valid() {
 			return nil, 0, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "swipe coordinates or duration are out of range"}
 		}
-		args := []string{"shell", "-T", "input", "swipe",
-			strconv.Itoa(command.StartX), strconv.Itoa(command.StartY),
-			strconv.Itoa(command.EndX), strconv.Itoa(command.EndY), strconv.Itoa(command.DurationMS)}
+		args := swipeArgs(command.StartX, command.StartY, command.EndX, command.EndY, command.DurationMS)
+		return args, time.Duration(command.DurationMS) * time.Millisecond, nil
+	case LongPressCommand:
+		if !command.Valid() {
+			return nil, 0, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "long press coordinates or duration are out of range"}
+		}
+		args := swipeArgs(command.X, command.Y, command.X, command.Y, command.DurationMS)
 		return args, time.Duration(command.DurationMS) * time.Millisecond, nil
 	default:
 		return nil, 0, xerror.CommandError{Code: constants.InternalError, Message: "device command has no adapter"}
 	}
+}
+
+func swipeArgs(startX, startY, endX, endY, durationMS int) []string {
+	return []string{"shell", "-T", "input", "swipe",
+		strconv.Itoa(startX), strconv.Itoa(startY),
+		strconv.Itoa(endX), strconv.Itoa(endY), strconv.Itoa(durationMS)}
 }
 
 func dispatchError(result processrunner.Result) error {
