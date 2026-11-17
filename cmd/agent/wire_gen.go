@@ -56,8 +56,9 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	store := sqlitestore.New()
 	executionRepository := repositories.NewExecutionRepository(store)
 	executionRecovery := services.NewExecutionRecovery(executionRepository, logger)
+	artifactService := services.NewArtifactService(store, executionRepository, logger)
 	eventRetention := services.NewEventRetention(executionRepository, logger)
-	checkpointService := services.NewCheckpointService(executionRepository)
-	app := supervisor.New(server, publisher, store, executionRecovery, eventRetention, checkpointService, cfg, logger)
+	checkpointService := services.NewCheckpointService(executionRepository, artifactService)
+	app := supervisor.New(server, publisher, store, executionRecovery, artifactService, eventRetention, checkpointService, cfg, logger)
 	return app, nil
 }

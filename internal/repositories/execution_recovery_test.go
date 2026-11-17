@@ -60,7 +60,7 @@ func TestRecoveryReopensInterruptedTapExactlyOnce(t *testing.T) {
 	if _, err := repo.Admit(t.Context(), admission); err != nil {
 		t.Fatal(err)
 	}
-	checkpoint := services.NewCheckpointService(repo)
+	checkpoint := services.NewCheckpointService(repo, nil)
 	start := beginFixture(admission, 0, 50)
 	requireBegin(t, checkpoint, start, 1, "4")
 	finish := finishFixture(start)
@@ -160,7 +160,7 @@ func TestRecoveryPreservesSuccessfulSiblingOfPausedDevice(t *testing.T) {
 	if _, err := repo.Admit(t.Context(), admission); err != nil {
 		t.Fatal(err)
 	}
-	checkpoint := services.NewCheckpointService(repo)
+	checkpoint := services.NewCheckpointService(repo, nil)
 	first := beginFixture(admission, 0, 50)
 	requireBegin(t, checkpoint, first, 1, "5")
 	requireFinish(t, checkpoint, finishFixture(first), 1, "7")
@@ -200,7 +200,7 @@ func TestRecoveryRejectsRunningAttemptUnderTerminalGroup(t *testing.T) {
 	if _, err := repo.Admit(t.Context(), admission); err != nil {
 		t.Fatal(err)
 	}
-	checkpoint := services.NewCheckpointService(repo)
+	checkpoint := services.NewCheckpointService(repo, nil)
 	begin := beginFixture(admission, 0, 50)
 	requireBegin(t, checkpoint, begin, 1, "4")
 	if _, err := repo.store.DB().ExecContext(t.Context(), `UPDATE run_groups SET status = 'FAILED', finished_at = ? WHERE id = ?`,
@@ -223,7 +223,7 @@ func TestRecoveryOrdersAttemptAndDeviceEventsByStoredID(t *testing.T) {
 	if _, err := repo.Admit(t.Context(), admission); err != nil {
 		t.Fatal(err)
 	}
-	checkpoint := services.NewCheckpointService(repo)
+	checkpoint := services.NewCheckpointService(repo, nil)
 	first, second := beginFixture(admission, 0, 51), beginFixture(admission, 1, 50)
 	requireBegin(t, checkpoint, first, 1, "5")
 	requireBegin(t, checkpoint, second, 1, "7")

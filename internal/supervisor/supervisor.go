@@ -53,6 +53,7 @@ func New(
 	publisher *discovery.Publisher,
 	store *sqlitestore.Store,
 	recovery *services.ExecutionRecovery,
+	artifacts *services.ArtifactService,
 	retention *services.EventRetention,
 	checkpoint *services.CheckpointService,
 	cfg config.Config,
@@ -73,6 +74,10 @@ func New(
 			{
 				name:      "execution_recovery",
 				lifecycle: recovery,
+			},
+			{
+				name:      "artifact_store",
+				lifecycle: artifacts,
 			},
 			{
 				name:      "event_retention",

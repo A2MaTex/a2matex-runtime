@@ -15,7 +15,7 @@ func (s *CheckpointService) BeginAttempt(ctx context.Context, request execution.
 	}
 	ctx, cancel := context.WithTimeout(ctx, constants.CheckpointTimeout)
 	defer cancel()
-	return s.write(ctx, request.AttemptRef, false, func(tx execution.CheckpointTx) (checkpointWrite, error) {
+	return s.write(ctx, request.AttemptRef, false, "", func(tx execution.CheckpointTx) (checkpointWrite, error) {
 		state, err := tx.CheckpointState(ctx, request.AttemptRef, "")
 		if err != nil {
 			return checkpointWrite{}, err

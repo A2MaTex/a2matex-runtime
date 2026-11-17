@@ -38,7 +38,7 @@ func TestStoreMigratesReopensAndRejectsSecondOwner(t *testing.T) {
 		t.Fatalf("reopen status = %q, err = %v", status, err)
 	}
 	var ledgerRows int
-	if err := second.db.QueryRowContext(t.Context(), "SELECT count(*) FROM goose_db_version").Scan(&ledgerRows); err != nil || ledgerRows != 2 {
+	if err := second.db.QueryRowContext(t.Context(), "SELECT count(*) FROM goose_db_version").Scan(&ledgerRows); err != nil || ledgerRows != len(first.migrationReport.Applied)+1 {
 		t.Fatalf("ledger rows = %d, err = %v", ledgerRows, err)
 	}
 }

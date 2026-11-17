@@ -22,7 +22,7 @@ func checkpointFixture(t *testing.T, deviceCount int) (*ExecutionRepository, *se
 	if _, err := repo.Admit(t.Context(), admission); err != nil {
 		t.Fatal(err)
 	}
-	service := services.NewCheckpointService(repo)
+	service := services.NewCheckpointService(repo, nil)
 	t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
 	return repo, service, admission
 }
@@ -361,7 +361,7 @@ func (s *unconfirmedCheckpointRepo) ReadCheckpoint(ctx context.Context, ref exec
 func TestCheckpointReconcilesCommittedResultOnce(t *testing.T) {
 	repo, _, admission := checkpointFixture(t, 1)
 	uncertain := &unconfirmedCheckpointRepo{ExecutionRepository: repo, commit: true}
-	service := services.NewCheckpointService(uncertain)
+	service := services.NewCheckpointService(uncertain, nil)
 	begin := beginFixture(admission, 0, 50)
 	requireBegin(t, service, begin, 1, "4")
 	if uncertain.readbacks != 1 {
@@ -392,7 +392,7 @@ func TestCheckpointUnconfirmedRollbackStopsExecution(t *testing.T) {
 	begin := beginFixture(admission, 0, 50)
 	requireBegin(t, service, begin, 1, "4")
 	uncertain := &unconfirmedCheckpointRepo{ExecutionRepository: repo}
-	service = services.NewCheckpointService(uncertain)
+	service = services.NewCheckpointService(uncertain, nil)
 	wakeup := repo.EventWakeup()
 	result, err := service.FinishAttempt(t.Context(), finishFixture(begin))
 	if !errors.Is(err, xerror.ErrCheckpointFatal) || !errors.Is(err, xerror.ErrExecutionCommitUnknown) || result.Disposition != "" || uncertain.readbacks != 1 {
@@ -419,7 +419,7 @@ func TestCheckpointStartCancelledAfterWrites(t *testing.T) {
 	repo, _, admission := checkpointFixture(t, 1)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	service := services.NewCheckpointService(&cancelCheckpointRepo{ExecutionRepository: repo, cancel: cancel})
+	service := services.NewCheckpointService(&cancelCheckpointRepo{ExecutionRepository: repo, cancel: cancel}, nil)
 	begin := beginFixture(admission, 0, 50)
 	wakeup := repo.EventWakeup()
 	if result, err := service.BeginAttempt(ctx, begin); !errors.Is(err, context.Canceled) || result.Disposition != "" {

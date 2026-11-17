@@ -16,14 +16,19 @@ import (
 // failures to the supervisor through Wait.
 type CheckpointService struct {
 	repository execution.CheckpointRepository
+	artifacts  ArtifactDiscarder
 	gate       chan struct{}
 	done       chan struct{}
 	stop       sync.Once
 	failure    error
 }
 
-func NewCheckpointService(repository execution.CheckpointRepository) *CheckpointService {
-	return &CheckpointService{repository: repository, gate: make(chan struct{}, 1), done: make(chan struct{})}
+type ArtifactDiscarder interface {
+	DiscardUncommitted(context.Context, string)
+}
+
+func NewCheckpointService(repository execution.CheckpointRepository, artifacts ArtifactDiscarder) *CheckpointService {
+	return &CheckpointService{repository: repository, artifacts: artifacts, gate: make(chan struct{}, 1), done: make(chan struct{})}
 }
 
 func (s *CheckpointService) Start(ctx context.Context) error { return ctx.Err() }
@@ -52,11 +57,12 @@ func (s *CheckpointService) stoppedError() error {
 }
 
 type checkpointWrite struct {
-	result  execution.CheckpointResult
-	matches func(execution.CheckpointState) bool
+	result     execution.CheckpointResult
+	matches    func(execution.CheckpointState) bool
+	artifactID string
 }
 
-func (s *CheckpointService) write(ctx context.Context, ref execution.AttemptRef, finishing bool,
+func (s *CheckpointService) write(ctx context.Context, ref execution.AttemptRef, finishing bool, stagedID string,
 	operation func(execution.CheckpointTx) (checkpointWrite, error),
 ) (execution.CheckpointResult, error) {
 	// SQLite already serializes writes. Keep this gate through read-back so a
@@ -77,6 +83,16 @@ func (s *CheckpointService) write(ctx context.Context, ref execution.AttemptRef,
 	if err := ctx.Err(); err != nil {
 		return execution.CheckpointResult{}, s.checkpointError(finishing, xerror.WithOperation("start_checkpoint_write", err))
 	}
+	var keepStage bool
+	if stagedID != "" && s.artifacts != nil {
+		// Keep the writer gate through lookup and discard so another finish
+		// cannot publish the ID between those operations.
+		defer func() {
+			if !keepStage {
+				s.artifacts.DiscardUncommitted(ctx, stagedID)
+			}
+		}()
+	}
 	var write checkpointWrite
 	err := s.repository.WithCheckpointTx(ctx, func(tx execution.CheckpointTx) error {
 		var err error
@@ -84,6 +100,7 @@ func (s *CheckpointService) write(ctx context.Context, ref execution.AttemptRef,
 		return err
 	})
 	if err == nil {
+		keepStage = write.artifactID == stagedID
 		return s.result(write.result)
 	}
 	if errors.Is(err, xerror.ErrExecutionNotFound) || errors.Is(err, xerror.ErrExecutionStaleState) {
@@ -97,9 +114,11 @@ func (s *CheckpointService) write(ctx context.Context, ref execution.AttemptRef,
 		state, watermark, readErr := s.repository.ReadCheckpoint(ctx, ref)
 		cursor, cursorErr := strconv.ParseInt(write.result.Cursor, 10, 64)
 		if readErr == nil && cursorErr == nil && watermark >= cursor && write.matches != nil && write.matches(state) {
+			keepStage = write.artifactID == stagedID
 			s.repository.NotifyRecoveredCheckpoint()
 			return s.result(write.result)
 		}
+		keepStage = true
 		failure := &xerror.OperationError{
 			Operation: "reconcile_attempt_checkpoint",
 			Detail:    "commit outcome could not be confirmed",

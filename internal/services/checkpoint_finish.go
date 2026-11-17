@@ -3,6 +3,7 @@ package services
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
@@ -22,7 +23,11 @@ func (s *CheckpointService) FinishAttempt(ctx context.Context, request execution
 	}
 	checkpointCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
 	defer cancel()
-	return s.write(checkpointCtx, request.AttemptRef, true, func(tx execution.CheckpointTx) (checkpointWrite, error) {
+	stagedID := request.DiscardArtifactID
+	if request.Artifact != nil {
+		stagedID = request.Artifact.ID
+	}
+	return s.write(checkpointCtx, request.AttemptRef, true, stagedID, func(tx execution.CheckpointTx) (checkpointWrite, error) {
 		return finishAttempt(checkpointCtx, tx, request)
 	})
 }
@@ -69,6 +74,11 @@ func finishAttempt(ctx context.Context, tx execution.CheckpointTx, request execu
 	if err := tx.FinalizeAttempt(ctx, request); err != nil {
 		return checkpointWrite{}, err
 	}
+	if request.Artifact != nil {
+		if err := tx.InsertArtifact(ctx, *request.Artifact); err != nil {
+			return checkpointWrite{}, err
+		}
+	}
 	if deviceChanged {
 		if err := tx.UpdateCheckpointDevice(ctx, device); err != nil {
 			return checkpointWrite{}, err
@@ -79,19 +89,24 @@ func finishAttempt(ctx context.Context, tx execution.CheckpointTx, request execu
 			return checkpointWrite{}, err
 		}
 	}
-	return appendCheckpoint(ctx, tx, attempt.Sequence, events, func(durable execution.CheckpointState) bool {
+	write, err := appendCheckpoint(ctx, tx, attempt.Sequence, events, func(durable execution.CheckpointState) bool {
 		stored := durable.Attempt
 		return sameAttempt(stored, request.AttemptRef) && stored.Status == request.Status &&
 			stored.Sequence == attempt.Sequence && durable.LatestSequence == attempt.Sequence &&
 			stored.FinishedAt != nil && *stored.FinishedAt == request.Now.UnixMilli() &&
 			bytes.Equal(stored.Output, request.Output) && bytes.Equal(stored.Error, request.Error) &&
 			durable.DeviceStatus == device.Status && durable.NextNodeID == device.NextNodeID &&
-			(!groupChanged || durable.GroupStatus == groupStatus)
+			(!groupChanged || durable.GroupStatus == groupStatus) &&
+			(request.Artifact == nil || (durable.Artifact != nil && *durable.Artifact == *request.Artifact))
 	})
+	if request.Artifact != nil {
+		write.artifactID = request.Artifact.ID
+	}
+	return write, err
 }
 
 func validFinish(request execution.FinishAttemptRequest) bool {
-	if !validAttemptRef(request.AttemptRef) || request.Now.IsZero() ||
+	if !validAttemptRef(request.AttemptRef) || request.Now.IsZero() || !validFinishArtifact(request) ||
 		(request.NextNodeID != "" && !execution.ValidNodeID(request.NextNodeID)) {
 		return false
 	}
@@ -112,6 +127,21 @@ func validFinish(request execution.FinishAttemptRequest) bool {
 	return failedAttempt(request.Status) && request.NextNodeID == request.NodeID && execution.RetryableEventError(request.Error) &&
 		retry.MaxAttempts > 1 && retry.MaxAttempts <= constants.MaxNodeAttemptNumber &&
 		retry.DelayMS >= 0 && retry.DelayMS <= constants.MaxRetryDelayMS
+}
+
+func validFinishArtifact(request execution.FinishAttemptRequest) bool {
+	if request.NodeType != constants.ScreenshotNodeType {
+		return request.Artifact == nil && request.DiscardArtifactID == ""
+	}
+	if request.Status != constants.ExecutionSucceeded {
+		return request.Artifact == nil && (request.DiscardArtifactID == "" || execution.ValidID(request.DiscardArtifactID))
+	}
+	artifact := request.Artifact
+	if artifact == nil || request.DiscardArtifactID != "" || artifact.AttemptID != request.AttemptID || !artifact.Valid() {
+		return false
+	}
+	var output map[string]string
+	return json.Unmarshal(request.Output, &output) == nil && len(output) == 1 && output["artifactId"] == artifact.ID
 }
 
 func failedAttempt(status string) bool {

@@ -18,6 +18,7 @@ const databaseName = "execution.sqlite3"
 type Store struct {
 	dbMu            sync.RWMutex
 	db              *sql.DB
+	stateDir        string
 	lock            *os.File
 	done            chan struct{}
 	migrationReport MigrationReport
@@ -79,6 +80,7 @@ func (s *Store) startAt(ctx context.Context, root string) error {
 	}
 	s.dbMu.Lock()
 	s.db = db
+	s.stateDir = root
 	s.migrationReport = report
 	s.dbMu.Unlock()
 	return nil
@@ -100,6 +102,7 @@ func (s *Store) release() error {
 	s.dbMu.Lock()
 	db := s.db
 	s.db = nil
+	s.stateDir = ""
 	s.dbMu.Unlock()
 	if db != nil {
 		if closeErr := db.Close(); closeErr != nil {
@@ -120,6 +123,13 @@ func (s *Store) DB() *sql.DB {
 	s.dbMu.RLock()
 	defer s.dbMu.RUnlock()
 	return s.db
+}
+
+// StateDirectory returns the canonical state directory while the store holds its lock.
+func (s *Store) StateDirectory() string {
+	s.dbMu.RLock()
+	defer s.dbMu.RUnlock()
+	return s.stateDir
 }
 
 func openPrivateFile(path string) (*os.File, error) {

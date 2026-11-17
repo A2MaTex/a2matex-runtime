@@ -31,6 +31,9 @@ type RetryDecision struct {
 
 type FinishAttemptRequest struct {
 	AttemptRef
+	NodeType          string
+	Artifact          *Artifact // Staged metadata for a successful Screenshot.
+	DiscardArtifactID string    // An unpublished stage to settle after an unsuccessful Screenshot.
 	Status            string
 	NextNodeID        string
 	Output            json.RawMessage // Already validated against the node contract by the engine.
@@ -63,6 +66,7 @@ type CheckpointState struct {
 	LatestSequence                        int64
 	HasActiveAttempt                      bool
 	Attempt                               *CheckpointAttempt
+	Artifact                              *Artifact // Populated during commit read-back.
 }
 
 type DeviceCheckpoint struct {
@@ -78,6 +82,7 @@ type CheckpointTx interface {
 	InsertAttempt(ctx context.Context, request BeginAttemptRequest, sequence int64) error
 	StartDevice(ctx context.Context, request BeginAttemptRequest) error
 	FinalizeAttempt(ctx context.Context, request FinishAttemptRequest) error
+	InsertArtifact(context.Context, Artifact) error
 	UpdateCheckpointDevice(ctx context.Context, device DeviceCheckpoint) error
 	OtherDeviceStatuses(ctx context.Context, ref AttemptRef) ([]string, error)
 	UpdateCheckpointGroup(ctx context.Context, runGroupID, status string, now time.Time) error

@@ -27,6 +27,10 @@ func (s *ExecutionRepository) ReadCheckpoint(ctx context.Context, ref execution.
 		if err != nil {
 			return err
 		}
+		state.Artifact, err = tx.artifactByAttempt(ctx, ref.AttemptID)
+		if err != nil {
+			return err
+		}
 		stream, err := eventState(ctx, tx)
 		watermark = stream.Watermark
 		return err

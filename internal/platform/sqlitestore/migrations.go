@@ -115,10 +115,10 @@ func checkHistory(ctx context.Context, db *sql.DB, versions []int64) error {
 
 func verifySchema(ctx context.Context, db *sql.DB) error {
 	const objects = `SELECT count(*) FROM sqlite_schema WHERE
-		(type='table' AND name IN ('run_groups','device_executions','node_attempts','execution_events','event_stream_state'))
+		(type='table' AND name IN ('run_groups','device_executions','node_attempts','execution_events','event_stream_state','artifacts'))
 		OR (type='index' AND name IN ('run_groups_one_active','node_attempts_one_running'))`
 	var count int
-	if err := db.QueryRowContext(ctx, objects).Scan(&count); err != nil || count != 7 {
+	if err := db.QueryRowContext(ctx, objects).Scan(&count); err != nil || count != 8 {
 		return storeFailure("verify_database_schema", "verify execution database schema", err)
 	}
 	var cursor, floor int64

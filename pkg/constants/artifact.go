@@ -1,0 +1,9 @@
+package constants
+
+const (
+	ScreenshotNodeType     = "android.screenshot"
+	ScreenshotMediaType    = "image/png"
+	MaxScreenshotBytes     = 16 * 1024 * 1024
+	MaxScreenshotDimension = 4096
+	MaxScreenshotPixels    = 12_000_000
+)
