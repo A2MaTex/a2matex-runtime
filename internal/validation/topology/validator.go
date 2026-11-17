@@ -1,6 +1,9 @@
 package topology
 
 import (
+	"context"
+
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
 )
@@ -11,11 +14,28 @@ type Result struct {
 }
 
 type indexedEdge struct {
-	edge  editorgraph.Edge
+	edge  ir.Edge
 	index int
 }
 
+type Node struct{ ID, Type string }
+
+type View struct {
+	EntryNodeID string
+	Nodes       []Node
+	Edges       []ir.Edge
+}
+
 func Validate(graph *editorgraph.Graph) Result {
+	view := View{EntryNodeID: graph.EntryNodeID, Edges: graph.Edges}
+	for _, node := range graph.Nodes {
+		view.Nodes = append(view.Nodes, Node{ID: node.ID, Type: node.Type})
+	}
+	result, _ := ValidateView(context.Background(), view)
+	return result
+}
+
+func ValidateView(ctx context.Context, graph View) (Result, error) {
 	var diagnostics []validation.Diagnostic
 	if len(graph.Nodes) > validation.EditorGraphMaxNodes {
 		diagnostics = append(diagnostics, validation.NewDiagnostic(validation.CodeGraphNodeLimitExceeded, validation.Path{"nodes"}, "", ""))
@@ -24,12 +44,15 @@ func Validate(graph *editorgraph.Graph) Result {
 		diagnostics = append(diagnostics, validation.NewDiagnostic(validation.CodeGraphEdgeLimitExceeded, validation.Path{"edges"}, "", ""))
 	}
 	if len(diagnostics) > 0 {
-		return Result{Diagnostics: diagnostics, Continue: false}
+		return Result{Diagnostics: diagnostics, Continue: false}, ctx.Err()
 	}
 
-	nodeByID := make(map[string]editorgraph.Node, len(graph.Nodes))
+	nodeByID := make(map[string]Node, len(graph.Nodes))
 	uniqueNodeIDs := make([]string, 0, len(graph.Nodes))
 	for index, node := range graph.Nodes {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
 		if _, exists := nodeByID[node.ID]; exists {
 			diagnostics = append(diagnostics, validation.NewDiagnostic(
 				validation.CodeNodeIDDuplicated,
@@ -45,6 +68,9 @@ func Validate(graph *editorgraph.Graph) Result {
 
 	edgeIDs := make(map[string]struct{}, len(graph.Edges))
 	for index, edge := range graph.Edges {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
 		if _, exists := edgeIDs[edge.ID]; exists {
 			diagnostics = append(diagnostics, validation.NewDiagnostic(
 				validation.CodeEdgeIDDuplicated,
@@ -57,7 +83,7 @@ func Validate(graph *editorgraph.Graph) Result {
 		edgeIDs[edge.ID] = struct{}{}
 	}
 
-	var startNode *editorgraph.Node
+	var startNode *Node
 	startCount := 0
 	for index := range graph.Nodes {
 		if graph.Nodes[index].Type == "flow.start" {
@@ -83,6 +109,9 @@ func Validate(graph *editorgraph.Graph) Result {
 		adjacency[nodeID] = nil
 	}
 	for index, edge := range graph.Edges {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
 		source, sourceExists := nodeByID[edge.SourceNodeID]
 		_, targetExists := nodeByID[edge.TargetNodeID]
 		if !sourceExists {
@@ -118,6 +147,9 @@ func Validate(graph *editorgraph.Graph) Result {
 	if startNode != nil {
 		pending := []string{startNode.ID}
 		for len(pending) > 0 {
+			if err := ctx.Err(); err != nil {
+				return Result{}, err
+			}
 			last := len(pending) - 1
 			nodeID := pending[last]
 			pending = pending[:last]
@@ -131,6 +163,9 @@ func Validate(graph *editorgraph.Graph) Result {
 		}
 	}
 	for index, node := range graph.Nodes {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
 		if _, ok := reachable[node.ID]; !ok {
 			diagnostics = append(diagnostics, validation.NewDiagnostic(
 				validation.CodeNodeUnreachable,
@@ -152,8 +187,9 @@ func Validate(graph *editorgraph.Graph) Result {
 		diagnostics = append(diagnostics, validation.NewDiagnostic(validation.CodeEndNodeUnreachable, validation.Path{"nodes"}, "", ""))
 	}
 
-	diagnostics = append(diagnostics, cycleDiagnostics(uniqueNodeIDs, adjacency)...)
-	return Result{Diagnostics: diagnostics, Continue: true}
+	cycles, err := cycleDiagnostics(ctx, uniqueNodeIDs, adjacency)
+	diagnostics = append(diagnostics, cycles...)
+	return Result{Diagnostics: diagnostics, Continue: true}, err
 }
 
 type visitState uint8
@@ -168,7 +204,7 @@ type frame struct {
 	nextEdge int
 }
 
-func cycleDiagnostics(nodeIDs []string, adjacency map[string][]indexedEdge) []validation.Diagnostic {
+func cycleDiagnostics(ctx context.Context, nodeIDs []string, adjacency map[string][]indexedEdge) ([]validation.Diagnostic, error) {
 	states := make(map[string]visitState, len(nodeIDs))
 	var diagnostics []validation.Diagnostic
 	for _, root := range nodeIDs {
@@ -178,6 +214,9 @@ func cycleDiagnostics(nodeIDs []string, adjacency map[string][]indexedEdge) []va
 		states[root] = visiting
 		stack := []frame{{nodeID: root}}
 		for len(stack) > 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			current := &stack[len(stack)-1]
 			edges := adjacency[current.nodeID]
 			if current.nextEdge >= len(edges) {
@@ -201,5 +240,5 @@ func cycleDiagnostics(nodeIDs []string, adjacency map[string][]indexedEdge) []va
 			}
 		}
 	}
-	return diagnostics
+	return diagnostics, ctx.Err()
 }

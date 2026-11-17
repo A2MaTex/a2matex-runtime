@@ -142,8 +142,87 @@
     "capabilities": [],
     "inputSchema": {
       "type": "object",
-      "properties": {},
-      "required": [],
+      "properties": {
+        "value": {
+          "bindingKinds": {
+            "LITERAL": {
+              "fields": {
+                "value": {
+                  "types": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                }
+              }
+            },
+            "WORKFLOW_INPUT": {
+              "fields": [
+                "inputName"
+              ]
+            },
+            "NODE_OUTPUT": {
+              "fields": [
+                "nodeId",
+                "field"
+              ]
+            },
+            "FLOW_VARIABLE": {
+              "fields": [
+                "name"
+              ]
+            },
+            "GLOBAL_VARIABLE": {
+              "fields": [
+                "name"
+              ]
+            }
+          }
+        }
+      },
+      "dynamicInputs": {
+        "ruleOperand": {
+          "bindingKeyFrom": "config.rules[].id",
+          "operandCountFrom": "config.rules[].operator",
+          "bindingKinds": {
+            "LITERAL": {
+              "fields": {
+                "value": {
+                  "types": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                }
+              }
+            },
+            "WORKFLOW_INPUT": {
+              "fields": [
+                "inputName"
+              ]
+            },
+            "NODE_OUTPUT": {
+              "fields": [
+                "nodeId",
+                "field"
+              ]
+            },
+            "FLOW_VARIABLE": {
+              "fields": [
+                "name"
+              ]
+            },
+            "GLOBAL_VARIABLE": {
+              "fields": [
+                "name"
+              ]
+            }
+          }
+        }
+      },
+      "required": [
+        "value"
+      ],
       "additionalProperties": false
     },
     "outputSchema": {
@@ -152,13 +231,7 @@
       "required": [],
       "additionalProperties": false
     },
-    "bindingKinds": [
-      "LITERAL",
-      "WORKFLOW_INPUT",
-      "NODE_OUTPUT",
-      "FLOW_VARIABLE",
-      "GLOBAL_VARIABLE"
-    ]
+    "bindingKinds": []
   },
   {
     "type": "flow.set_variable",
@@ -168,8 +241,47 @@
     "capabilities": [],
     "inputSchema": {
       "type": "object",
-      "properties": {},
-      "required": [],
+      "properties": {
+        "value": {
+          "bindingKinds": {
+            "LITERAL": {
+              "fields": {
+                "value": {
+                  "types": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                }
+              }
+            },
+            "WORKFLOW_INPUT": {
+              "fields": [
+                "inputName"
+              ]
+            },
+            "NODE_OUTPUT": {
+              "fields": [
+                "nodeId",
+                "field"
+              ]
+            },
+            "FLOW_VARIABLE": {
+              "fields": [
+                "name"
+              ]
+            },
+            "GLOBAL_VARIABLE": {
+              "fields": [
+                "name"
+              ]
+            }
+          }
+        }
+      },
+      "required": [
+        "value"
+      ],
       "additionalProperties": false
     },
     "outputSchema": {
@@ -178,13 +290,7 @@
       "required": [],
       "additionalProperties": false
     },
-    "bindingKinds": [
-      "LITERAL",
-      "WORKFLOW_INPUT",
-      "NODE_OUTPUT",
-      "FLOW_VARIABLE",
-      "GLOBAL_VARIABLE"
-    ]
+    "bindingKinds": []
   },
   {
     "type": "android.launch_app",

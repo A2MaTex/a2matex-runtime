@@ -18,30 +18,40 @@ const (
 type Code string
 
 const (
-	CodeWorkflowInputSchemaInvalid    Code = "WORKFLOW_INPUT_SCHEMA_INVALID"
-	CodeRuntimeIRPayloadTooLarge      Code = "RUNTIME_IR_PAYLOAD_TOO_LARGE"
-	CodeEditorGraphContractInvalid    Code = "EDITOR_GRAPH_CONTRACT_INVALID"
-	CodeGraphSchemaVersionUnsupported Code = "GRAPH_SCHEMA_VERSION_UNSUPPORTED"
-	CodeNodeIDDuplicated              Code = "NODE_ID_DUPLICATED"
-	CodeEdgeIDDuplicated              Code = "EDGE_ID_DUPLICATED"
-	CodeStartNodeCountInvalid         Code = "START_NODE_COUNT_INVALID"
-	CodeEntryNodeInvalid              Code = "ENTRY_NODE_INVALID"
-	CodeEndNodeUnreachable            Code = "END_NODE_UNREACHABLE"
-	CodeEdgeSourceNodeNotFound        Code = "EDGE_SOURCE_NODE_NOT_FOUND"
-	CodeEdgeTargetNodeNotFound        Code = "EDGE_TARGET_NODE_NOT_FOUND"
-	CodeEdgeSourcePortNotFound        Code = "EDGE_SOURCE_PORT_NOT_FOUND"
-	CodeEndNodeHasOutgoingEdge        Code = "END_NODE_HAS_OUTGOING_EDGE"
-	CodeNodeUnreachable               Code = "NODE_UNREACHABLE"
-	CodeGraphCycleDetected            Code = "GRAPH_CYCLE_DETECTED"
-	CodeNodeTypeNotActive             Code = "NODE_TYPE_NOT_ACTIVE"
-	CodeNodeConfigInvalid             Code = "NODE_CONFIG_INVALID"
-	CodeNodeErrorPolicyInvalid        Code = "NODE_ERROR_POLICY_INVALID"
-	CodeNodeBindingsInvalid           Code = "NODE_BINDINGS_INVALID"
-	CodeNodeValueBindingInvalid       Code = "NODE_VALUE_BINDING_INVALID"
-	CodeNodePortEdgeCountInvalid      Code = "NODE_PORT_EDGE_COUNT_INVALID"
-	CodeSwitchPortEdgeCountInvalid    Code = "SWITCH_PORT_EDGE_COUNT_INVALID"
-	CodeGraphNodeLimitExceeded        Code = "GRAPH_NODE_LIMIT_EXCEEDED"
-	CodeGraphEdgeLimitExceeded        Code = "GRAPH_EDGE_LIMIT_EXCEEDED"
+	CodeRuntimeIRContractInvalid       Code = "RUNTIME_IR_CONTRACT_INVALID"
+	CodeRuntimeIRFormatUnsupported     Code = "RUNTIME_IR_FORMAT_UNSUPPORTED"
+	CodeNodeRuntimeHandlerInvalid      Code = "NODE_RUNTIME_HANDLER_INVALID"
+	CodeNodeRuntimeHandlerUnavailable  Code = "NODE_RUNTIME_HANDLER_UNAVAILABLE"
+	CodeRuntimeIRCapabilitiesInvalid   Code = "RUNTIME_IR_CAPABILITIES_INVALID"
+	CodeRuntimeIRMinimumVersionInvalid Code = "RUNTIME_IR_MINIMUM_VERSION_INVALID"
+	CodeRuntimeVersionUnsupported      Code = "RUNTIME_VERSION_UNSUPPORTED"
+	CodeWorkflowInputInvalid           Code = "WORKFLOW_INPUT_INVALID"
+	CodeNodeExecutionInputUnsupported  Code = "NODE_EXECUTION_INPUT_UNSUPPORTED"
+	CodeStartNodeHasIncomingEdge       Code = "START_NODE_HAS_INCOMING_EDGE"
+	CodeWorkflowInputSchemaInvalid     Code = "WORKFLOW_INPUT_SCHEMA_INVALID"
+	CodeRuntimeIRPayloadTooLarge       Code = "RUNTIME_IR_PAYLOAD_TOO_LARGE"
+	CodeEditorGraphContractInvalid     Code = "EDITOR_GRAPH_CONTRACT_INVALID"
+	CodeGraphSchemaVersionUnsupported  Code = "GRAPH_SCHEMA_VERSION_UNSUPPORTED"
+	CodeNodeIDDuplicated               Code = "NODE_ID_DUPLICATED"
+	CodeEdgeIDDuplicated               Code = "EDGE_ID_DUPLICATED"
+	CodeStartNodeCountInvalid          Code = "START_NODE_COUNT_INVALID"
+	CodeEntryNodeInvalid               Code = "ENTRY_NODE_INVALID"
+	CodeEndNodeUnreachable             Code = "END_NODE_UNREACHABLE"
+	CodeEdgeSourceNodeNotFound         Code = "EDGE_SOURCE_NODE_NOT_FOUND"
+	CodeEdgeTargetNodeNotFound         Code = "EDGE_TARGET_NODE_NOT_FOUND"
+	CodeEdgeSourcePortNotFound         Code = "EDGE_SOURCE_PORT_NOT_FOUND"
+	CodeEndNodeHasOutgoingEdge         Code = "END_NODE_HAS_OUTGOING_EDGE"
+	CodeNodeUnreachable                Code = "NODE_UNREACHABLE"
+	CodeGraphCycleDetected             Code = "GRAPH_CYCLE_DETECTED"
+	CodeNodeTypeNotActive              Code = "NODE_TYPE_NOT_ACTIVE"
+	CodeNodeConfigInvalid              Code = "NODE_CONFIG_INVALID"
+	CodeNodeErrorPolicyInvalid         Code = "NODE_ERROR_POLICY_INVALID"
+	CodeNodeBindingsInvalid            Code = "NODE_BINDINGS_INVALID"
+	CodeNodeValueBindingInvalid        Code = "NODE_VALUE_BINDING_INVALID"
+	CodeNodePortEdgeCountInvalid       Code = "NODE_PORT_EDGE_COUNT_INVALID"
+	CodeSwitchPortEdgeCountInvalid     Code = "SWITCH_PORT_EDGE_COUNT_INVALID"
+	CodeGraphNodeLimitExceeded         Code = "GRAPH_NODE_LIMIT_EXCEEDED"
+	CodeGraphEdgeLimitExceeded         Code = "GRAPH_EDGE_LIMIT_EXCEEDED"
 )
 
 const (
@@ -58,30 +68,40 @@ const (
 )
 
 var messages = map[Code]string{
-	CodeWorkflowInputSchemaInvalid:    "Workflow input schema does not match the required contract",
-	CodeRuntimeIRPayloadTooLarge:      "Compiled Runtime IR exceeds the maximum content size",
-	CodeEditorGraphContractInvalid:    "Editor Graph does not match the required contract",
-	CodeGraphSchemaVersionUnsupported: "Editor Graph schema version is not supported",
-	CodeNodeIDDuplicated:              "Node ID must be unique",
-	CodeEdgeIDDuplicated:              "Edge ID must be unique",
-	CodeStartNodeCountInvalid:         "Graph must contain exactly one Start node",
-	CodeEntryNodeInvalid:              "Entry node must reference the single Start node",
-	CodeEndNodeUnreachable:            "Graph must contain at least one End node reachable from Start",
-	CodeEdgeSourceNodeNotFound:        "Edge source node does not exist",
-	CodeEdgeTargetNodeNotFound:        "Edge target node does not exist",
-	CodeEdgeSourcePortNotFound:        "Edge source port does not exist on the source node definition",
-	CodeEndNodeHasOutgoingEdge:        "End node cannot have outgoing edges",
-	CodeNodeUnreachable:               "Node is not reachable from Start",
-	CodeGraphCycleDetected:            "Graph contains an uncontrolled cycle",
-	CodeNodeTypeNotActive:             "Node type does not exist in the active Node Catalog",
-	CodeNodeConfigInvalid:             "Node configuration does not match its definition",
-	CodeNodeErrorPolicyInvalid:        "Node error policy is not supported by its definition",
-	CodeNodeBindingsInvalid:           "Node bindings do not match the selected targeting mode",
-	CodeNodeValueBindingInvalid:       "Node input binding is invalid or its source is unavailable",
-	CodeNodePortEdgeCountInvalid:      "Node port must have exactly one outgoing edge",
-	CodeSwitchPortEdgeCountInvalid:    "Switch port must have exactly one outgoing edge",
-	CodeGraphNodeLimitExceeded:        "Graph exceeds the maximum node count",
-	CodeGraphEdgeLimitExceeded:        "Graph exceeds the maximum edge count",
+	CodeRuntimeIRContractInvalid:       "Runtime IR does not match the required contract",
+	CodeRuntimeIRFormatUnsupported:     "Runtime IR format version is not supported",
+	CodeNodeRuntimeHandlerInvalid:      "Node handler key does not match its installed definition",
+	CodeNodeRuntimeHandlerUnavailable:  "Node execution is unavailable in this Runtime build",
+	CodeRuntimeIRCapabilitiesInvalid:   "Required capabilities do not match the workflow nodes",
+	CodeRuntimeIRMinimumVersionInvalid: "Minimum Runtime version does not match the workflow nodes",
+	CodeRuntimeVersionUnsupported:      "Runtime build does not satisfy workflow version requirements",
+	CodeWorkflowInputInvalid:           "Device input does not satisfy the workflow input schema",
+	CodeNodeExecutionInputUnsupported:  "Known node input cannot be executed by this Runtime adapter",
+	CodeStartNodeHasIncomingEdge:       "Start node must have no incoming edge",
+	CodeWorkflowInputSchemaInvalid:     "Workflow input schema does not match the required contract",
+	CodeRuntimeIRPayloadTooLarge:       "Compiled Runtime IR exceeds the maximum content size",
+	CodeEditorGraphContractInvalid:     "Editor Graph does not match the required contract",
+	CodeGraphSchemaVersionUnsupported:  "Editor Graph schema version is not supported",
+	CodeNodeIDDuplicated:               "Node ID must be unique",
+	CodeEdgeIDDuplicated:               "Edge ID must be unique",
+	CodeStartNodeCountInvalid:          "Graph must contain exactly one Start node",
+	CodeEntryNodeInvalid:               "Entry node must reference the single Start node",
+	CodeEndNodeUnreachable:             "Graph must contain at least one End node reachable from Start",
+	CodeEdgeSourceNodeNotFound:         "Edge source node does not exist",
+	CodeEdgeTargetNodeNotFound:         "Edge target node does not exist",
+	CodeEdgeSourcePortNotFound:         "Edge source port does not exist on the source node definition",
+	CodeEndNodeHasOutgoingEdge:         "End node cannot have outgoing edges",
+	CodeNodeUnreachable:                "Node is not reachable from Start",
+	CodeGraphCycleDetected:             "Graph contains an uncontrolled cycle",
+	CodeNodeTypeNotActive:              "Node type does not exist in the active Node Catalog",
+	CodeNodeConfigInvalid:              "Node configuration does not match its definition",
+	CodeNodeErrorPolicyInvalid:         "Node error policy is not supported by its definition",
+	CodeNodeBindingsInvalid:            "Node bindings do not match the selected targeting mode",
+	CodeNodeValueBindingInvalid:        "Node input binding is invalid or its source is unavailable",
+	CodeNodePortEdgeCountInvalid:       "Node port must have exactly one outgoing edge",
+	CodeSwitchPortEdgeCountInvalid:     "Switch port must have exactly one outgoing edge",
+	CodeGraphNodeLimitExceeded:         "Graph exceeds the maximum node count",
+	CodeGraphEdgeLimitExceeded:         "Graph exceeds the maximum edge count",
 }
 
 type Path []any

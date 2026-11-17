@@ -8,69 +8,60 @@ import (
 	"unicode/utf16"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
-	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
+	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
 
-func Validate(graph *editorgraph.Graph, registry *Registry) []validation.Diagnostic {
-	return ValidateWithInputs(graph, registry, nil)
-}
-
-func ValidateWithInputs(graph *editorgraph.Graph, registry *Registry, inputs *WorkflowInputs) []validation.Diagnostic {
-	var diagnostics []validation.Diagnostic
+func validateView(graph *graphView, registry *Registry, inputs *WorkflowInputs, report func(validation.Diagnostic)) error {
 	for index, node := range graph.Nodes {
+		if err := graph.ctx.Err(); err != nil {
+			return err
+		}
 		contract, ok := registry.lookup(node.Type)
 		if !ok {
-			diagnostics = append(diagnostics, validation.NewDiagnostic(
-				validation.CodeNodeTypeNotActive,
-				validation.Path{"nodes", index, "type"},
-				node.ID,
-				"",
-			))
+			report(validation.NewDiagnostic(validation.CodeNodeTypeNotActive, node.path(index, "type"), node.ID, ""))
 			continue
 		}
-		if node.ErrorPolicy == editorgraph.ErrorPolicyErrorBranch {
-			if _, hasErrorPort := contract.outputPorts["error"]; !hasErrorPort {
-				diagnostics = append(diagnostics, validation.NewDiagnostic(
-					validation.CodeNodeErrorPolicyInvalid,
-					validation.Path{"nodes", index, "errorPolicy"},
-					node.ID,
-					"",
-				))
+		if node.ErrorPolicy == constants.ErrorPolicyErrorBranch {
+			if _, exists := contract.outputPorts["error"]; !exists {
+				report(validation.NewDiagnostic(validation.CodeNodeErrorPolicyInvalid, node.path(index, "errorPolicy"), node.ID, ""))
 			}
 		}
 		if node.Type != switchType {
-			diagnostics = append(diagnostics, validateNode(node, index, contract)...)
+			for _, finding := range validateNode(node, index, contract) {
+				report(finding)
+			}
 		}
 	}
-
-	nodeByID := make(map[string]editorgraph.Node, len(graph.Nodes))
+	nodes := make(map[string]nodeView, len(graph.Nodes))
 	for _, node := range graph.Nodes {
-		nodeByID[node.ID] = node
+		nodes[node.ID] = node
 	}
 	for index, edge := range graph.Edges {
-		node, exists := nodeByID[edge.SourceNodeID]
+		if err := graph.ctx.Err(); err != nil {
+			return err
+		}
+		node, exists := nodes[edge.SourceNodeID]
 		if !exists || node.Type == switchType {
 			continue
 		}
-		contract, exists := registry.lookup(node.Type)
-		if !exists {
+		contract, known := registry.lookup(node.Type)
+		if !known {
 			continue
 		}
 		if _, exists := contract.outputPorts[edge.SourcePort]; !exists {
-			diagnostics = append(diagnostics, validation.NewDiagnostic(
-				validation.CodeEdgeSourcePortNotFound,
-				validation.Path{"edges", index, "sourcePort"},
-				node.ID,
-				edge.ID,
-			))
+			report(validation.NewDiagnostic(validation.CodeEdgeSourcePortNotFound, graph.edgePath(index, "sourcePort"), node.ID, edge.ID))
 		}
 	}
-	diagnostics = append(diagnostics, validateOrdinaryPortCounts(graph, registry)...)
-	diagnostics = append(diagnostics, validateSwitches(graph, registry)...)
-	return append(diagnostics, validateBindings(graph, registry, nodeByID, inputs)...)
+	for _, finding := range validateOrdinaryPortCounts(graph, registry) {
+		report(finding)
+	}
+	if err := validateSwitches(graph, registry, report); err != nil {
+		return err
+	}
+	return validateBindings(graph, registry, nodes, inputs, report)
 }
 
-func validateOrdinaryPortCounts(graph *editorgraph.Graph, registry *Registry) []validation.Diagnostic {
+func validateOrdinaryPortCounts(graph *graphView, registry *Registry) []validation.Diagnostic {
 	type portCounts struct {
 		success int
 		failure int
@@ -96,35 +87,31 @@ func validateOrdinaryPortCounts(graph *editorgraph.Graph, registry *Registry) []
 		}
 		counts := outgoing[node.ID]
 		if counts.success != 1 {
-			diagnostics = append(diagnostics, portCountDiagnostic(node.ID, index, "success"))
+			diagnostics = append(diagnostics, portCountDiagnostic(node, index, "success"))
 		}
 
 		expectedErrors := 0
-		if node.ErrorPolicy == editorgraph.ErrorPolicyErrorBranch {
+		if node.ErrorPolicy == constants.ErrorPolicyErrorBranch {
 			expectedErrors = 1
 		}
 		if counts.failure != expectedErrors {
-			diagnostics = append(diagnostics, portCountDiagnostic(node.ID, index, "error"))
+			diagnostics = append(diagnostics, portCountDiagnostic(node, index, "error"))
 		}
 	}
 	return diagnostics
 }
 
-func portCountDiagnostic(nodeID string, index int, port string) validation.Diagnostic {
-	return validation.NewDiagnostic(validation.CodeNodePortEdgeCountInvalid,
-		validation.Path{"nodes", index, "ports", port}, nodeID, "")
-}
-
-func configDiagnostic(nodeID string, nodeIndex int, field string) validation.Diagnostic {
-	return validation.NewDiagnostic(
-		validation.CodeNodeConfigInvalid,
-		validation.Path{"nodes", nodeIndex, "config", field},
-		nodeID,
-		"",
-	)
+func portCountDiagnostic(node nodeView, index int, port string) validation.Diagnostic {
+	return validation.NewDiagnostic(validation.CodeNodePortEdgeCountInvalid, node.portPath(index, port), node.ID, "")
 }
 
 func validValue(raw json.RawMessage, schema compiledField) bool {
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return false
+	}
+	if schema.Type == "" && len(schema.BindingKinds) > 0 {
+		return validScalar(raw)
+	}
 	switch schema.Type {
 	case FieldTypeString:
 		var value string
@@ -136,11 +123,11 @@ func validValue(raw json.RawMessage, schema compiledField) bool {
 			(schema.MaxLength == nil || length <= *schema.MaxLength) &&
 			(schema.pattern == nil || schema.pattern.MatchString(value))
 	case FieldTypeInteger, FieldTypeNumber:
-		value, err := strconv.ParseFloat(string(raw), 64)
+		value, err := strconv.ParseFloat(string(bytes.TrimSpace(raw)), 64)
 		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
 			return false
 		}
-		if schema.Type == FieldTypeInteger && math.Trunc(value) != value {
+		if schema.Type == FieldTypeInteger && (math.Trunc(value) != value || value < -constants.MaxSafeInteger || value > constants.MaxSafeInteger) {
 			return false
 		}
 		return (schema.Minimum == nil || value >= *schema.Minimum) &&

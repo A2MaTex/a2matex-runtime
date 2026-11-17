@@ -61,7 +61,7 @@ func TestDefaultRegistryContainsApprovedContracts(t *testing.T) {
 		case "android.tap", "android.swipe", "android.long_press", constants.ScreenshotNodeType, switchType:
 			wantConfigErrors = 1
 		case setVariableType:
-			wantConfigErrors = 1
+			wantConfigErrors = 2
 			wantBindingErrors = 1
 		case waitVariableType:
 			wantConfigErrors = 1

@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
-	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
 
@@ -17,7 +17,7 @@ const (
 	selectorID      = constants.AndroidTargetSelector
 	longPress       = "android.long_press"
 
-	maxSafeInteger = 9_007_199_254_740_991
+	maxSafeInteger = constants.MaxSafeInteger
 )
 
 var targetingInputs = newTargetingInputs()
@@ -62,7 +62,7 @@ func newTargetingInputs() map[string]map[string]map[string]compiledField {
 	}
 }
 
-func validateNode(node editorgraph.Node, index int, contract compiledContract) []validation.Diagnostic {
+func validateNode(node nodeView, index int, contract compiledContract) []validation.Diagnostic {
 	var diagnostics []validation.Diagnostic
 	rawMode, hasMode := node.Config[targetModeField]
 	var mode string
@@ -71,11 +71,11 @@ func validateNode(node editorgraph.Node, index int, contract compiledContract) [
 		fields = targetingInputs[node.Type][mode]
 	}
 	if !hasMode && targetingInputs[node.Type] != nil {
-		diagnostics = append(diagnostics, configDiagnostic(node.ID, index, targetModeField))
+		diagnostics = append(diagnostics, node.configDiagnostic(index, targetModeField))
 	}
 	for _, field := range contract.required {
 		if _, exists := node.Config[field]; !exists || (fields != nil && field == targetModeField) {
-			diagnostics = append(diagnostics, configDiagnostic(node.ID, index, field))
+			diagnostics = append(diagnostics, node.configDiagnostic(index, field))
 		}
 	}
 	for field, raw := range node.Config {
@@ -84,7 +84,7 @@ func validateNode(node editorgraph.Node, index int, contract compiledContract) [
 		}
 		schema, exists := contract.properties[field]
 		if !exists || !validValue(raw, schema) {
-			diagnostics = append(diagnostics, configDiagnostic(node.ID, index, field))
+			diagnostics = append(diagnostics, node.configDiagnostic(index, field))
 		}
 	}
 	if fields != nil {
@@ -97,15 +97,15 @@ func validateNode(node editorgraph.Node, index int, contract compiledContract) [
 	return diagnostics
 }
 
-func validateScreenshotRegion(node editorgraph.Node, index int, mode string) []validation.Diagnostic {
+func validateScreenshotRegion(node nodeView, index int, mode string) []validation.Diagnostic {
 	suffix := ""
 	if mode == screenPercent {
 		suffix = "Percent"
 	}
 	// The mode binding check has already established valid numeric literals.
 	coordinate := func(field string) float64 {
-		var binding editorgraph.JSONObject
-		_ = json.Unmarshal(node.Bindings[field], &binding)
+		var binding ir.Object
+		_ = json.Unmarshal(node.Inputs[field], &binding)
 		value, _ := strconv.ParseFloat(string(binding["value"]), 64)
 		return value
 	}
@@ -114,39 +114,39 @@ func validateScreenshotRegion(node editorgraph.Node, index int, mode string) []v
 		end := "end" + axis + suffix
 		if coordinate("start"+axis+suffix) >= coordinate(end) {
 			diagnostics = append(diagnostics, validation.NewDiagnostic(validation.CodeNodeBindingsInvalid,
-				validation.Path{"nodes", index, "bindings", end, "value"}, node.ID, ""))
+				node.inputPath(index, end, "value"), node.ID, ""))
 		}
 	}
 	return diagnostics
 }
 
-func validateTargetBindings(node editorgraph.Node, index int, fields map[string]compiledField) []validation.Diagnostic {
+func validateTargetBindings(node nodeView, index int, fields map[string]compiledField) []validation.Diagnostic {
 	var diagnostics []validation.Diagnostic
 	add := func(path ...any) {
-		location := append(validation.Path{"nodes", index, "bindings"}, path...)
+		location := node.inputPath(index, path...)
 		diagnostics = append(diagnostics, validation.NewDiagnostic(validation.CodeNodeBindingsInvalid, location, node.ID, ""))
 	}
 	for field, schema := range fields {
-		var literal editorgraph.JSONObject
-		if json.Unmarshal(node.Bindings[field], &literal) != nil || literal == nil {
+		var literal ir.Object
+		if json.Unmarshal(node.Inputs[field], &literal) != nil || literal == nil {
 			add(field)
 			continue
 		}
 		var kind string
-		if json.Unmarshal(literal["kind"], &kind) != nil || kind != bindingLiteral {
-			add(field, "kind")
+		if json.Unmarshal(literal[node.form.source], &kind) != nil || kind != bindingLiteral {
+			add(field, node.form.source)
 		}
 		if raw := literal["value"]; raw == nil || string(raw) == "null" || !validValue(raw, schema) {
 			add(field, "value")
 		}
 		for key := range literal {
-			if key != "kind" && key != "value" {
+			if key != node.form.source && key != "value" {
 				add(field)
 				break
 			}
 		}
 	}
-	for field := range node.Bindings {
+	for field := range node.Inputs {
 		if _, known := fields[field]; !known {
 			add()
 			break

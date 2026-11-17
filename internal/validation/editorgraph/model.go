@@ -1,15 +1,15 @@
 package editorgraph
 
-import "encoding/json"
+import "github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 
-type ErrorPolicy string
+type ErrorPolicy = string
 
 const (
 	ErrorPolicyStop        ErrorPolicy = "STOP"
 	ErrorPolicyErrorBranch ErrorPolicy = "ERROR_BRANCH"
 )
 
-type JSONObject map[string]json.RawMessage
+type JSONObject = ir.Object
 
 type Position struct {
 	X           float64 `json:"x"`
@@ -34,12 +34,7 @@ type Node struct {
 	Editor      Position     `json:"editor"`
 }
 
-type Edge struct {
-	ID           string `json:"id"`
-	SourceNodeID string `json:"sourceNodeId"`
-	SourcePort   string `json:"sourcePort"`
-	TargetNodeID string `json:"targetNodeId"`
-}
+type Edge = ir.Edge
 
 type Graph struct {
 	SchemaVersion int64  `json:"schemaVersion"`

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"strings"
 
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
@@ -17,38 +17,7 @@ type CompilationResult struct {
 	RuntimeIR  json.RawMessage   `json:"runtimeIr"`
 }
 
-type runtimeIR struct {
-	FormatVersion         int                `json:"formatVersion"`
-	MinimumRuntimeVersion string             `json:"minimumRuntimeVersion"`
-	Metadata              sourceMetadata     `json:"metadata"`
-	EntryNodeID           string             `json:"entryNodeId"`
-	InputSchema           json.RawMessage    `json:"inputSchema"`
-	Nodes                 []runtimeNode      `json:"nodes"`
-	Edges                 []editorgraph.Edge `json:"edges"`
-	RequiredCapabilities  []string           `json:"requiredCapabilities"`
-}
-
-type sourceMetadata struct {
-	SourceGraphSchemaVersion int64 `json:"sourceGraphSchemaVersion"`
-}
-
-type runtimeNode struct {
-	ID             string                            `json:"id"`
-	Type           string                            `json:"type"`
-	RuntimeHandler string                            `json:"runtimeHandler"`
-	Config         editorgraph.JSONObject            `json:"config"`
-	Inputs         map[string]editorgraph.JSONObject `json:"inputs"`
-	TimeoutMS      int64                             `json:"timeoutMs"`
-	RetryPolicy    runtimeRetry                      `json:"retryPolicy"`
-	ErrorPolicy    editorgraph.ErrorPolicy           `json:"errorPolicy"`
-}
-
-type runtimeRetry struct {
-	MaxAttempts int64 `json:"maxAttempts"`
-	DelayMS     int64 `json:"delayMs"`
-}
-
-const maxIRNodeFields = 100
+const maxIRNodeFields = constants.RuntimeIRMaxFields
 
 var runtimeID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
@@ -110,14 +79,14 @@ func validateIRSource(graph *editorgraph.Graph) []validation.Diagnostic {
 	return diagnostics
 }
 
-func (s *Service) buildIR(graph *editorgraph.Graph, inputSchema json.RawMessage) (runtimeIR, error) {
-	ir := runtimeIR{
+func (s *Service) buildIR(graph *editorgraph.Graph, inputSchema json.RawMessage) (ir.Document, error) {
+	document := ir.Document{
 		FormatVersion:         constants.RuntimeIRFormatVersion,
 		MinimumRuntimeVersion: "0.0.0",
-		Metadata:              sourceMetadata{SourceGraphSchemaVersion: graph.SchemaVersion},
+		Metadata:              ir.Metadata{SourceGraphSchemaVersion: graph.SchemaVersion},
 		EntryNodeID:           graph.EntryNodeID,
 		InputSchema:           inputSchema,
-		Nodes:                 make([]runtimeNode, 0, len(graph.Nodes)),
+		Nodes:                 make([]ir.Node, 0, len(graph.Nodes)),
 		Edges:                 graph.Edges,
 		RequiredCapabilities:  []string{},
 	}
@@ -125,23 +94,23 @@ func (s *Service) buildIR(graph *editorgraph.Graph, inputSchema json.RawMessage)
 	for _, node := range graph.Nodes {
 		definition, found := s.registry.CompilationDefinition(node.Type)
 		if !found {
-			return runtimeIR{}, fmt.Errorf("missing installed compilation definition")
+			return ir.Document{}, fmt.Errorf("missing installed compilation definition")
 		}
-		if versionGreater(definition.MinimumRuntimeVersion, ir.MinimumRuntimeVersion) {
-			ir.MinimumRuntimeVersion = definition.MinimumRuntimeVersion
+		if versionGreater(definition.MinimumRuntimeVersion, document.MinimumRuntimeVersion) {
+			document.MinimumRuntimeVersion = definition.MinimumRuntimeVersion
 		}
 		for _, capability := range definition.Capabilities {
 			if !seenCapabilities[capability] {
-				ir.RequiredCapabilities = append(ir.RequiredCapabilities, capability)
+				document.RequiredCapabilities = append(document.RequiredCapabilities, capability)
 				seenCapabilities[capability] = true
 			}
 		}
 
-		compiled := runtimeNode{
+		compiled := ir.Node{
 			ID: node.ID, Type: node.Type, RuntimeHandler: definition.RuntimeHandler,
-			Config: node.Config, Inputs: make(map[string]editorgraph.JSONObject, len(node.Bindings)),
+			Config: node.Config, Inputs: make(ir.Object, len(node.Bindings)),
 			ErrorPolicy: node.ErrorPolicy, TimeoutMS: definition.DefaultTimeoutMS,
-			RetryPolicy: runtimeRetry{MaxAttempts: 1},
+			RetryPolicy: ir.RetryPolicy{MaxAttempts: 1},
 		}
 		if node.TimeoutMS != nil {
 			compiled.TimeoutMS = *node.TimeoutMS
@@ -157,34 +126,29 @@ func (s *Service) buildIR(graph *editorgraph.Graph, inputSchema json.RawMessage)
 		for name, raw := range node.Bindings {
 			var binding editorgraph.JSONObject
 			if err := json.Unmarshal(raw, &binding); err != nil || binding["kind"] == nil {
-				return runtimeIR{}, fmt.Errorf("validated binding could not be compiled")
+				return ir.Document{}, fmt.Errorf("validated binding could not be compiled")
 			}
 			binding["source"] = binding["kind"]
 			delete(binding, "kind")
 			if encoded := binding["nodeId"]; encoded != nil {
 				var id string
 				if err := json.Unmarshal(encoded, &id); err != nil {
-					return runtimeIR{}, err
+					return ir.Document{}, err
 				}
 				binding["nodeId"], _ = json.Marshal(editorgraph.TrimIdentifier(id))
 			}
-			compiled.Inputs[name] = binding
+			encoded, err := json.Marshal(binding)
+			if err != nil {
+				return ir.Document{}, err
+			}
+			compiled.Inputs[name] = encoded
 		}
-		ir.Nodes = append(ir.Nodes, compiled)
+		document.Nodes = append(document.Nodes, compiled)
 	}
-	return ir, nil
+	return document, nil
 }
 
 func versionGreater(left, right string) bool {
-	leftFields, rightFields := strings.Split(left, "."), strings.Split(right, ".")
-	for index, part := range leftFields {
-		other := rightFields[index]
-		if len(part) != len(other) {
-			return len(part) > len(other)
-		}
-		if part != other {
-			return part > other
-		}
-	}
-	return false
+	comparison, valid := ir.CompareVersions(left, right)
+	return valid && comparison > 0
 }

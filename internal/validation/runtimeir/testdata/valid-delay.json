@@ -1,0 +1,59 @@
+{
+  "formatVersion": 1,
+  "minimumRuntimeVersion": "0.1.0",
+  "metadata": { "sourceGraphSchemaVersion": 1 },
+  "entryNodeId": "start",
+  "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "nodes": [
+    {
+      "id": "start",
+      "type": "flow.start",
+      "runtimeHandler": "flow.start",
+      "config": {},
+      "inputs": {},
+      "timeoutMs": 1000,
+      "retryPolicy": { "maxAttempts": 1, "delayMs": 0 },
+      "errorPolicy": "STOP"
+    },
+    {
+      "id": "wait",
+      "type": "flow.delay",
+      "runtimeHandler": "flow.delay",
+      "config": {},
+      "inputs": { "durationMs": { "source": "LITERAL", "value": 10 } },
+      "timeoutMs": 1000,
+      "retryPolicy": { "maxAttempts": 1, "delayMs": 0 },
+      "errorPolicy": "STOP"
+    },
+    {
+      "id": "end",
+      "type": "flow.end",
+      "runtimeHandler": "flow.end",
+      "config": {},
+      "inputs": {},
+      "timeoutMs": 1000,
+      "retryPolicy": { "maxAttempts": 1, "delayMs": 0 },
+      "errorPolicy": "STOP"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "sourceNodeId": "start",
+      "sourcePort": "success",
+      "targetNodeId": "wait"
+    },
+    {
+      "id": "e2",
+      "sourceNodeId": "wait",
+      "sourcePort": "success",
+      "targetNodeId": "end"
+    }
+  ],
+  "requiredCapabilities": []
+}

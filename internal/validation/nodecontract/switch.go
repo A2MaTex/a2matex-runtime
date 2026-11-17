@@ -2,19 +2,53 @@ package nodecontract
 
 import (
 	"encoding/json"
-	"regexp"
+	"strings"
 
+	"github.com/google/uuid"
+
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
-	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
+	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
 
 const switchType = "flow.switch"
-const maxSwitchRules = 32
+const maxSwitchRules = constants.MaxSwitchRules
 
-var switchRuleID = regexp.MustCompile(`^rule_[A-Za-z0-9_]{1,64}$`)
+func ValidRuleID(value string) bool {
+	if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
+		return false
+	}
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return false
+	}
+	if id == uuid.Nil || strings.EqualFold(value, "ffffffff-ffff-ffff-ffff-ffffffffffff") {
+		return true
+	}
+	return id.Variant() == uuid.RFC4122 && id.Version() >= 1 && id.Version() <= 8
+}
 
-func switchRules(node editorgraph.Node) map[string]string {
-	var rows []editorgraph.JSONObject
+func operatorType(operator string) FieldType {
+	switch operator {
+	case "EQ", "NE":
+		return ""
+	case "LT", "LTE", "GT", "GTE":
+		return FieldTypeNumber
+	case "CONTAINS", "NOT_CONTAINS", "STARTS_WITH", "ENDS_WITH", "IS_EMPTY", "IS_NOT_EMPTY":
+		return FieldTypeString
+	case "IS_TRUE", "IS_FALSE":
+		return FieldTypeBoolean
+	default:
+		return "invalid"
+	}
+}
+
+func needsOperand(operator string) bool {
+	return operator != "IS_EMPTY" && operator != "IS_NOT_EMPTY" && operator != "IS_TRUE" && operator != "IS_FALSE"
+}
+
+func switchRules(node nodeView) map[string]string {
+	var rows []ir.Object
 	if len(node.Config) != 1 || json.Unmarshal(node.Config["rules"], &rows) != nil ||
 		len(rows) == 0 || len(rows) > maxSwitchRules {
 		return nil
@@ -22,20 +56,18 @@ func switchRules(node editorgraph.Node) map[string]string {
 	rules := make(map[string]string, len(rows))
 	for _, row := range rows {
 		id, operator := bindingString(row["id"]), bindingString(row["operator"])
-		if len(row) != 2 || !switchRuleID.MatchString(id) || rules[id] != "" {
+		if len(row) != 2 || !ValidRuleID(id) || rules[id] != "" {
 			return nil
 		}
-		switch operator {
-		case "EQ", "NE", "LT", "LTE", "GT", "GTE", "IS_EMPTY":
-			rules[id] = operator
-		default:
+		if operatorType(operator) == "invalid" {
 			return nil
 		}
+		rules[id] = operator
 	}
 	return rules
 }
 
-func validateSwitches(graph *editorgraph.Graph, registry *Registry) []validation.Diagnostic {
+func validateSwitches(graph *graphView, registry *Registry, report func(validation.Diagnostic)) error {
 	if _, ok := registry.lookup(switchType); !ok {
 		return nil
 	}
@@ -44,21 +76,23 @@ func validateSwitches(graph *editorgraph.Graph, registry *Registry) []validation
 		ports map[string]int
 	}
 	instances := make(map[string]instance)
-	var diagnostics []validation.Diagnostic
 	for index, node := range graph.Nodes {
+		if err := graph.ctx.Err(); err != nil {
+			return err
+		}
 		if node.Type != switchType {
 			continue
 		}
 		rules := switchRules(node)
 		if rules == nil {
-			diagnostics = append(diagnostics, configDiagnostic(node.ID, index, "rules"))
+			report(node.configDiagnostic(index, "rules"))
 			continue
 		}
 		ports := map[string]int{"default": 0}
 		for id := range rules {
 			ports[id] = 0
 		}
-		if node.ErrorPolicy == editorgraph.ErrorPolicyErrorBranch {
+		if node.ErrorPolicy == constants.ErrorPolicyErrorBranch {
 			ports["error"] = 0
 		}
 		instances[node.ID] = instance{index: index, ports: ports}
@@ -69,8 +103,8 @@ func validateSwitches(graph *editorgraph.Graph, registry *Registry) []validation
 			continue
 		}
 		if _, exists := instance.ports[edge.SourcePort]; !exists {
-			diagnostics = append(diagnostics, validation.NewDiagnostic(validation.CodeEdgeSourcePortNotFound,
-				validation.Path{"edges", index, "sourcePort"}, edge.SourceNodeID, edge.ID))
+			report(validation.NewDiagnostic(validation.CodeEdgeSourcePortNotFound,
+				graph.edgePath(index, "sourcePort"), edge.SourceNodeID, edge.ID))
 			continue
 		}
 		instance.ports[edge.SourcePort]++
@@ -78,10 +112,10 @@ func validateSwitches(graph *editorgraph.Graph, registry *Registry) []validation
 	for nodeID, instance := range instances {
 		for port, count := range instance.ports {
 			if count != 1 {
-				diagnostics = append(diagnostics, validation.NewDiagnostic(validation.CodeSwitchPortEdgeCountInvalid,
-					validation.Path{"nodes", instance.index, "ports", port}, nodeID, ""))
+				report(validation.NewDiagnostic(validation.CodeSwitchPortEdgeCountInvalid,
+					graph.Nodes[instance.index].portPath(instance.index, port), nodeID, ""))
 			}
 		}
 	}
-	return diagnostics
+	return graph.ctx.Err()
 }

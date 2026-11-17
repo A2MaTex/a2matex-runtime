@@ -1,6 +1,8 @@
 package nodecontract
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -17,17 +19,19 @@ const (
 )
 
 type FieldSchema struct {
-	Type      FieldType
-	Minimum   *float64
-	Maximum   *float64
-	MinLength *int
-	MaxLength *int
-	Pattern   string
+	Type         FieldType
+	Minimum      *float64
+	Maximum      *float64
+	MinLength    *int
+	MaxLength    *int
+	Pattern      string
+	BindingKinds map[string]json.RawMessage
 }
 
 type ConfigSchema struct {
-	Properties map[string]FieldSchema
-	Required   []string
+	Properties    map[string]FieldSchema
+	Required      []string
+	DynamicInputs map[string]json.RawMessage
 }
 
 type Contract struct {
@@ -99,7 +103,7 @@ func NewDefaultRegistry() (*Registry, error) {
 					"name":  {Type: FieldTypeString, Pattern: bindingNamePattern},
 					"scope": {Type: FieldTypeString, Pattern: "^(FLOW|RUN_GROUP)$"},
 				},
-				Required: []string{"name"},
+				Required: []string{"name", "scope"},
 			},
 			OutputPorts: []string{"success", "error"},
 		},
@@ -158,6 +162,16 @@ func compileContract(contract Contract) (compiledContract, error) {
 }
 
 func compileField(schema FieldSchema) (compiledField, error) {
+	if schema.Type == "" && len(schema.BindingKinds) > 0 {
+		for kind := range schema.BindingKinds {
+			switch kind {
+			case bindingLiteral, bindingWorkflowInput, bindingNodeOutput, bindingFlowVariable, bindingGlobalVariable:
+			default:
+				return compiledField{}, errors.New("unsupported scalar binding kind")
+			}
+		}
+		return compiledField{FieldSchema: cloneFieldSchema(schema)}, nil
+	}
 	switch schema.Type {
 	case FieldTypeString, FieldTypeInteger, FieldTypeNumber, FieldTypeBoolean:
 	default:
@@ -188,6 +202,12 @@ func compileField(schema FieldSchema) (compiledField, error) {
 
 func cloneFieldSchema(schema FieldSchema) FieldSchema {
 	clone := schema
+	if schema.BindingKinds != nil {
+		clone.BindingKinds = make(map[string]json.RawMessage, len(schema.BindingKinds))
+		for kind, raw := range schema.BindingKinds {
+			clone.BindingKinds[kind] = bytes.Clone(raw)
+		}
+	}
 	if schema.Minimum != nil {
 		value := *schema.Minimum
 		clone.Minimum = &value

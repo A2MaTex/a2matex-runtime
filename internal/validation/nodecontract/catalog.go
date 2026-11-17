@@ -29,10 +29,11 @@ type CompilationDefinition struct {
 type catalogNode struct {
 	Type string
 	CompilationDefinition
-	BindingKinds []string
-	InputSchema  ConfigSchema
-	OutputSchema ConfigSchema
-	inputs       map[string]compiledField
+	BindingKinds   []string
+	InputSchema    ConfigSchema
+	OutputSchema   ConfigSchema
+	inputs         map[string]compiledField
+	dynamicOperand compiledField
 }
 
 func (r *Registry) installCatalog() error {
@@ -57,6 +58,17 @@ func (r *Registry) installCatalog() error {
 			return fmt.Errorf("invalid installed inputs for %q: %w", node.Type, err)
 		}
 		node.inputs = input.properties
+		if node.Type == switchType {
+			var operand FieldSchema
+			if json.Unmarshal(node.InputSchema.DynamicInputs["ruleOperand"], &operand) != nil {
+				return fmt.Errorf("invalid installed Switch operand definition")
+			}
+			compiled, err := compileField(operand)
+			if err != nil {
+				return fmt.Errorf("invalid installed Switch operand: %w", err)
+			}
+			node.dynamicOperand = compiled
+		}
 		r.catalog[node.Type] = node
 	}
 	if len(r.catalog) != len(r.contracts) {
