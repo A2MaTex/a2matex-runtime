@@ -6,6 +6,7 @@ import (
 
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
+	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
 
 func TestDefaultRegistryContainsApprovedContracts(t *testing.T) {
@@ -57,7 +58,7 @@ func TestDefaultRegistryContainsApprovedContracts(t *testing.T) {
 		wantConfigErrors := 0
 		wantBindingErrors := 0
 		switch nodeType {
-		case "android.tap", "android.swipe", "android.long_press", switchType:
+		case "android.tap", "android.swipe", "android.long_press", constants.ScreenshotNodeType, switchType:
 			wantConfigErrors = 1
 		case setVariableType:
 			wantConfigErrors = 1

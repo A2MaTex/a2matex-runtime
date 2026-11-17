@@ -42,7 +42,8 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	resolver := adb.NewResolver(adbConfig)
 	deviceInventory := services.NewDeviceInventory(resolver)
 	devicesHandler := devices.NewHandler(deviceInventory)
-	registryRegistry, err := newHandlerRegistry(registry)
+	dispatcher := adb.NewDispatcher(resolver)
+	registryRegistry, err := newHandlerRegistry(registry, dispatcher)
 	if err != nil {
 		return nil, err
 	}

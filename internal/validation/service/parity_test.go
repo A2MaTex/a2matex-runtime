@@ -16,6 +16,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	validationservice "github.com/A2MaTex/a2matex-runtime/internal/validation/service"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/topology"
+	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
 
 const backendReferenceCommit = "f7e6ef8b89c8d1b5a70e1d921fdae022b8aa75e8"
@@ -123,7 +124,49 @@ func TestTargetingParity(t *testing.T) {
 			if err != nil || !reflect.DeepEqual(got, want) {
 				t.Fatalf("got %+v (%v), want %+v", got, err, want)
 			}
+			if tc.Type == constants.ScreenshotNodeType {
+				assertScreenshotCompilation(t, validator, raw, tc.Config, tc.Bindings, want)
+			}
 		})
+	}
+}
+
+func assertScreenshotCompilation(t *testing.T, validator *validationservice.Service, graph []byte, config, bindings editorgraph.JSONObject, want validation.Result) {
+	t.Helper()
+	compiled, err := validator.Compile(graph, []byte(`{"type":"object","properties":{},"required":[],"additionalProperties":false}`))
+	if err != nil || !reflect.DeepEqual(compiled.Validation, want) {
+		t.Fatalf("Screenshot compile diagnostics = %+v, error = %v, want %+v", compiled.Validation, err, want)
+	}
+	if want.Status == validation.StatusInvalid {
+		if len(compiled.RuntimeIR) != 0 {
+			t.Fatal("invalid Screenshot compiled to Runtime IR")
+		}
+		return
+	}
+	var ir struct {
+		Nodes []struct {
+			Type, RuntimeHandler string
+			Config               editorgraph.JSONObject
+			Inputs               map[string]editorgraph.JSONObject
+		}
+	}
+	if err := json.Unmarshal(compiled.RuntimeIR, &ir); err != nil {
+		t.Fatal(err)
+	}
+	node := ir.Nodes[1]
+	if node.Type != constants.ScreenshotNodeType || node.RuntimeHandler != node.Type ||
+		!reflect.DeepEqual(node.Config, config) || len(node.Inputs) != len(bindings) {
+		t.Fatalf("compiled Screenshot did not preserve its contract: %+v", node)
+	}
+	for field, raw := range bindings {
+		var binding editorgraph.JSONObject
+		if err := json.Unmarshal(raw, &binding); err != nil {
+			t.Fatal(err)
+		}
+		if string(node.Inputs[field]["source"]) != `"LITERAL"` ||
+			!bytes.Equal(node.Inputs[field]["value"], binding["value"]) {
+			t.Fatalf("compiled input %s did not preserve its literal value", field)
+		}
 	}
 }
 

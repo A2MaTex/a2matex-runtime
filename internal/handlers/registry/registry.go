@@ -15,6 +15,8 @@ type Invocation struct {
 	ADBSerial string
 	Config    map[string]json.RawMessage
 	Inputs    map[string]json.RawMessage
+	// StageScreenshot is supplied by the runner for the active Screenshot attempt.
+	StageScreenshot func(context.Context, []byte) (string, error)
 }
 
 type Handler func(context.Context, Invocation) (map[string]any, error)

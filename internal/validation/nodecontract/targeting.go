@@ -3,6 +3,7 @@ package nodecontract
 import (
 	"encoding/json"
 	"regexp"
+	"strconv"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
@@ -28,6 +29,7 @@ func newTargetingInputs() map[string]map[string]map[string]compiledField {
 		}}
 	}
 	pixel := integer(0, constants.MaxAndroidPixelCoordinate)
+	screenshotPixel := integer(0, constants.MaxScreenshotDimension)
 	percent := integer(0, constants.MaxAndroidScreenPercent)
 	swipeDuration := integer(1, constants.MaxAndroidSwipeDurationMS)
 	holdDuration := integer(1, maxSafeInteger)
@@ -51,6 +53,11 @@ func newTargetingInputs() map[string]map[string]map[string]compiledField {
 			absolutePixels: {"x": pixel, "y": pixel, "durationMs": holdDuration},
 			screenPercent:  {"xPercent": percent, "yPercent": percent, "durationMs": holdDuration},
 			selectorID:     {"selector_id": selector, "durationMs": holdDuration},
+		},
+		constants.ScreenshotNodeType: {
+			constants.ScreenshotFullScreen: {},
+			absolutePixels:                 {"startX": screenshotPixel, "startY": screenshotPixel, "endX": screenshotPixel, "endY": screenshotPixel},
+			screenPercent:                  {"startXPercent": percent, "startYPercent": percent, "endXPercent": percent, "endYPercent": percent},
 		},
 	}
 }
@@ -81,7 +88,34 @@ func validateNode(node editorgraph.Node, index int, contract compiledContract) [
 		}
 	}
 	if fields != nil {
-		diagnostics = append(diagnostics, validateTargetBindings(node, index, fields)...)
+		bindingDiagnostics := validateTargetBindings(node, index, fields)
+		if len(bindingDiagnostics) == 0 && node.Type == constants.ScreenshotNodeType && mode != constants.ScreenshotFullScreen {
+			bindingDiagnostics = validateScreenshotRegion(node, index, mode)
+		}
+		diagnostics = append(diagnostics, bindingDiagnostics...)
+	}
+	return diagnostics
+}
+
+func validateScreenshotRegion(node editorgraph.Node, index int, mode string) []validation.Diagnostic {
+	suffix := ""
+	if mode == screenPercent {
+		suffix = "Percent"
+	}
+	// The mode binding check has already established valid numeric literals.
+	coordinate := func(field string) float64 {
+		var binding editorgraph.JSONObject
+		_ = json.Unmarshal(node.Bindings[field], &binding)
+		value, _ := strconv.ParseFloat(string(binding["value"]), 64)
+		return value
+	}
+	var diagnostics []validation.Diagnostic
+	for _, axis := range []string{"X", "Y"} {
+		end := "end" + axis + suffix
+		if coordinate("start"+axis+suffix) >= coordinate(end) {
+			diagnostics = append(diagnostics, validation.NewDiagnostic(validation.CodeNodeBindingsInvalid,
+				validation.Path{"nodes", index, "bindings", end, "value"}, node.ID, ""))
+		}
 	}
 	return diagnostics
 }

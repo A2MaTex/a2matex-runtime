@@ -377,7 +377,9 @@
       ],
       "additionalProperties": false
     },
-    "bindingKinds": []
+    "bindingKinds": [
+      "LITERAL"
+    ]
   },
   {
     "type": "android.long_press",

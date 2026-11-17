@@ -38,6 +38,7 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		workflowvalidation.NewHandler,
 		wire.FieldsOf(new(config.Config), "ADB"),
 		adb.NewResolver,
+		adb.NewDispatcher,
 		wire.Bind(new(services.DeviceInventorySource), new(*adb.Resolver)),
 		services.NewDeviceInventory,
 		wire.Bind(new(devices.Inventory), new(*services.DeviceInventory)),
