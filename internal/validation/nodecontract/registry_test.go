@@ -1,13 +1,52 @@
 package nodecontract
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 )
+
+func TestRegistryValidOutput(t *testing.T) {
+	t.Parallel()
+	r, err := NewDefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, kind string
+		output     ir.Object
+		valid      bool
+	}{
+		{"empty Start", "flow.start", ir.Object{}, true},
+		{"empty Tap", "android.tap", ir.Object{}, true},
+		{"nil object", "flow.start", nil, false},
+		{"unknown type", "future.node", ir.Object{}, false},
+		{"extra field", "flow.start", ir.Object{"stdout": json.RawMessage(`"secret"`)}, false},
+		{"required duration", "flow.delay", ir.Object{}, false},
+		{"output has no input maximum", "flow.delay", ir.Object{"durationMs": json.RawMessage(`300001`)}, true},
+		{"negative duration", "flow.delay", ir.Object{"durationMs": json.RawMessage(`-1`)}, false},
+		{"fractional duration", "flow.delay", ir.Object{"durationMs": json.RawMessage(`1.5`)}, false},
+		{"null duration", "flow.delay", ir.Object{"durationMs": json.RawMessage(`null`)}, false},
+		{"nil field value", "flow.delay", ir.Object{"durationMs": nil}, false},
+		{"integral duration", "flow.delay", ir.Object{"durationMs": json.RawMessage(`10.0`)}, true},
+		{"required artifact ID", "android.screenshot", ir.Object{}, false},
+		{"non-UUID ID allowed by schema", "android.screenshot", ir.Object{"artifactId": json.RawMessage(`"capture"`)}, true},
+		{"empty artifact ID", "android.screenshot", ir.Object{"artifactId": json.RawMessage(`""`)}, false},
+		{"extra artifact path", "android.screenshot", ir.Object{"artifactId": json.RawMessage(`"capture"`), "path": json.RawMessage(`"secret"`)}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := r.ValidOutput(tc.kind, tc.output); got != tc.valid {
+				t.Fatalf("ValidOutput = %v, want %v", got, tc.valid)
+			}
+		})
+	}
+}
 
 func TestDefaultRegistryContainsApprovedContracts(t *testing.T) {
 	t.Parallel()

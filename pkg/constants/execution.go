@@ -2,7 +2,10 @@ package constants
 
 import "time"
 
-const InternalError = "INTERNAL_ERROR"
+const (
+	InternalError     = "INTERNAL_ERROR"
+	NodeOutputInvalid = "NODE_OUTPUT_INVALID"
+)
 
 const (
 	MaxAdmissionDevices         = 32

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 )
 
@@ -33,6 +34,7 @@ type catalogNode struct {
 	InputSchema    ConfigSchema
 	OutputSchema   ConfigSchema
 	inputs         map[string]compiledField
+	outputs        compiledContract
 	dynamicOperand compiledField
 }
 
@@ -58,6 +60,11 @@ func (r *Registry) installCatalog() error {
 			return fmt.Errorf("invalid installed inputs for %q: %w", node.Type, err)
 		}
 		node.inputs = input.properties
+		output, err := compileContract(Contract{Config: node.OutputSchema})
+		if err != nil {
+			return fmt.Errorf("invalid installed outputs for %q: %w", node.Type, err)
+		}
+		node.outputs = output
 		if node.Type == switchType {
 			var operand FieldSchema
 			if json.Unmarshal(node.InputSchema.DynamicInputs["ruleOperand"], &operand) != nil {
@@ -82,6 +89,26 @@ func (r *Registry) CompilationDefinition(nodeType string) (CompilationDefinition
 	definition := node.CompilationDefinition
 	definition.Capabilities = slices.Clone(definition.Capabilities)
 	return definition, ok
+}
+
+// ValidOutput checks a strict output object against the installed compiled fields.
+func (r *Registry) ValidOutput(nodeType string, output ir.Object) bool {
+	node, known := r.catalog[nodeType]
+	if !known || output == nil {
+		return false
+	}
+	for _, name := range node.outputs.required {
+		if _, present := output[name]; !present {
+			return false
+		}
+	}
+	for name, value := range output {
+		field, declared := node.outputs.properties[name]
+		if !declared || !validValue(value, field) {
+			return false
+		}
+	}
+	return true
 }
 
 func validCatalogCode(value string) bool {
