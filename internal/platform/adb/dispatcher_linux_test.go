@@ -12,7 +12,8 @@ import (
 
 func TestDispatchInvokesResolvedADBWithE1(t *testing.T) {
 	binary := filepath.Join(t.TempDir(), "controlled adb")
-	const script = `#!/bin/sh
+	const sample = "-A2MaTeX  'demo' \"double\" & $5 \\ \x60tick\x60 99%  "
+	script := `#!/bin/sh
 if [ "$#" -eq 1 ] && [ "$1" = version ]; then
     printf 'Android Debug Bridge version 1.0.41\n'
     exit 0
@@ -32,6 +33,15 @@ case "$1" in
     swipe) [ "$#" -eq 6 ] &&
         { [ "$*" = 'swipe 540 1535 540 384 300' ] || [ "$*" = 'swipe 25 90 25 90 800' ]; } ;;
     keyevent) [ "$#" -eq 2 ] && { [ "$2" = KEYCODE_BACK ] || [ "$2" = KEYCODE_HOME ]; } ;;
+    text)
+        [ "$#" -eq 2 ] || exit 1
+        # ADB joins these arguments before the Android shell parses them.
+        expected=$(cat <<'EOF'
+` + sample + `
+EOF
+)
+        decoded=$(sh -c "set -- $2; [ \"\$#\" -eq 1 ] && printf '%s' \"\$1\"") || exit 1
+        [ "$decoded" = "$expected" ] ;;
     *) exit 1 ;;
 esac
 `
@@ -56,6 +66,9 @@ esac
 		}
 	}
 	if err := dispatcher.Dispatch(ctx, "192.0.2.5:5555", LaunchAppCommand{PackageName: "com.example.app"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := dispatcher.Dispatch(ctx, "192.0.2.5:5555", InputTextCommand{Text: sample}); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -16,13 +16,14 @@ import (
 type Outcome string
 
 const (
-	InvalidRequest Outcome = "INVALID_REQUEST"
-	Succeeded      Outcome = "SUCCEEDED"
-	NonzeroExit    Outcome = "NONZERO_EXIT"
-	StartFailed    Outcome = "START_FAILED"
-	TimedOut       Outcome = "TIMED_OUT"
-	Cancelled      Outcome = "CANCELLED"
-	RunnerFailed   Outcome = "RUNNER_FAILED"
+	InvalidRequest     Outcome = "INVALID_REQUEST"
+	CommandLineTooLong Outcome = "COMMAND_LINE_TOO_LONG"
+	Succeeded          Outcome = "SUCCEEDED"
+	NonzeroExit        Outcome = "NONZERO_EXIT"
+	StartFailed        Outcome = "START_FAILED"
+	TimedOut           Outcome = "TIMED_OUT"
+	Cancelled          Outcome = "CANCELLED"
+	RunnerFailed       Outcome = "RUNNER_FAILED"
 )
 
 type Result struct {
@@ -50,6 +51,9 @@ func RunWithStdoutLimit(ctx context.Context, executable string, args []string, t
 		if strings.ContainsRune(arg, 0) {
 			return Result{Outcome: InvalidRequest}
 		}
+	}
+	if !commandLineFits(executable, args) {
+		return Result{Outcome: CommandLineTooLong}
 	}
 
 	runCtx, cancel := context.WithTimeout(ctx, timeout)

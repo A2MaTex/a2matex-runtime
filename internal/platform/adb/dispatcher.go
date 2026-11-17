@@ -25,6 +25,10 @@ func (d *Dispatcher) Dispatch(ctx context.Context, serial string, command Device
 	if err := ctx.Err(); err != nil {
 		return xerror.WithOperation("check_attempt", err)
 	}
+	if input, ok := command.(InputTextCommand); ok && input.Text == "" {
+		_, err := checkDispatchContext(ctx, serial)
+		return err
+	}
 	args, minimumDuration, err := commandArgs(command)
 	if err != nil {
 		return xerror.WithOperation("validate_command", err)
@@ -51,10 +55,9 @@ func (d *Dispatcher) runDevice(ctx context.Context, serial, operation string, ar
 	if err := ctx.Err(); err != nil {
 		return processrunner.Result{}, xerror.WithOperation(operation, err)
 	}
-	deadline, ok := ctx.Deadline()
-	if !ok || !ValidSerial(serial) {
-		return processrunner.Result{}, xerror.WithOperation("check_dispatch_context",
-			xerror.CommandError{Code: constants.InternalError, Message: "invalid device dispatch request"})
+	deadline, err := checkDispatchContext(ctx, serial)
+	if err != nil {
+		return processrunner.Result{}, err
 	}
 	toolchain, err := d.resolver.Resolve(ctx)
 	if contextErr := ctx.Err(); contextErr != nil {
@@ -127,9 +130,23 @@ func commandArgs(command DeviceCommand) ([]string, time.Duration, error) {
 			return nil, 0, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "invalid Android package name"}
 		}
 		return launchArgs(command.PackageName), 0, nil
+	case InputTextCommand:
+		if err := command.Validate(); err != nil {
+			return nil, 0, err
+		}
+		return inputTextArgs(command.Text), 0, nil
 	default:
 		return nil, 0, xerror.CommandError{Code: constants.InternalError, Message: "device command has no adapter"}
 	}
+}
+
+func checkDispatchContext(ctx context.Context, serial string) (time.Time, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok || !ValidSerial(serial) {
+		return time.Time{}, xerror.WithOperation("check_dispatch_context",
+			xerror.CommandError{Code: constants.InternalError, Message: "invalid device dispatch request"})
+	}
+	return deadline, nil
 }
 
 func swipeArgs(startX, startY, endX, endY, durationMS int) []string {
@@ -146,6 +163,8 @@ func dispatchError(result processrunner.Result) error {
 		}
 	case processrunner.InvalidRequest:
 		return xerror.CommandError{Code: constants.InternalError, Message: "device command could not be invoked"}
+	case processrunner.CommandLineTooLong:
+		return xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "The encoded ADB command is too long for Windows. Use shorter text"}
 	case processrunner.StartFailed:
 		return xerror.CommandError{Code: constants.CommandStartFailed, Message: "device command could not start", Retryable: true}
 	case processrunner.TimedOut:

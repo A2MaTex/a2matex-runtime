@@ -156,10 +156,15 @@ func TestDispatchRejectsBeforeRunningADB(t *testing.T) {
 		{"unknown command", ctx, "emulator-5554", unknownCommand{}, constants.InternalError},
 		{"negative pixel", ctx, "emulator-5554", TapCommand{X: -1}, constants.CommandInputUnsupported},
 		{"pixel above limit", ctx, "emulator-5554", TapCommand{Y: constants.MaxAndroidPixelCoordinate + 1}, constants.CommandInputUnsupported},
+		{"unsupported input text", ctx, "emulator-5554", InputTextCommand{Text: "%s"}, constants.CommandInputUnsupported},
+		{"empty input text without deadline", t.Context(), "emulator-5554", InputTextCommand{}, constants.InternalError},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			assertCommandError(t, dispatcher.Dispatch(test.ctx, test.serial, test.command), test.code, false)
 		})
+	}
+	if err := dispatcher.Dispatch(ctx, "emulator-5554", InputTextCommand{}); err != nil {
+		t.Fatalf("empty input text should complete without ADB: %v", err)
 	}
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()
@@ -207,6 +212,7 @@ func TestDispatchClassifiesActionOutcomeWithoutRetry(t *testing.T) {
 	}{
 		{"start failed", processrunner.StartFailed, constants.CommandStartFailed, true, nil},
 		{"invalid invocation", processrunner.InvalidRequest, constants.InternalError, false, nil},
+		{"host command line too long", processrunner.CommandLineTooLong, constants.CommandInputUnsupported, false, nil},
 		{"nonzero exit", processrunner.NonzeroExit, constants.CommandFailed, false, nil},
 		{"ambiguous failure", processrunner.RunnerFailed, constants.CommandFailed, false, nil},
 		{"success without exit code", processrunner.Succeeded, constants.CommandFailed, false, nil},

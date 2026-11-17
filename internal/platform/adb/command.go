@@ -55,6 +55,13 @@ type PressHomeCommand struct{}
 func (PressBackCommand) deviceCommand() {}
 func (PressHomeCommand) deviceCommand() {}
 
+// InputTextCommand carries the exact text for the currently focused field.
+type InputTextCommand struct {
+	Text string
+}
+
+func (InputTextCommand) deviceCommand() {}
+
 func validPixelPoint(x, y int) bool {
 	return x >= 0 && x <= constants.MaxAndroidPixelCoordinate &&
 		y >= 0 && y <= constants.MaxAndroidPixelCoordinate

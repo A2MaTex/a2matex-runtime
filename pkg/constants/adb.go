@@ -22,6 +22,7 @@ const (
 	MaxAndroidLongPressDurationMS = 60_000
 	AndroidHierarchyMaxBytes      = 1 << 20
 	AndroidHierarchyCleanup       = time.Second
+	MaxAndroidInputTextLength     = 10_000
 
 	AndroidTargetPixels   = "ABSOLUTE_PIXELS"
 	AndroidTargetPercent  = "SCREEN_PERCENT"
