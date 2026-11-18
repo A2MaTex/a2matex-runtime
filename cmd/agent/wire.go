@@ -8,6 +8,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
@@ -49,6 +50,8 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		httpserver.New,
 		sqlitestore.New,
 		repositories.NewExecutionRepository,
+		wire.Bind(new(runs.SnapshotReader), new(*repositories.ExecutionRepository)),
+		runs.NewHandler,
 		wire.Bind(new(execution.RecoveryRepository), new(*repositories.ExecutionRepository)),
 		services.NewExecutionRecovery,
 		wire.Bind(new(execution.ArtifactRepository), new(*repositories.ExecutionRepository)),

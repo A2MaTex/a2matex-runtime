@@ -9,6 +9,7 @@ package main
 import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
@@ -43,6 +44,9 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	resolver := adb.NewResolver(adbConfig)
 	deviceInventory := services.NewDeviceInventory(resolver)
 	devicesHandler := devices.NewHandler(deviceInventory)
+	store := sqlitestore.New()
+	executionRepository := repositories.NewExecutionRepository(store)
+	runsHandler := runs.NewHandler(executionRepository)
 	dispatcher := adb.NewDispatcher(resolver)
 	registryRegistry, err := newHandlerRegistry(registry, dispatcher)
 	if err != nil {
@@ -52,11 +56,9 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	if err != nil {
 		return nil, err
 	}
-	httpHandler := api.NewHandler(info, session, handler, devicesHandler, registryRegistry, logger)
+	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, registryRegistry, logger)
 	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewOwnerPublisher(cfg, session, owner)
-	store := sqlitestore.New()
-	executionRepository := repositories.NewExecutionRepository(store)
 	executionRecovery := services.NewExecutionRecovery(executionRepository, logger)
 	artifactService := services.NewArtifactService(store, executionRepository, logger)
 	eventRetention := services.NewEventRetention(executionRepository, logger)

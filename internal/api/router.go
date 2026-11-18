@@ -9,6 +9,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/foundation"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
@@ -21,12 +22,13 @@ func NewHandler(
 	verifier middleware.AuthorizationVerifier,
 	workflowValidation *workflowvalidation.Handler,
 	deviceInventory *devices.Handler,
+	runSnapshots *runs.Handler,
 	handlers *registry.Registry,
 	logger *slog.Logger,
 ) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 
-	return newRouter(info, verifier, workflowValidation, deviceInventory, handlers.SupportedNodes(), logger)
+	return newRouter(info, verifier, workflowValidation, deviceInventory, runSnapshots, handlers.SupportedNodes(), logger)
 }
 
 func newRouter(
@@ -34,6 +36,7 @@ func newRouter(
 	verifier middleware.AuthorizationVerifier,
 	workflowValidation *workflowvalidation.Handler,
 	deviceInventory *devices.Handler,
+	runSnapshots *runs.Handler,
 	supported []registry.SupportedNode,
 	logger *slog.Logger,
 ) *gin.Engine {
@@ -55,6 +58,8 @@ func newRouter(
 		v1.POST("/workflow-compilation", workflowValidation.Compile)
 		v1.GET("/devices", deviceInventory.Snapshot)
 		v1.POST("/devices/refresh", deviceInventory.Refresh)
+		v1.GET("/runs/active", runSnapshots.Active)
+		v1.GET("/runs/:runGroupId", runSnapshots.ByID)
 		router.NoRoute(foundation.NotFound)
 	}
 

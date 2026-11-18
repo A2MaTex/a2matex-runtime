@@ -17,12 +17,13 @@ const (
 	APIErrorCodeInternal         = InternalError
 	APIErrorCodeADBUnavailable   = ADBUnavailable
 
-	APIErrorMessageInvalidRequest   = "request is invalid"
-	APIErrorMessageUnauthorized     = "local session token is missing or invalid"
-	APIErrorMessageResourceNotFound = "resource was not found"
-	APIErrorMessagePayloadTooLarge  = "request payload is too large"
-	APIErrorMessageInternal         = "internal server error"
-	APIErrorMessageADBUnavailable   = "unable to refresh Android devices"
+	APIErrorMessageInvalidRequest     = "request is invalid"
+	APIErrorMessageUnauthorized       = "local session token is missing or invalid"
+	APIErrorMessageResourceNotFound   = "resource was not found"
+	APIErrorMessagePayloadTooLarge    = "request payload is too large"
+	APIErrorMessageInternal           = "internal server error"
+	APIErrorMessageADBUnavailable     = "unable to refresh Android devices"
+	APIErrorMessageSnapshotReadFailed = "unable to read execution snapshot"
 
 	APIDeviceStatusReady       = "READY"
 	APIDeviceStatusUnavailable = "UNAVAILABLE"

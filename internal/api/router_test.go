@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
@@ -428,7 +429,7 @@ func newTestRouterWithInventory(output io.Writer, inventory devices.Inventory, e
 	}
 	workflowValidation := workflowvalidation.NewHandler(validationservice.New(catalog))
 
-	return newRouter(info, exactAuthorizationVerifier{}, workflowValidation, devices.NewHandler(inventory), handlers.SupportedNodes(), logger)
+	return newRouter(info, exactAuthorizationVerifier{}, workflowValidation, devices.NewHandler(inventory), runs.NewHandler(nil), handlers.SupportedNodes(), logger)
 }
 
 func TestRuntimeInfoReportsRegisteredNodesInOrder(t *testing.T) {
