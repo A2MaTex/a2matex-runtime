@@ -5,6 +5,13 @@ import "time"
 const (
 	InternalError     = "INTERNAL_ERROR"
 	NodeOutputInvalid = "NODE_OUTPUT_INVALID"
+	NodeTimedOut      = "NODE_TIMED_OUT"
+)
+
+const (
+	NodeTimedOutMessage         = "The node exceeded its execution time limit."
+	PersistenceFailedMessage    = "The execution result could not be saved safely."
+	OutcomeInternalErrorMessage = "The runtime could not process the node result safely."
 )
 
 const (

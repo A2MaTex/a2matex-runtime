@@ -51,4 +51,5 @@ const (
 	DeviceUnauthorized = "DEVICE_UNAUTHORIZED"
 	DeviceOffline      = "DEVICE_OFFLINE"
 	DeviceNotReady     = "DEVICE_NOT_READY"
+	DeviceDisconnected = "DEVICE_DISCONNECTED"
 )
