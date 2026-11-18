@@ -429,7 +429,7 @@ func newTestRouterWithInventory(output io.Writer, inventory devices.Inventory, e
 	}
 	workflowValidation := workflowvalidation.NewHandler(validationservice.New(catalog))
 
-	return newRouter(info, exactAuthorizationVerifier{}, workflowValidation, devices.NewHandler(inventory), runs.NewHandler(nil), handlers.SupportedNodes(), logger)
+	return newRouter(info, exactAuthorizationVerifier{}, workflowValidation, devices.NewHandler(inventory), runs.NewHandler(nil, nil), handlers.SupportedNodes(), logger)
 }
 
 func TestRuntimeInfoReportsRegisteredNodesInOrder(t *testing.T) {

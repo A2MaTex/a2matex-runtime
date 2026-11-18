@@ -42,7 +42,7 @@ func (s *snapshotSpy) SnapshotByID(context.Context, string) (execution.Snapshot,
 }
 func snapshotRouter(reader runs.SnapshotReader, session *auth.Session, output io.Writer) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
-	return newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(reader), nil, slog.New(slog.NewJSONHandler(output, nil)))
+	return newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(reader, nil), nil, slog.New(slog.NewJSONHandler(output, nil)))
 }
 func snapshotRequest(t *testing.T, router http.Handler, token, path string, status int) *httptest.ResponseRecorder {
 	t.Helper()

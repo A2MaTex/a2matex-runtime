@@ -1,6 +1,7 @@
 APP_NAME := a2matex-runtime
 BUILD_DIR := bin
-VERSION ?= 0.0.0-dev
+A2MATEX_RUNTIME_ADB_EXECUTABLE_PATH ?= $(HOME)/Documents/platform-tools/adb
+VERSION ?= 0.1.0
 COMMIT ?= unknown
 BUILD_TIME ?= unknown
 LDFLAGS := -X github.com/A2MaTex/a2matex-runtime/internal/buildinfo.Version=$(VERSION) \
@@ -23,7 +24,7 @@ lint:
 	golangci-lint run ./...
 
 run:
-	go run -buildvcs=false ./cmd/agent
+	A2MATEX_RUNTIME_ADB_EXECUTABLE_PATH="$(A2MATEX_RUNTIME_ADB_EXECUTABLE_PATH)" go run -buildvcs=false ./cmd/agent
 
 migrate-up:
 	go run -buildvcs=false ./cmd/agent --migrate-up

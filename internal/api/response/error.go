@@ -40,6 +40,12 @@ func Abort(ctx *gin.Context, status int, code, message string) {
 
 // AbortWithCause keeps operational context separate from the public response.
 func AbortWithCause(ctx *gin.Context, status int, err Error, cause error) {
+	SetFailure(ctx, err, cause)
+	ctx.AbortWithStatusJSON(status, errorResponse{Error: err})
+}
+
+// SetFailure retains safe log metadata for endpoints with an approved extended envelope.
+func SetFailure(ctx *gin.Context, err Error, cause error) {
 	failure := Failure{Code: err.Code}
 	var operation *xerror.OperationError
 	if errors.As(cause, &operation) {
@@ -47,5 +53,4 @@ func AbortWithCause(ctx *gin.Context, status int, err Error, cause error) {
 		failure.Reason = operation.Detail
 	}
 	ctx.Set(failureKey, failure)
-	ctx.AbortWithStatusJSON(status, errorResponse{Error: err})
 }

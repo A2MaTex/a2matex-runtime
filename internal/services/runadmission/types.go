@@ -1,4 +1,4 @@
-// Package runadmission coordinates checked workflow admission without starting workers.
+// Package runadmission coordinates checked admission and process-owned workflow starts.
 package runadmission
 
 import (

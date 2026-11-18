@@ -58,6 +58,7 @@ func newRouter(
 		v1.POST("/workflow-compilation", workflowValidation.Compile)
 		v1.GET("/devices", deviceInventory.Snapshot)
 		v1.POST("/devices/refresh", deviceInventory.Refresh)
+		v1.POST("/runs", runSnapshots.Start)
 		v1.GET("/runs/active", runSnapshots.Active)
 		v1.GET("/runs/:runGroupId", runSnapshots.ByID)
 		router.NoRoute(foundation.NotFound)

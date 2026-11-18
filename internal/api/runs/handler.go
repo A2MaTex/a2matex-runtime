@@ -19,9 +19,14 @@ type SnapshotReader interface {
 	SnapshotByID(context.Context, string) (execution.Snapshot, error)
 }
 
-type Handler struct{ reader SnapshotReader }
+type Handler struct {
+	reader  SnapshotReader
+	starter Starter
+}
 
-func NewHandler(reader SnapshotReader) *Handler { return &Handler{reader: reader} }
+func NewHandler(reader SnapshotReader, starter Starter) *Handler {
+	return &Handler{reader: reader, starter: starter}
+}
 
 func (h *Handler) Active(ctx *gin.Context) {
 	const operation = "read_active_run_snapshot"

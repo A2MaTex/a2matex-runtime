@@ -16,6 +16,7 @@ const (
 	APIErrorCodePayloadTooLarge  = "PAYLOAD_TOO_LARGE"
 	APIErrorCodeInternal         = InternalError
 	APIErrorCodeADBUnavailable   = ADBUnavailable
+	APIErrorCodeRuntimeBusy      = "RUNTIME_BUSY"
 
 	APIErrorMessageInvalidRequest     = "request is invalid"
 	APIErrorMessageUnauthorized       = "local session token is missing or invalid"
@@ -27,4 +28,13 @@ const (
 
 	APIDeviceStatusReady       = "READY"
 	APIDeviceStatusUnavailable = "UNAVAILABLE"
+
+	// Phase H replaces this public-start limit with bounded multi-device scheduling.
+	MaxStartDevices = 1
+
+	APIErrorMessageAdmissionFailed            = "run admission failed"
+	APIErrorMessageRuntimeBusy                = "another workflow run is active"
+	APIErrorMessageRuntimeStopping            = "runtime is stopping"
+	APIErrorMessageAdmissionADBUnavailable    = "unable to check selected Android device"
+	APIErrorMessageAdmissionPersistenceFailed = "unable to persist workflow run"
 )

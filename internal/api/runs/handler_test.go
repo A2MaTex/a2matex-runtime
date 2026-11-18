@@ -37,7 +37,7 @@ func router(r runs.SnapshotReader) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
 	engine.Use(middleware.CacheControl())
-	h := runs.NewHandler(r)
+	h := runs.NewHandler(r, nil)
 	engine.GET("/api/v1/runs/active", h.Active)
 	engine.GET("/api/v1/runs/:runGroupId", h.ByID)
 	return engine

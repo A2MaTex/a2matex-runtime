@@ -22,6 +22,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/repositories"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/executionlifecycle"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/runadmission"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/service"
@@ -46,24 +47,33 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	devicesHandler := devices.NewHandler(deviceInventory)
 	store := sqlitestore.New()
 	executionRepository := repositories.NewExecutionRepository(store)
-	runsHandler := runs.NewHandler(executionRepository)
 	dispatcher := adb.NewDispatcher(resolver)
 	registryRegistry, err := newHandlerRegistry(registry, dispatcher)
 	if err != nil {
 		return nil, err
 	}
+	devicePreflight := services.NewDevicePreflight(resolver)
 	logger, err := logging.New(cfg)
 	if err != nil {
 		return nil, err
 	}
+	artifactService := services.NewArtifactService(store, executionRepository, logger)
+	checkpointService := services.NewCheckpointService(executionRepository, artifactService)
+	executionlifecycleService := executionlifecycle.New(checkpointService)
+	runadmissionService, err := newRunAdmission(registry, registryRegistry, info, devicePreflight, executionRepository, executionlifecycleService, checkpointService)
+	if err != nil {
+		return nil, err
+	}
+	startService, err := runadmission.NewStarter(runadmissionService, executionRepository, executionlifecycleService)
+	if err != nil {
+		return nil, err
+	}
+	runsHandler := runs.NewHandler(executionRepository, startService)
 	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, registryRegistry, logger)
 	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewOwnerPublisher(cfg, session, owner)
 	executionRecovery := services.NewExecutionRecovery(executionRepository, logger)
-	artifactService := services.NewArtifactService(store, executionRepository, logger)
 	eventRetention := services.NewEventRetention(executionRepository, logger)
-	checkpointService := services.NewCheckpointService(executionRepository, artifactService)
-	executionlifecycleService := executionlifecycle.New(checkpointService)
 	app := supervisor.New(server, publisher, store, executionRecovery, artifactService, eventRetention, checkpointService, executionlifecycleService, cfg, logger)
 	return app, nil
 }

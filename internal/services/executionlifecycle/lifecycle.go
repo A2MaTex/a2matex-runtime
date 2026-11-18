@@ -23,6 +23,9 @@ type Service struct {
 	accepted                            bool
 	deadline                            time.Time
 	rootDone                            <-chan struct{}
+	ownerContext                        context.Context
+	admissionContext                    context.Context
+	cancelAdmissions                    context.CancelFunc
 	workers                             map[string]context.CancelFunc
 	admissions                          int
 	drained, done, shutdownDone         chan struct{}
@@ -45,6 +48,8 @@ func (l *Service) Start(ctx context.Context) error {
 		return lifecycleError("start_execution_lifecycle", xerror.ErrExecutionLifecycleInvalid)
 	}
 	l.started, l.rootDone = true, ctx.Done()
+	l.ownerContext = ctx
+	l.admissionContext, l.cancelAdmissions = context.WithCancel(ctx)
 	return nil
 }
 
@@ -71,31 +76,44 @@ func (l *Service) BeginAdmission(ctx context.Context) (func(), error) {
 }
 
 func (l *Service) Run(ctx context.Context, worker *runner.Runner, request runner.Request) (runner.Result, error) {
+	workerCtx, cancel, err := l.beginRun(ctx, worker, request)
+	if err != nil {
+		return runner.Result{}, err
+	}
+	defer cancel()
+	return l.runRegistered(workerCtx, worker, request)
+}
+
+func (l *Service) beginRun(ctx context.Context, worker *runner.Runner, request runner.Request) (context.Context, context.CancelFunc, error) {
 	const operation = "run_managed_execution"
 	if err := executionContextError(ctx); err != nil {
-		return runner.Result{}, lifecycleError(operation, err)
+		return nil, nil, lifecycleError(operation, err)
 	}
 	if worker == nil || request.Control != nil || !execution.ValidID(request.RunGroupID) ||
 		!execution.ValidID(request.DeviceExecutionID) || strings.TrimSpace(request.ADBSerial) == "" || request.WorkflowInputs == nil {
-		return runner.Result{}, lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
+		return nil, nil, lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
 	}
 	workerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	l.mu.Lock()
+	defer l.mu.Unlock()
 	if err := l.gateError(); err != nil {
-		l.mu.Unlock()
-		return runner.Result{}, lifecycleError(operation, err)
+		cancel()
+		return nil, nil, lifecycleError(operation, err)
 	}
 	if _, exists := l.workers[request.DeviceExecutionID]; exists {
-		l.mu.Unlock()
-		return runner.Result{}, lifecycleError(operation, xerror.ErrExecutionStaleState)
+		cancel()
+		return nil, nil, lifecycleError(operation, xerror.ErrExecutionStaleState)
 	}
 	if len(l.workers) >= constants.MaxAdmissionDevices {
-		l.mu.Unlock()
-		return runner.Result{}, lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
+		cancel()
+		return nil, nil, lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
 	}
 	l.workers[request.DeviceExecutionID] = cancel
-	l.mu.Unlock()
+	return workerCtx, cancel, nil
+}
+
+func (l *Service) runRegistered(workerCtx context.Context, worker *runner.Runner, request runner.Request) (runner.Result, error) {
+	const operation = "run_managed_execution"
 	request.Control = l.control
 	result, err := worker.Run(workerCtx, request)
 	l.mu.Lock()
@@ -125,6 +143,9 @@ func (l *Service) Run(ctx context.Context, worker *runner.Runner, request runner
 func (l *Service) PrepareStop(reason constants.ExecutionStopReason, deadline time.Time) {
 	l.mu.Lock()
 	l.closed = true
+	if l.cancelAdmissions != nil {
+		l.cancelAdmissions()
+	}
 	valid := reason == constants.ExecutionStopIntentional || reason == constants.ExecutionStopOwnerLost || reason == constants.ExecutionStopFailure
 	if !valid || deadline.IsZero() {
 		l.recordFailure(lifecycleError("prepare_execution_stop", xerror.ErrExecutionLifecycleInvalid))
@@ -219,6 +240,9 @@ func (l *Service) gateError() error {
 	if !l.started {
 		return xerror.ErrExecutionLifecycleInvalid
 	}
+	if l.ownerContext.Err() != nil {
+		return xerror.ErrExecutionStopping
+	}
 	return nil
 }
 
@@ -233,6 +257,9 @@ func (l *Service) recordFailure(err error) {
 		l.failure = err
 	}
 	l.closed = true
+	if l.cancelAdmissions != nil {
+		l.cancelAdmissions()
+	}
 	l.doneOnce.Do(func() { close(l.done) })
 }
 

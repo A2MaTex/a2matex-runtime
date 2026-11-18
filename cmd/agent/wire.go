@@ -22,6 +22,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/repositories"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/executionlifecycle"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/runadmission"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	validationservice "github.com/A2MaTex/a2matex-runtime/internal/validation/service"
@@ -43,6 +44,7 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		adb.NewDispatcher,
 		wire.Bind(new(services.DeviceInventorySource), new(*adb.Resolver)),
 		services.NewDeviceInventory,
+		services.NewDevicePreflight,
 		wire.Bind(new(devices.Inventory), new(*services.DeviceInventory)),
 		devices.NewHandler,
 		api.NewHandler,
@@ -52,6 +54,12 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		repositories.NewExecutionRepository,
 		wire.Bind(new(runs.SnapshotReader), new(*repositories.ExecutionRepository)),
 		runs.NewHandler,
+		newRunAdmission,
+		wire.Bind(new(runadmission.SingleDeviceAdmitter), new(*runadmission.Service)),
+		wire.Bind(new(runadmission.SnapshotReader), new(*repositories.ExecutionRepository)),
+		wire.Bind(new(runadmission.ExecutionOwner), new(*executionlifecycle.Service)),
+		runadmission.NewStarter,
+		wire.Bind(new(runs.Starter), new(*runadmission.StartService)),
 		wire.Bind(new(execution.RecoveryRepository), new(*repositories.ExecutionRepository)),
 		services.NewExecutionRecovery,
 		wire.Bind(new(execution.ArtifactRepository), new(*repositories.ExecutionRepository)),
