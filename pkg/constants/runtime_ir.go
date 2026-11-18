@@ -1,10 +1,13 @@
 package constants
 
 const (
-	NodeSuccessPort = "success"
-	NodeErrorPort   = "error"
-	EndNodeType     = "flow.end"
-	SwitchNodeType  = "flow.switch"
+	NodeSuccessPort      = "success"
+	NodeErrorPort        = "error"
+	EndNodeType          = "flow.end"
+	SwitchNodeType       = "flow.switch"
+	SetVariableNodeType  = "flow.set_variable"
+	WaitVariableNodeType = "flow.wait_variable"
+	LogNodeType          = "utility.log"
 )
 
 const (

@@ -1,0 +1,108 @@
+{
+  "formatVersion": 1,
+  "minimumRuntimeVersion": "0.1.0",
+  "metadata": {
+    "sourceGraphSchemaVersion": 1
+  },
+  "entryNodeId": "start",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "duration": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 300000
+      }
+    },
+    "required": [
+      "duration"
+    ],
+    "additionalProperties": false
+  },
+  "nodes": [
+    {
+      "id": "start",
+      "type": "flow.start",
+      "runtimeHandler": "flow.start",
+      "config": {},
+      "inputs": {},
+      "timeoutMs": 1000,
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "delayMs": 0
+      },
+      "errorPolicy": "STOP"
+    },
+    {
+      "id": "producer",
+      "type": "flow.delay",
+      "runtimeHandler": "flow.delay",
+      "config": {},
+      "inputs": {
+        "durationMs": {
+          "source": "WORKFLOW_INPUT",
+          "inputName": "duration"
+        }
+      },
+      "timeoutMs": 1000,
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "delayMs": 0
+      },
+      "errorPolicy": "STOP"
+    },
+    {
+      "id": "consumer",
+      "type": "flow.delay",
+      "runtimeHandler": "flow.delay",
+      "config": {},
+      "inputs": {
+        "durationMs": {
+          "source": "NODE_OUTPUT",
+          "nodeId": "producer",
+          "field": "durationMs"
+        }
+      },
+      "timeoutMs": 1000,
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "delayMs": 0
+      },
+      "errorPolicy": "STOP"
+    },
+    {
+      "id": "end",
+      "type": "flow.end",
+      "runtimeHandler": "flow.end",
+      "config": {},
+      "inputs": {},
+      "timeoutMs": 1000,
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "delayMs": 0
+      },
+      "errorPolicy": "STOP"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "sourceNodeId": "start",
+      "sourcePort": "success",
+      "targetNodeId": "producer"
+    },
+    {
+      "id": "e2",
+      "sourceNodeId": "producer",
+      "sourcePort": "success",
+      "targetNodeId": "consumer"
+    },
+    {
+      "id": "e3",
+      "sourceNodeId": "consumer",
+      "sourcePort": "success",
+      "targetNodeId": "end"
+    }
+  ],
+  "requiredCapabilities": []
+}
