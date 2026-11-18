@@ -1,6 +1,13 @@
 package constants
 
 const (
+	NodeSuccessPort = "success"
+	NodeErrorPort   = "error"
+	EndNodeType     = "flow.end"
+	SwitchNodeType  = "flow.switch"
+)
+
+const (
 	RuntimeIRMaxNodes         = 500
 	RuntimeIRMaxEdges         = 1_000
 	RuntimeIRMaxFields        = 100
