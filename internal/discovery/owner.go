@@ -7,6 +7,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
+
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
 const shutdownCommand = "shutdown\n"
@@ -47,19 +49,26 @@ func isPipe(file *os.File) bool {
 
 // Watch cancels the supervisor on shutdown, owner loss, or a malformed
 // control message. The command pipe must be monitored during startup too.
-func (o *Owner) Watch(cancel context.CancelFunc) {
+func (o *Owner) Watch(cancel context.CancelCauseFunc) {
 	reader := bufio.NewReaderSize(o.commands, 32)
 	// A single frame suffices. EOF and invalid frames both fail closed.
 	frame, err := reader.ReadSlice('\n')
 	reason := "owner_protocol_error"
+	cause := xerror.ErrOwnerProtocol
 	switch {
 	case err == nil && string(frame) == shutdownCommand:
 		reason = "owner_shutdown_requested"
+		cause = xerror.ErrOwnerShutdownRequested
 	case errors.Is(err, io.EOF) && len(frame) == 0:
 		reason = "owner_disconnected"
+		cause = xerror.ErrOwnerDisconnected
 	}
-	slog.Info("managed Runtime control channel stopped", "component", "runtime", "event", reason)
-	cancel()
+	level := slog.LevelInfo
+	if errors.Is(cause, xerror.ErrOwnerProtocol) {
+		level = slog.LevelError
+	}
+	slog.Log(context.Background(), level, "managed Runtime control channel stopped", "component", "runtime", "event", reason)
+	cancel(cause)
 }
 
 func (o *Owner) Close() {

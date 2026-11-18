@@ -12,6 +12,9 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/httpserver"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/executionlifecycle"
+	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
+	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
 type lifecycle interface {
@@ -43,6 +46,8 @@ func (e *LifecycleError) Error() string { return e.Err.Error() }
 func (e *LifecycleError) Unwrap() error { return e.Err }
 
 type App struct {
+	execution       *executionlifecycle.Service
+	managed         bool
 	components      []component
 	shutdownTimeout time.Duration
 	logger          *slog.Logger
@@ -56,6 +61,7 @@ func New(
 	artifacts *services.ArtifactService,
 	retention *services.EventRetention,
 	checkpoint *services.CheckpointService,
+	execution *executionlifecycle.Service,
 	cfg config.Config,
 	logger *slog.Logger,
 ) *App {
@@ -64,6 +70,7 @@ func New(
 		publisherName = "managed_readiness_publisher"
 	}
 	return &App{
+		execution: execution, managed: publisher.IsManaged(),
 		// Components start in this order and stop in reverse. This guarantees the
 		// handoff occurs after binding and standalone discovery stops before HTTP.
 		components: []component{
@@ -87,6 +94,7 @@ func New(
 				name:      "execution_checkpoint",
 				lifecycle: checkpoint,
 			},
+			{name: "execution_lifecycle", lifecycle: execution},
 			{
 				name:      "local_http_server",
 				lifecycle: server,
@@ -130,17 +138,16 @@ func (a *App) Run(ctx context.Context) error {
 					startErr = componentStartError(ctx, current, err)
 				}
 
+				componentErr := componentStopError(ctx, started, result)
 				return errors.Join(
-					componentStopError(ctx, started, result),
+					componentErr,
 					startErr,
-					a.cleanup(runCtx, started, results, observedResult(result)),
+					a.cleanup(runCtx, started, results, observedResult(result), a.stopReason(ctx, componentErr != nil || startErr != nil)),
 				)
 			}
 
-			return errors.Join(
-				componentStartError(ctx, current, err),
-				a.cleanup(runCtx, started, results, nil),
-			)
+			startErr := componentStartError(ctx, current, err)
+			return errors.Join(startErr, a.cleanup(runCtx, started, results, nil, a.stopReason(ctx, startErr != nil)))
 		}
 
 		readyAttributes := make([]slog.Attr, 0, 2+len(current.readyAttributes))
@@ -166,7 +173,7 @@ func (a *App) Run(ctx context.Context) error {
 		}
 
 		cancelRun()
-		return a.cleanup(runCtx, started, results, nil)
+		return a.cleanup(runCtx, started, results, nil, a.stopReason(ctx, false))
 	}
 
 	a.logger.Info("runtime agent ready",
@@ -185,7 +192,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	cancelRun()
-	cleanupErr := a.cleanup(runCtx, started, results, observed)
+	cleanupErr := a.cleanup(runCtx, started, results, observed, a.stopReason(ctx, runErr != nil))
 	if err := errors.Join(runErr, cleanupErr); err != nil {
 		return err
 	}
@@ -264,10 +271,9 @@ func (a *App) stopAfterComponentResult(
 ) error {
 	cancelRun()
 
-	return errors.Join(
-		componentStopError(parentCtx, started, result),
-		a.cleanup(runCtx, started, results, observedResult(result)),
-	)
+	componentErr := componentStopError(parentCtx, started, result)
+	return errors.Join(componentErr,
+		a.cleanup(runCtx, started, results, observedResult(result), a.stopReason(parentCtx, componentErr != nil)))
 }
 
 func (a *App) cleanup(
@@ -275,6 +281,7 @@ func (a *App) cleanup(
 	started []component,
 	results <-chan componentResult,
 	observed map[int]struct{},
+	reason constants.ExecutionStopReason,
 ) error {
 	if observed == nil {
 		observed = make(map[int]struct{}, len(started))
@@ -285,6 +292,10 @@ func (a *App) cleanup(
 		a.shutdownTimeout,
 	)
 	defer cancelShutdown()
+	if a.execution != nil {
+		deadline, _ := shutdownCtx.Deadline()
+		a.execution.PrepareStop(reason, deadline)
+	}
 
 	var cleanupErrors []error
 	for index := len(started) - 1; index >= 0; index-- {
@@ -294,6 +305,10 @@ func (a *App) cleanup(
 				cleanupErrors,
 				&LifecycleError{Operation: "shutdown", Component: current.name, Err: fmt.Errorf("shutdown %s: %w", current.name, err)},
 			)
+		} else if current.name == "execution_lifecycle" {
+			a.logger.InfoContext(shutdownCtx, "execution workers stopped",
+				"component", current.name, "event", "execution_shutdown_completed", "stop_reason", reason,
+				"workers_remaining", 0, "admissions_remaining", 0, "outcome", "completed")
 		}
 	}
 
@@ -359,4 +374,21 @@ func collectComponentResult(
 	}
 
 	return remaining, nil
+}
+
+func (a *App) stopReason(parent context.Context, failed bool) constants.ExecutionStopReason {
+	if failed {
+		return constants.ExecutionStopFailure
+	}
+	cause := context.Cause(parent)
+	switch {
+	case errors.Is(cause, xerror.ErrOwnerShutdownRequested):
+		return constants.ExecutionStopIntentional
+	case errors.Is(cause, xerror.ErrOwnerDisconnected):
+		return constants.ExecutionStopOwnerLost
+	case !a.managed && errors.Is(cause, context.Canceled):
+		return constants.ExecutionStopIntentional
+	default:
+		return constants.ExecutionStopFailure
+	}
 }

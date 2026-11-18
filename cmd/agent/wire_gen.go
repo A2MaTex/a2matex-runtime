@@ -20,6 +20,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
 	"github.com/A2MaTex/a2matex-runtime/internal/repositories"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/executionlifecycle"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/service"
@@ -60,6 +61,7 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	artifactService := services.NewArtifactService(store, executionRepository, logger)
 	eventRetention := services.NewEventRetention(executionRepository, logger)
 	checkpointService := services.NewCheckpointService(executionRepository, artifactService)
-	app := supervisor.New(server, publisher, store, executionRecovery, artifactService, eventRetention, checkpointService, cfg, logger)
+	executionlifecycleService := executionlifecycle.New(checkpointService)
+	app := supervisor.New(server, publisher, store, executionRecovery, artifactService, eventRetention, checkpointService, executionlifecycleService, cfg, logger)
 	return app, nil
 }

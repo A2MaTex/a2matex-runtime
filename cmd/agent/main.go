@@ -98,8 +98,8 @@ func run() int {
 			return exitFailure
 		}
 		defer owner.Close()
-		ownerCtx, cancelOwner := context.WithCancel(ctx)
-		defer cancelOwner()
+		ownerCtx, cancelOwner := context.WithCancelCause(ctx)
+		defer cancelOwner(nil)
 		go owner.Watch(cancelOwner)
 		ctx = ownerCtx
 	}

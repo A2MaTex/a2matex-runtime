@@ -90,6 +90,7 @@ type CheckpointTx interface {
 }
 
 type CheckpointRepository interface {
+	CancellationRepository
 	WithCheckpointTx(context.Context, func(CheckpointTx) error) error
 	ReadCheckpoint(context.Context, AttemptRef) (CheckpointState, int64, error)
 	NotifyRecoveredCheckpoint()

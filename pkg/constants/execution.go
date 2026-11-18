@@ -2,6 +2,14 @@ package constants
 
 import "time"
 
+type ExecutionStopReason string
+
+const (
+	ExecutionStopIntentional ExecutionStopReason = "intentional"
+	ExecutionStopOwnerLost   ExecutionStopReason = "owner_lost"
+	ExecutionStopFailure     ExecutionStopReason = "failure"
+)
+
 const (
 	InternalError     = "INTERNAL_ERROR"
 	NodeOutputInvalid = "NODE_OUTPUT_INVALID"

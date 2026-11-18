@@ -65,24 +65,10 @@ type checkpointWrite struct {
 func (s *CheckpointService) write(ctx context.Context, ref execution.AttemptRef, finishing bool, stagedID string,
 	operation func(execution.CheckpointTx) (checkpointWrite, error),
 ) (execution.CheckpointResult, error) {
-	// SQLite already serializes writes. Keep this gate through read-back so a
-	// duplicate checkpoint cannot create the evidence for an uncertain commit.
-	select {
-	case <-s.done:
-		return execution.CheckpointResult{}, s.stoppedError()
-	case <-ctx.Done():
-		return execution.CheckpointResult{}, s.checkpointError(finishing, xerror.WithOperation("wait_for_checkpoint_writer", ctx.Err()))
-	case s.gate <- struct{}{}:
+	if err := s.lockWriter(ctx, finishing); err != nil {
+		return execution.CheckpointResult{}, err
 	}
 	defer func() { <-s.gate }()
-	select {
-	case <-s.done:
-		return execution.CheckpointResult{}, s.stoppedError()
-	default:
-	}
-	if err := ctx.Err(); err != nil {
-		return execution.CheckpointResult{}, s.checkpointError(finishing, xerror.WithOperation("start_checkpoint_write", err))
-	}
 	var keepStage bool
 	if stagedID != "" && s.artifacts != nil {
 		// Keep the writer gate through lookup and discard so another finish
@@ -185,4 +171,28 @@ func appendCheckpoint(ctx context.Context, tx execution.CheckpointTx, sequence i
 			Sequence: sequence, Cursor: cursors[len(cursors)-1]},
 		matches: matches,
 	}, nil
+}
+
+func (s *CheckpointService) lockWriter(ctx context.Context, finishing bool) error {
+	// SQLite already serializes writes. Keep this gate through read-back so a
+	// duplicate checkpoint cannot create the evidence for an uncertain commit.
+	select {
+	case <-s.done:
+		return s.stoppedError()
+	case <-ctx.Done():
+		return s.checkpointError(finishing, xerror.WithOperation("wait_for_checkpoint_writer", ctx.Err()))
+	case s.gate <- struct{}{}:
+	}
+	select {
+	case <-s.done:
+		<-s.gate
+		return s.stoppedError()
+	default:
+	}
+	if err := ctx.Err(); err != nil {
+		failure := s.checkpointError(finishing, xerror.WithOperation("start_checkpoint_write", err))
+		<-s.gate
+		return failure
+	}
+	return nil
 }
