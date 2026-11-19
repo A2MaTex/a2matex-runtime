@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -17,8 +18,10 @@ import (
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/attempts"
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/bindings"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/invocation"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/variables"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/delay"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/end"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
@@ -164,6 +167,88 @@ func assertTerminal(t *testing.T, f *integration, index int, result Result) {
 	if last.ID != result.LastAttempt.Ref.AttemptID || last.Sequence != result.LastAttempt.Sequence || !result.LastAttempt.Finished {
 		t.Fatalf("terminal evidence: %+v %+v", last, result)
 	}
+}
+
+func TestSQLiteWorkflowReadsRAMVariables(t *testing.T) {
+	for _, source := range []string{constants.InputSourceFlowVariable, constants.InputSourceGlobalVariable} {
+		t.Run(source, func(t *testing.T) {
+			doc := document(t)
+			doc.Nodes[1].Inputs["durationMs"] = []byte(`{"source":"` + source + `","name":"duration"}`)
+			f := integrationFixture(t, doc, []string{"1", "2"}, nil, nil)
+			ids := []string{f.requests[0].DeviceExecutionID, f.requests[1].DeviceExecutionID}
+			group := f.requests[0].RunGroupID
+			ram, err := variables.New(group, ids)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := ram.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			for i := range f.requests {
+				req := &f.requests[i]
+				bound := req.DeviceExecutionID
+				scope, value := constants.VariableScopeFlow, fmt.Sprint(i+1)
+				if source == constants.InputSourceGlobalVariable {
+					scope, value = constants.VariableScopeRunGroup, "3"
+				}
+				_, err := ram.Apply(t.Context(), execution.VariableWrite{AttemptRef: execution.AttemptRef{RunGroupID: group, DeviceExecutionID: bound, NodeID: "seed", AttemptID: uuid.NewString()}, Scope: scope, Name: "duration", Value: []byte(value)}, func(context.Context) (execution.CheckpointResult, error) {
+					return execution.CheckpointResult{Disposition: constants.CheckpointCommitted, Sequence: 1, Cursor: "1"}, nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				req.Variables = bindings.VariableView{RunGroupID: group, DeviceExecutionID: bound, Lookup: func(ctx context.Context, scope constants.VariableScope, name string) (json.RawMessage, bool, error) {
+					return ram.Get(ctx, bound, scope, name)
+				}}
+			}
+			for i, req := range f.requests {
+				got, err := f.runner.Run(t.Context(), req)
+				if err != nil || got.DeviceStatus != constants.ExecutionSucceeded {
+					t.Fatal(got, err)
+				}
+				assertTerminal(t, f, i, got)
+				history := rows(t, f, i)
+				want := fmt.Sprint(i + 1)
+				if source == constants.InputSourceGlobalVariable {
+					want = "3"
+				}
+				if len(history) != 4 || string(history[1].Output) != `{"durationMs":`+want+`}` {
+					t.Fatalf("variable transport/output: %+v", history)
+				}
+			}
+		})
+	}
+	t.Run("missing key uses error edge without invoking handler", func(t *testing.T) {
+		doc := document(t)
+		doc.Nodes[1].Inputs["durationMs"] = []byte(`{"source":"FLOW_VARIABLE","name":"missing"}`)
+		doc.Nodes[1].ErrorPolicy = constants.ErrorPolicyErrorBranch
+		doc.Edges = append(doc.Edges, ir.Edge{ID: "missing_error", SourceNodeID: "producer", SourcePort: constants.NodeErrorPort, TargetNodeID: "end"})
+		calls := 0
+		f := integrationFixture(t, doc, []string{"1"}, func(context.Context, registry.Invocation) (map[string]any, error) { calls++; return nil, nil }, nil)
+		req := f.requests[0]
+		ram, err := variables.New(req.RunGroupID, []string{req.DeviceExecutionID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := ram.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		req.Variables = bindings.VariableView{RunGroupID: req.RunGroupID, DeviceExecutionID: req.DeviceExecutionID, Lookup: func(ctx context.Context, scope constants.VariableScope, name string) (json.RawMessage, bool, error) {
+			return ram.Get(ctx, req.DeviceExecutionID, scope, name)
+		}}
+		got, err := f.runner.Run(t.Context(), req)
+		if err != nil || got.DeviceStatus != constants.ExecutionSucceeded || calls != 0 {
+			t.Fatal(got, err, calls)
+		}
+		history := rows(t, f, 0)
+		if len(history) != 3 || history[1].Status != constants.ExecutionFailed || !strings.Contains(string(history[1].Error), constants.CommandInputUnsupported) || history[2].NodeID != "end" {
+			t.Fatalf("missing-key history: %+v", history)
+		}
+	})
 }
 
 func TestSQLiteCompleteWorkflowAndIsolation(t *testing.T) {

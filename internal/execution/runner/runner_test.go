@@ -111,6 +111,47 @@ func checkHandoff(t *testing.T, result Result, err error) {
 	}
 }
 
+func TestVariableViewTransportAndIdentity(t *testing.T) {
+	r := makeRunner(t, document(t))
+	req := request()
+	calls := 0
+	req.Variables = bindings.VariableView{RunGroupID: req.RunGroupID, DeviceExecutionID: req.DeviceExecutionID,
+		Lookup: func(context.Context, constants.VariableScope, string) (json.RawMessage, bool, error) {
+			return []byte(`"owned"`), true, nil
+		}}
+	r.attempts = attemptFunc(func(ctx context.Context, call attempts.Request) (attempts.Result, error) {
+		calls++
+		if !call.Values.Variables.ValidFor(call.Ref.RunGroupID, call.Ref.DeviceExecutionID) || call.Values.Variables.Lookup == nil {
+			t.Fatal("runner dropped/rebound the view")
+		}
+		value, found, err := call.Values.Variables.Lookup(ctx, constants.VariableScopeFlow, "message")
+		if err != nil || !found || string(value) != `"owned"` {
+			t.Fatal(value, err)
+		}
+		call.Values.Variables.DeviceExecutionID = "local copy"
+		return success(call, int64(calls)), nil
+	})
+	if got, err := r.Run(t.Context(), req); err != nil || got.DeviceStatus != constants.ExecutionSucceeded || calls != 4 {
+		t.Fatal(got, err, calls)
+	}
+	if req.Variables.DeviceExecutionID != req.DeviceExecutionID {
+		t.Fatal("request metadata mutated")
+	}
+	for _, foreignGroup := range []bool{true, false} {
+		bad := req
+		if foreignGroup {
+			bad.Variables.RunGroupID = uuid.NewString()
+		} else {
+			bad.Variables.DeviceExecutionID = uuid.NewString()
+		}
+		calls = 0
+		got, err := r.Run(t.Context(), bad)
+		if !errors.Is(err, xerror.ErrRunnerInvalid) || calls != 0 || got.LastAttempt.Began {
+			t.Fatalf("foreign view entered runner: %+v %v calls=%d", got, err, calls)
+		}
+	}
+}
+
 func TestConstructionAndRequestGuards(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

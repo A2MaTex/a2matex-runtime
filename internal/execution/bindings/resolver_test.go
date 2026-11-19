@@ -58,6 +58,7 @@ func failure(t *testing.T, err error, field, reason, operation string) {
 		"input_value_invalid":          "Resolved input does not satisfy its field contract",
 		"node_output_unavailable":      "Previous node output is unavailable",
 		"node_output_field_missing":    "Previous node output field is unavailable",
+		"variable_missing":             "Variable value is unavailable",
 	}
 	if command.Message != messages[reason] || err.Error() != operation+": "+messages[reason] {
 		t.Fatalf("unsafe or incorrect message: %v", err)
@@ -159,8 +160,8 @@ func TestResolveFailures(t *testing.T) {
 		{"invalid UTF8 value", "android.input_text", "text", `{"source":"WORKFLOW_INPUT","inputName":"value"}`, "input_value_invalid", ir.Object{"value": {0xff}}},
 		{"wrong workflow value type", "android.input_text", "text", `{"source":"WORKFLOW_INPUT","inputName":"value"}`, "input_value_invalid", ir.Object{"value": json.RawMessage(`123`)}},
 		{"node output unavailable", "android.input_text", "text", `{"source":"NODE_OUTPUT","nodeId":"capture","field":"artifactId"}`, "node_output_unavailable", nil},
-		{"flow variable deferred", "android.input_text", "text", `{"source":"FLOW_VARIABLE","name":"value"}`, "source_unsupported", nil},
-		{"global variable deferred", "android.input_text", "text", `{"source":"GLOBAL_VARIABLE","name":"value"}`, "source_unsupported", nil},
+		{"flow variable ownership override", "android.input_text", "text", `{"source":"FLOW_VARIABLE","name":"value","scope":"FLOW"}`, "binding_invalid", nil},
+		{"global variable invalid name", "android.input_text", "text", `{"source":"GLOBAL_VARIABLE","name":" bad "}`, "binding_invalid", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

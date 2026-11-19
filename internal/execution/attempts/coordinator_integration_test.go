@@ -14,6 +14,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/retry"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/routing"
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/variables"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/end"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/switcher"
@@ -131,6 +132,123 @@ func switchRequest() Request {
 	r.Values.WorkflowInputs = ir.Object{"score": []byte("30")}
 	r.Node.RetryPolicy.MaxAttempts = 3
 	return r
+}
+
+func TestSQLiteVariableSwitchReads(t *testing.T) {
+	const first = "bfbb31bc-d4b5-44ec-b9eb-a09d68e74083"
+	const second = "db505e3c-49b6-47e5-bd5d-f2a935bef173"
+	for _, tc := range []struct {
+		name, score, status, code                               string
+		unvisited, closed, noView, timeout, cancel, stop, unary bool
+	}{
+		{name: "lazy first match", score: "30", status: constants.ExecutionSucceeded},
+		{name: "reached missing error branch", score: "75", status: constants.ExecutionFailed, code: constants.CommandInputUnsupported},
+		{name: "reached missing STOP", score: "75", status: constants.ExecutionFailed, code: constants.CommandInputUnsupported, stop: true},
+		{name: "nil context in skipped operand", score: "30", status: constants.ExecutionSucceeded, unvisited: true, noView: true},
+		{name: "closed store in skipped operand", score: "30", status: constants.ExecutionSucceeded, unvisited: true, closed: true},
+		{name: "closed store reached", score: "30", status: constants.ExecutionFailed, code: constants.InternalError, closed: true},
+		{name: "missing context reached", score: "30", status: constants.ExecutionFailed, code: constants.InternalError, noView: true},
+		{name: "attempt deadline error branch", score: "30", status: constants.ExecutionTimedOut, code: constants.NodeTimedOut, timeout: true},
+		{name: "owner cancellation", score: "30", status: constants.ExecutionCancelled, cancel: true},
+		{name: "unary false is present", score: "false", status: constants.ExecutionSucceeded, unary: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := switchRequest()
+			r.Node.ErrorPolicy = constants.ErrorPolicyErrorBranch
+			if tc.stop {
+				r.Node.ErrorPolicy = constants.ErrorPolicyStop
+			}
+			r.Node.Inputs["value"] = []byte(`{"source":"FLOW_VARIABLE","name":"score"}`)
+			r.Node.Inputs[first] = []byte(`{"source":"GLOBAL_VARIABLE","name":"threshold"}`)
+			r.Node.Inputs[second] = []byte(`{"source":"FLOW_VARIABLE","name":"missing"}`)
+			if tc.unvisited {
+				r.Node.Inputs["value"] = []byte(`{"source":"LITERAL","value":30}`)
+				r.Node.Inputs[first] = []byte(`{"source":"LITERAL","value":50}`)
+			}
+			if tc.unary {
+				r.Node.Config["rules"] = []byte(`[{"id":"` + first + `","operator":"IS_FALSE"}]`)
+				delete(r.Node.Inputs, first)
+				delete(r.Node.Inputs, second)
+			}
+			if tc.timeout {
+				r.Node.TimeoutMS = 1
+			}
+			ram, err := variables.New(r.Ref.RunGroupID, []string{r.Ref.DeviceExecutionID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := ram.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			for name, value := range map[string]string{"score": tc.score, "threshold": "50"} {
+				scope := constants.VariableScopeFlow
+				if name == "threshold" {
+					scope = constants.VariableScopeRunGroup
+				}
+				_, err := ram.Apply(t.Context(), execution.VariableWrite{AttemptRef: execution.AttemptRef{RunGroupID: r.Ref.RunGroupID, DeviceExecutionID: r.Ref.DeviceExecutionID, NodeID: "seed", AttemptID: uuid.NewString()}, Scope: scope, Name: name, Value: []byte(value)}, func(context.Context) (execution.CheckpointResult, error) {
+					return execution.CheckpointResult{Disposition: constants.CheckpointCommitted, Sequence: 1, Cursor: "1"}, nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.closed {
+				if err := ram.Close(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			runCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			var cancelled atomic.Bool
+			r.Control = func() Control { return Control{GroupCancellation: cancelled.Load()} }
+			reads := map[string]int{}
+			if !tc.noView {
+				r.Values.Variables = bindings.VariableView{RunGroupID: r.Ref.RunGroupID, DeviceExecutionID: r.Ref.DeviceExecutionID, Lookup: func(ctx context.Context, scope constants.VariableScope, name string) (json.RawMessage, bool, error) {
+					reads[name]++
+					if _, ok := ctx.Deadline(); !ok {
+						t.Fatal("Switch lookup lost attempt deadline")
+					}
+					if tc.timeout {
+						<-ctx.Done()
+						return nil, false, ctx.Err()
+					}
+					if tc.cancel {
+						cancelled.Store(true)
+						cancel()
+						return nil, false, ctx.Err()
+					}
+					return ram.Get(ctx, r.Ref.DeviceExecutionID, scope, name)
+				}}
+			}
+			repo, checkpoints, _ := storeFixture(t, r)
+			got, err := coordinator(t, dependencies(t, r, switcher.Invoke, checkpoints)).Run(runCtx, r)
+			if err != nil || !got.Finished || got.Outcome.Status != tc.status || got.Retry != nil {
+				t.Fatalf("%+v %v", got, err)
+			}
+			if tc.code != "" && (got.Outcome.Error == nil || got.Outcome.Error.Code != tc.code) {
+				t.Fatalf("wrong classification: %+v", got)
+			}
+			fatal := tc.closed && !tc.unvisited || tc.noView && !tc.unvisited || tc.cancel || tc.stop
+			if fatal && got.NextNodeID != "" {
+				t.Fatal("stop/failure dispatched successor", got.NextNodeID)
+			}
+			if !fatal && got.NextNodeID != "end" {
+				t.Fatal("routable result lost successor", got.NextNodeID)
+			}
+			if tc.unvisited && len(reads) != 0 {
+				t.Fatal("skipped operand invoked reader", reads)
+			}
+			if tc.name == "lazy first match" && (reads["score"] != 1 || reads["threshold"] != 1 || reads["missing"] != 0) {
+				t.Fatal("not lazy", reads)
+			}
+			if tc.unary && (reads["score"] != 1 || len(reads) != 1) {
+				t.Fatal("unary rule read RHS", reads)
+			}
+			assertStoredResult(t, repo, r, got)
+		})
+	}
 }
 
 func TestSQLiteSwitchOutcomes(t *testing.T) {

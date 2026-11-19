@@ -151,6 +151,7 @@ func (d Dependencies) available() bool {
 func validRequest(r Request) bool {
 	p := r.Node.RetryPolicy
 	if !execution.ValidID(r.Ref.RunGroupID) || !execution.ValidID(r.Ref.DeviceExecutionID) || !execution.ValidID(r.Ref.AttemptID) ||
+		!r.Values.Variables.ValidFor(r.Ref.RunGroupID, r.Ref.DeviceExecutionID) ||
 		!execution.ValidNodeID(r.Ref.NodeID) || r.Ref.NodeID != r.Node.ID ||
 		(r.ExpectedDeviceStatus != constants.ExecutionQueued && r.ExpectedDeviceStatus != constants.ExecutionRunning) ||
 		p.MaxAttempts < 1 || p.MaxAttempts > constants.MaxNodeAttemptNumber || p.DelayMS < 0 || p.DelayMS > constants.MaxRetryDelayMS ||

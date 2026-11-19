@@ -286,7 +286,8 @@ func TestSwitchCompileStartAndObserveBranches(t *testing.T) {
 	if err != nil || len(page.Attempts) != 4 || page.Attempts[2].NodeID != "middle_wait" {
 		t.Fatalf("reordered rules: %+v %v", page, err)
 	}
-	// A reached deferred binding fails through the configured error route.
+	// Public run ownership is not connected to variable stores until G18.
+	// Missing execution context is internal failure, not a routable missing key.
 	example.EditorGraph.Nodes[1].ErrorPolicy = constants.ErrorPolicyErrorBranch
 	example.EditorGraph.Nodes[1].Bindings["db505e3c-49b6-47e5-bd5d-f2a935bef173"] = []byte(`{"kind":"FLOW_VARIABLE","name":"threshold"}`)
 	example.EditorGraph.Edges = append(example.EditorGraph.Edges, editorgraph.Edge{
@@ -295,12 +296,12 @@ func TestSwitchCompileStartAndObserveBranches(t *testing.T) {
 	f.request.RuntimeIR = compile()
 	f.request.RequestID = uuid.NewString()
 	created = f.post(t, t.Context(), f.request, http.StatusCreated)
-	terminal = f.settled(t, created.RunGroup.ID, constants.ExecutionSucceeded)
+	terminal = f.settled(t, created.RunGroup.ID, constants.ExecutionFailed)
 	page, err = f.repo.Attempts(t.Context(), terminal.DeviceExecutions[0].ID, 0, constants.MaxAttemptPageSize)
-	if err != nil || len(page.Attempts) != 3 || page.Attempts[1].Status != constants.ExecutionFailed || page.Attempts[2].NodeID != "end" {
-		t.Fatalf("error-branch continuation: %+v %v", page, err)
+	if err != nil || len(page.Attempts) != 2 || page.Attempts[1].Status != constants.ExecutionFailed {
+		t.Fatalf("missing-variable-context stop: %+v %v", page, err)
 	}
-	if !strings.Contains(string(page.Attempts[1].Error), constants.CommandInputUnsupported) || page.Attempts[1].Output != nil || f.delayCalls.Load() != 4 {
+	if !strings.Contains(string(page.Attempts[1].Error), constants.InternalError) || page.Attempts[1].Output != nil || f.delayCalls.Load() != 4 {
 		t.Fatal("failed Switch retried, exposed output, or dispatched a normal branch")
 	}
 	if strings.Contains(f.logs.String(), f.token) || strings.Contains(f.logs.String(), `"score":`) {

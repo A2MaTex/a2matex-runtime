@@ -19,6 +19,7 @@ import (
 type Values struct {
 	WorkflowInputs   ir.Object
 	CommittedOutputs map[string]ir.Object
+	Variables        VariableView
 }
 
 type Resolver struct {
@@ -59,8 +60,10 @@ func (r *Resolver) Resolve(ctx context.Context, node ir.Node, field string, valu
 	if json.Unmarshal(source["source"], &kind) != nil || kind == "" {
 		return fail("binding_invalid", "Input binding does not match its contract")
 	}
-	// Variable sources remain deferred; each implemented source has its own key set.
-	if kind != constants.InputSourceLiteral && kind != constants.InputSourceWorkflowInput && kind != constants.InputSourceNodeOutput {
+	switch kind {
+	case constants.InputSourceLiteral, constants.InputSourceWorkflowInput, constants.InputSourceNodeOutput,
+		constants.InputSourceFlowVariable, constants.InputSourceGlobalVariable:
+	default:
 		return fail("source_unsupported", "Input binding source is not supported")
 	}
 	if !slices.Contains(contract.Sources, kind) {
@@ -98,6 +101,12 @@ func (r *Resolver) Resolve(ctx context.Context, node ir.Node, field string, valu
 		value, exists = producer[outputField]
 		if !exists {
 			return fail("node_output_field_missing", "Previous node output field is unavailable")
+		}
+	case constants.InputSourceFlowVariable, constants.InputSourceGlobalVariable:
+		var err error
+		value, err = resolveVariable(ctx, source, kind, field, values.Variables)
+		if err != nil {
+			return nil, err
 		}
 	}
 	if !utf8.Valid(value) {

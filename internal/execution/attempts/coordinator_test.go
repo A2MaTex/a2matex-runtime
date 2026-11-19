@@ -120,6 +120,29 @@ func assertUnreleased(t *testing.T, r Result, began bool) {
 	}
 }
 
+func TestForeignVariableViewRejectedBeforeBegin(t *testing.T) {
+	for _, foreignGroup := range []bool{true, false} {
+		r := requestFor("flow.start")
+		r.Values.Variables = bindings.VariableView{RunGroupID: r.Ref.RunGroupID, DeviceExecutionID: r.Ref.DeviceExecutionID,
+			Lookup: func(context.Context, constants.VariableScope, string) (json.RawMessage, bool, error) {
+				t.Fatal("foreign view read")
+				return nil, false, nil
+			}}
+		if foreignGroup {
+			r.Values.Variables.RunGroupID = uuid.NewString()
+		} else {
+			r.Values.Variables.DeviceExecutionID = uuid.NewString()
+		}
+		checkpoints := &checkpointStub{}
+		c := coordinator(t, dependencies(t, r, emptyHandler, checkpoints))
+		got, err := c.Run(t.Context(), r)
+		if !errors.Is(err, xerror.ErrAttemptInvalid) || checkpoints.begins != 0 {
+			t.Fatal(got, err)
+		}
+		assertUnreleased(t, got, false)
+	}
+}
+
 func TestNewAndRunGuards(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

@@ -32,6 +32,7 @@ type Request struct {
 	DeviceExecutionID string
 	ADBSerial         string
 	WorkflowInputs    ir.Object
+	Variables         bindings.VariableView
 	Control           func() attempts.Control
 }
 
@@ -105,7 +106,8 @@ func (r *Runner) Run(ctx context.Context, request Request) (Result, error) {
 		return Result{}, runnerError(operation, "runner_dependencies_unavailable")
 	}
 	if !execution.ValidID(request.RunGroupID) || !execution.ValidID(request.DeviceExecutionID) ||
-		strings.TrimSpace(request.ADBSerial) == "" || request.WorkflowInputs == nil {
+		strings.TrimSpace(request.ADBSerial) == "" || request.WorkflowInputs == nil ||
+		!request.Variables.ValidFor(request.RunGroupID, request.DeviceExecutionID) {
 		return Result{}, runnerError(operation, "runner_request_invalid")
 	}
 	result := Result{NextNodeID: r.entryNodeID}
@@ -113,7 +115,7 @@ func (r *Runner) Run(ctx context.Context, request Request) (Result, error) {
 	if err != nil {
 		return result, err
 	}
-	values := bindings.Values{WorkflowInputs: inputs, CommittedOutputs: make(map[string]ir.Object)}
+	values := bindings.Values{WorkflowInputs: inputs, CommittedOutputs: make(map[string]ir.Object), Variables: request.Variables}
 	visited := make(map[string]bool)
 	number, previousID, expected := 1, "", constants.ExecutionQueued
 	for {
