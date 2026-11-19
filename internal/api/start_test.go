@@ -26,6 +26,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/delay"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/end"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/setvariable"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/start"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/switcher"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/adb"
@@ -92,7 +93,7 @@ func startStore(t *testing.T) *startFixture {
 		}
 		return delay.Invoke(ctx, call)
 	}
-	handlers, err := registry.New(catalog, []registry.Registration{{Type: "flow.start", RuntimeHandler: "flow.start", Run: start.Invoke}, {Type: "flow.delay", RuntimeHandler: "flow.delay", Run: delayRun}, {Type: "flow.end", RuntimeHandler: "flow.end", Run: end.Invoke}, {Type: constants.SwitchNodeType, RuntimeHandler: constants.SwitchNodeType, Run: switcher.Invoke}})
+	handlers, err := registry.New(catalog, []registry.Registration{{Type: "flow.start", RuntimeHandler: "flow.start", Run: start.Invoke}, {Type: "flow.delay", RuntimeHandler: "flow.delay", Run: delayRun}, {Type: "flow.end", RuntimeHandler: "flow.end", Run: end.Invoke}, {Type: constants.SwitchNodeType, RuntimeHandler: constants.SwitchNodeType, Run: switcher.Invoke}, {Type: constants.SetVariableNodeType, RuntimeHandler: constants.SetVariableNodeType, Run: setvariable.Invoke}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,8 +287,7 @@ func TestSwitchCompileStartAndObserveBranches(t *testing.T) {
 	if err != nil || len(page.Attempts) != 4 || page.Attempts[2].NodeID != "middle_wait" {
 		t.Fatalf("reordered rules: %+v %v", page, err)
 	}
-	// Public run ownership is not connected to variable stores until G18.
-	// Missing execution context is internal failure, not a routable missing key.
+	// G18 supplies an empty live store, so a missing key follows the error edge.
 	example.EditorGraph.Nodes[1].ErrorPolicy = constants.ErrorPolicyErrorBranch
 	example.EditorGraph.Nodes[1].Bindings["db505e3c-49b6-47e5-bd5d-f2a935bef173"] = []byte(`{"kind":"FLOW_VARIABLE","name":"threshold"}`)
 	example.EditorGraph.Edges = append(example.EditorGraph.Edges, editorgraph.Edge{
@@ -296,12 +296,12 @@ func TestSwitchCompileStartAndObserveBranches(t *testing.T) {
 	f.request.RuntimeIR = compile()
 	f.request.RequestID = uuid.NewString()
 	created = f.post(t, t.Context(), f.request, http.StatusCreated)
-	terminal = f.settled(t, created.RunGroup.ID, constants.ExecutionFailed)
+	terminal = f.settled(t, created.RunGroup.ID, constants.ExecutionSucceeded)
 	page, err = f.repo.Attempts(t.Context(), terminal.DeviceExecutions[0].ID, 0, constants.MaxAttemptPageSize)
-	if err != nil || len(page.Attempts) != 2 || page.Attempts[1].Status != constants.ExecutionFailed {
-		t.Fatalf("missing-variable-context stop: %+v %v", page, err)
+	if err != nil || len(page.Attempts) != 3 || page.Attempts[1].Status != constants.ExecutionFailed || page.Attempts[2].NodeID != "end" {
+		t.Fatalf("missing-variable error branch: %+v %v", page, err)
 	}
-	if !strings.Contains(string(page.Attempts[1].Error), constants.InternalError) || page.Attempts[1].Output != nil || f.delayCalls.Load() != 4 {
+	if !strings.Contains(string(page.Attempts[1].Error), constants.CommandInputUnsupported) || page.Attempts[1].Output != nil || f.delayCalls.Load() != 4 {
 		t.Fatal("failed Switch retried, exposed output, or dispatched a normal branch")
 	}
 	if strings.Contains(f.logs.String(), f.token) || strings.Contains(f.logs.String(), `"score":`) {

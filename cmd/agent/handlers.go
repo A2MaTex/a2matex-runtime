@@ -8,6 +8,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/launchapp"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/longpress"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/setvariable"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/start"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/swipe"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/switcher"
@@ -20,6 +21,7 @@ func newHandlerRegistry(catalog *nodecontract.Registry, dispatcher *adb.Dispatch
 	keyEvents := keyevent.NewKeyEvents(dispatcher)
 	return registry.New(catalog, []registry.Registration{
 		{Type: "flow.start", RuntimeHandler: "flow.start", Run: start.Invoke},
+		{Type: "flow.set_variable", RuntimeHandler: "flow.set_variable", Run: setvariable.Invoke},
 		{Type: "flow.switch", RuntimeHandler: "flow.switch", Run: switcher.Invoke},
 		{Type: "flow.end", RuntimeHandler: "flow.end", Run: end.Invoke},
 		{Type: "flow.delay", RuntimeHandler: "flow.delay", Run: delay.Invoke},

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/runner"
+	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
@@ -27,14 +28,15 @@ func (l *Service) BeginStart(ctx context.Context) (context.Context, func(), erro
 
 // Dispatch registers a worker before acknowledging handoff. Its lifetime belongs
 // to the Runtime; request cancellation cannot abandon confirmed admission.
-func (l *Service) Dispatch(worker *runner.Runner, request runner.Request) error {
+// A nil return consumes onExit, even when stop prevents worker registration.
+func (l *Service) Dispatch(worker *runner.Runner, request runner.Request, onExit func(context.Context) error) error {
 	l.mu.Lock()
 	owner := l.ownerContext
 	stopping := l.started && l.failure == nil && (l.prepared || owner.Err() != nil)
 	l.mu.Unlock()
 	if stopping {
 		// The outstanding start lease retains these queued rows for G11/D6 settlement.
-		return nil
+		return l.cleanupRun(owner, onExit)
 	}
 	if owner == nil {
 		return lifecycleError("handoff_admitted_run", xerror.ErrExecutionLifecycleInvalid)
@@ -46,15 +48,36 @@ func (l *Service) Dispatch(worker *runner.Runner, request runner.Request) error 
 		stopping = l.failure == nil && (l.prepared || owner.Err() != nil)
 		l.mu.Unlock()
 		if stopping {
-			return nil
+			return l.cleanupRun(owner, onExit)
 		}
 		return err
 	}
 	go func() {
 		defer cancel()
-		_, _ = l.runRegistered(ctx, worker, request) // runRegistered publishes failures to Wait.
+		_, _ = l.runRegistered(ctx, worker, request, onExit) // runRegistered publishes failures to Wait.
 	}()
 	return nil
+}
+
+func (l *Service) cleanupRun(ctx context.Context, onExit func(context.Context) error) error {
+	if onExit == nil {
+		return nil
+	}
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), constants.CheckpointTimeout)
+	defer cancel()
+	l.mu.Lock()
+	deadline := l.deadline
+	l.mu.Unlock()
+	if !deadline.IsZero() {
+		var stop context.CancelFunc
+		cleanup, stop = context.WithDeadline(cleanup, deadline)
+		defer stop()
+	}
+	err := xerror.WithOperation("release_run_variables", onExit(cleanup))
+	if err != nil {
+		l.Fail(err)
+	}
+	return err
 }
 
 // Fail publishes the infrastructure-stop fence without waiting on its caller's lease.

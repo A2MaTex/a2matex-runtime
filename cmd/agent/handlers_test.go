@@ -37,6 +37,7 @@ func TestBuiltInHandlers(t *testing.T) {
 		{Type: "android.tap", RuntimeHandler: "android.tap"},
 		{Type: "flow.delay", RuntimeHandler: "flow.delay"},
 		{Type: "flow.end", RuntimeHandler: "flow.end"},
+		{Type: "flow.set_variable", RuntimeHandler: "flow.set_variable"},
 		{Type: "flow.start", RuntimeHandler: "flow.start"},
 		{Type: "flow.switch", RuntimeHandler: "flow.switch"},
 	}

@@ -81,7 +81,7 @@ func (l *Service) Run(ctx context.Context, worker *runner.Runner, request runner
 		return runner.Result{}, err
 	}
 	defer cancel()
-	return l.runRegistered(workerCtx, worker, request)
+	return l.runRegistered(workerCtx, worker, request, nil)
 }
 
 func (l *Service) beginRun(ctx context.Context, worker *runner.Runner, request runner.Request) (context.Context, context.CancelFunc, error) {
@@ -112,10 +112,12 @@ func (l *Service) beginRun(ctx context.Context, worker *runner.Runner, request r
 	return workerCtx, cancel, nil
 }
 
-func (l *Service) runRegistered(workerCtx context.Context, worker *runner.Runner, request runner.Request) (runner.Result, error) {
+func (l *Service) runRegistered(workerCtx context.Context, worker *runner.Runner, request runner.Request, onExit func(context.Context) error) (runner.Result, error) {
 	const operation = "run_managed_execution"
 	request.Control = l.control
 	result, err := worker.Run(workerCtx, request)
+	// No execution body or synchronous checkpoint callback may outlive its RAM.
+	cleanupErr := l.cleanupRun(workerCtx, onExit)
 	l.mu.Lock()
 	delete(l.workers, request.DeviceExecutionID)
 	rootStopped := false
@@ -126,6 +128,9 @@ func (l *Service) runRegistered(workerCtx context.Context, worker *runner.Runner
 	}
 	expected := (l.prepared || rootStopped) && xerror.ExecutionFailureCode(err) == "" &&
 		(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
+	if cleanupErr != nil {
+		err, expected = errors.Join(err, cleanupErr), false
+	}
 	var cancelOthers []context.CancelFunc
 	if err != nil && !expected {
 		l.recordFailure(err)

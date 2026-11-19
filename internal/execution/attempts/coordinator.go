@@ -13,6 +13,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/outcomes"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/outputs"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/routing"
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/variables"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
@@ -46,6 +47,7 @@ type Request struct {
 	PreviousAttemptID    string
 	ADBSerial            string
 	Values               bindings.Values
+	VariableStore        *variables.Store
 	Control              func() Control
 }
 
@@ -86,8 +88,11 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 		return Result{}, attemptError("attempt_request_invalid", xerror.ErrAttemptInvalid)
 	}
 	switch request.Node.Type {
-	case constants.SetVariableNodeType, constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType:
+	case constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType:
 		return Result{}, attemptError("attempt_node_unsupported", xerror.ErrAttemptInvalid)
+	}
+	if request.Node.Type == constants.SetVariableNodeType && request.VariableStore == nil {
+		return Result{}, attemptError("variable_write_authority_unavailable", xerror.ErrVariableInvalid)
 	}
 	var inputs ir.Object
 	var stageError error
@@ -133,7 +138,12 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 	if err != nil {
 		return active, err
 	}
-	committed, err := c.dependencies.Checkpoints.FinishAttempt(ctx, finish)
+	var committed execution.CheckpointResult
+	if request.Node.Type == constants.SetVariableNodeType && outcome.Status == constants.ExecutionSucceeded {
+		committed, finish, outcome, err = c.assign(ctx, request, inputs, observation, started, begin.Sequence, finish, outcome)
+	} else {
+		committed, err = c.dependencies.Checkpoints.FinishAttempt(ctx, finish)
+	}
 	if err != nil {
 		return active, xerror.WithOperation("run_node_attempt", err)
 	}

@@ -193,7 +193,7 @@ func TestNewAndRunGuards(t *testing.T) {
 			assertUnreleased(t, got, false)
 		})
 	}
-	for _, kind := range []string{constants.SetVariableNodeType, constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType} {
+	for _, kind := range []string{constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType} {
 		t.Run(kind, func(t *testing.T) {
 			r := requestFor("flow.start")
 			s := &checkpointStub{}

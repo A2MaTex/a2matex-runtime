@@ -9,6 +9,7 @@ import (
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/runner"
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/variables"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/runadmission"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
@@ -23,15 +24,71 @@ func (f singleAdmitFunc) AdmitSingleDevice(ctx context.Context, r runadmission.R
 type startOwner struct {
 	trace       *[]string
 	dispatchErr error
+	dispatch    func(*runner.Runner, runner.Request, func(context.Context) error) error
 }
 
 func (o startOwner) BeginStart(ctx context.Context) (context.Context, func(), error) {
 	*o.trace = append(*o.trace, "reserve")
 	return ctx, func() { *o.trace = append(*o.trace, "release") }, nil
 }
-func (o startOwner) Dispatch(*runner.Runner, runner.Request) error {
+func (o startOwner) Dispatch(worker *runner.Runner, request runner.Request, onExit func(context.Context) error) error {
 	*o.trace = append(*o.trace, "dispatch")
+	if o.dispatch != nil {
+		return o.dispatch(worker, request, onExit)
+	}
+	if o.dispatchErr == nil && onExit != nil {
+		return onExit(context.Background())
+	}
 	return o.dispatchErr
+}
+
+func TestStartTransfersBoundRAMWithoutMutatingPreparedWork(t *testing.T) {
+	for _, name := range []string{"accepted", "dispatch failure", "snapshot failure"} {
+		t.Run(name, func(t *testing.T) {
+			f := fixture(t, 1)
+			created, err := service(t, f.deps).Admit(t.Context(), f.req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var trace []string
+			var owned runner.Request
+			var cleanup func(context.Context) error
+			owner := startOwner{trace: &trace, dispatch: func(_ *runner.Runner, request runner.Request, onExit func(context.Context) error) error {
+				owned, cleanup = request, onExit
+				if name == "dispatch failure" {
+					return xerror.ErrExecutionLifecycleInvalid
+				}
+				return nil
+			}}
+			reader := repositoryStub{snapshot: func(ctx context.Context, id string) (execution.Snapshot, error) {
+				if name == "snapshot failure" {
+					return execution.Snapshot{}, xerror.ErrExecutionPersistence
+				}
+				return f.repo.SnapshotByID(ctx, id)
+			}}
+			starter, err := runadmission.NewStarter(singleAdmitFunc(func(context.Context, runadmission.Request) (runadmission.Result, error) { return created, nil }), reader, owner)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = starter.Start(t.Context(), f.req)
+			if (name == "accepted") != (err == nil) {
+				t.Fatal(err)
+			}
+			if owned.VariableStore == nil || cleanup == nil || !owned.Variables.ValidFor(created.RunGroupID, created.Work.Devices[0].DeviceExecutionID) {
+				t.Fatal("missing ownership")
+			}
+			if created.Work.Devices[0].VariableStore != nil || created.Work.Devices[0].Variables.Lookup != nil {
+				t.Fatal("prepared work was mutated")
+			}
+			_, found, readErr := owned.Variables.Lookup(t.Context(), constants.VariableScopeFlow, "missing")
+			if found || (name == "dispatch failure" && !errors.Is(readErr, xerror.ErrVariableUnavailable)) || (name != "dispatch failure" && readErr != nil) {
+				t.Fatal(found, readErr)
+			}
+			if err := cleanup(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 func (o startOwner) Fail(error) { *o.trace = append(*o.trace, "fail") }
 
@@ -56,7 +113,7 @@ func TestSingleDeviceAdmissionRetainsReplayAndInternalCapacity(t *testing.T) {
 }
 
 func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
-	for _, name := range []string{"created", "disconnect after commit", "snapshot error", "handoff error", "uncertain commit", "broken work", "existing", "busy"} {
+	for _, name := range []string{"created", "disconnect after commit", "snapshot error", "handoff error", "uncertain commit", "broken work", "injected view", "injected store", "existing", "busy"} {
 		t.Run(name, func(t *testing.T) {
 			f := fixture(t, 1)
 			created, err := service(t, f.deps).Admit(t.Context(), f.req)
@@ -79,6 +136,19 @@ func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
 					return runadmission.Result{}, xerror.ErrExecutionCommitUnknown
 				case "broken work":
 					return runadmission.Result{Disposition: constants.AdmissionCreated}, nil
+				case "injected view":
+					created.Work.Devices[0].Variables.RunGroupID = created.RunGroupID
+				case "injected store":
+					store, err := variables.New(created.RunGroupID, []string{created.Work.Devices[0].DeviceExecutionID})
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() {
+						if err := store.Close(context.Background()); err != nil {
+							t.Error(err)
+						}
+					})
+					created.Work.Devices[0].VariableStore = store
 				case "existing":
 					s, _ := f.repo.SnapshotByID(t.Context(), created.RunGroupID)
 					return runadmission.Result{Disposition: constants.AdmissionExisting, Snapshot: &s}, nil
@@ -103,7 +173,7 @@ func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
 			switch name {
 			case "handoff error":
 				want = []string{"reserve", "admit", "dispatch", "fail", "release"}
-			case "uncertain commit", "broken work":
+			case "uncertain commit", "broken work", "injected view", "injected store":
 				want = []string{"reserve", "admit", "fail", "release"}
 			case "existing", "busy":
 				want = []string{"reserve", "admit", "release"}

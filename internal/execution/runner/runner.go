@@ -14,6 +14,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/outputs"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/retry"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/routing"
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/variables"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 	"github.com/google/uuid"
@@ -33,6 +34,7 @@ type Request struct {
 	ADBSerial         string
 	WorkflowInputs    ir.Object
 	Variables         bindings.VariableView
+	VariableStore     *variables.Store
 	Control           func() attempts.Control
 }
 
@@ -136,7 +138,8 @@ func (r *Runner) Run(ctx context.Context, request Request) (Result, error) {
 		}
 		ref := execution.AttemptRef{RunGroupID: request.RunGroupID, DeviceExecutionID: request.DeviceExecutionID, NodeID: node.ID, AttemptID: id.String()}
 		completed, err := r.attempts.Run(ctx, attempts.Request{Ref: ref, Node: node, ExpectedDeviceStatus: expected,
-			AttemptNumber: number, PreviousAttemptID: previousID, ADBSerial: request.ADBSerial, Values: values, Control: request.Control})
+			AttemptNumber: number, PreviousAttemptID: previousID, ADBSerial: request.ADBSerial, Values: values,
+			VariableStore: request.VariableStore, Control: request.Control})
 		result.LastAttempt = AttemptEvidence{Ref: ref, Began: completed.Began, Finished: completed.Finished, Sequence: completed.Sequence, Cursor: completed.Cursor}
 		if err != nil {
 			return result, xerror.WithOperation(operation, err)
