@@ -77,7 +77,20 @@ func dependencies(t *testing.T, r Request, handler registry.Handler, checkpoints
 	doc := ir.Document{Nodes: []ir.Node{r.Node}}
 	if r.Node.Type != constants.EndNodeType {
 		doc.Nodes = append(doc.Nodes, ir.Node{ID: "end", Type: constants.EndNodeType, ErrorPolicy: constants.ErrorPolicyStop})
-		doc.Edges = append(doc.Edges, ir.Edge{SourceNodeID: r.Node.ID, SourcePort: constants.NodeSuccessPort, TargetNodeID: "end"})
+		ports := []string{constants.NodeSuccessPort}
+		if r.Node.Type == constants.SwitchNodeType {
+			var rules []struct{ ID string }
+			if err := json.Unmarshal(r.Node.Config["rules"], &rules); err != nil {
+				t.Fatal(err)
+			}
+			ports = []string{"default"}
+			for _, rule := range rules {
+				ports = append(ports, rule.ID)
+			}
+		}
+		for _, port := range ports {
+			doc.Edges = append(doc.Edges, ir.Edge{SourceNodeID: r.Node.ID, SourcePort: port, TargetNodeID: "end"})
+		}
 		if r.Node.ErrorPolicy == constants.ErrorPolicyErrorBranch {
 			doc.Edges = append(doc.Edges, ir.Edge{SourceNodeID: r.Node.ID, SourcePort: constants.NodeErrorPort, TargetNodeID: "end"})
 		}
@@ -157,7 +170,7 @@ func TestNewAndRunGuards(t *testing.T) {
 			assertUnreleased(t, got, false)
 		})
 	}
-	for _, kind := range []string{constants.SwitchNodeType, constants.SetVariableNodeType, constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType} {
+	for _, kind := range []string{constants.SetVariableNodeType, constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType} {
 		t.Run(kind, func(t *testing.T) {
 			r := requestFor("flow.start")
 			s := &checkpointStub{}

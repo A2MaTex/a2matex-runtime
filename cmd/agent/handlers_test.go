@@ -38,6 +38,7 @@ func TestBuiltInHandlers(t *testing.T) {
 		{Type: "flow.delay", RuntimeHandler: "flow.delay"},
 		{Type: "flow.end", RuntimeHandler: "flow.end"},
 		{Type: "flow.start", RuntimeHandler: "flow.start"},
+		{Type: "flow.switch", RuntimeHandler: "flow.switch"},
 	}
 	if got := handlers.SupportedNodes(); !reflect.DeepEqual(got, wantSupported) {
 		t.Fatalf("supported nodes = %v, want %v", got, wantSupported)

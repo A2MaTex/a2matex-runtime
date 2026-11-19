@@ -15,6 +15,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/delay"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/switcher"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
@@ -55,6 +56,101 @@ func checkGuardError(t *testing.T, got invocation.Observation, err error, operat
 	}
 	if err.Error() != operation+": node invocation is unavailable or invalid" {
 		t.Fatalf("unsafe invocation error: %v", err)
+	}
+}
+
+func TestSwitchLazyResolutionUsesAttemptDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		i := invoker(t, constants.SwitchNodeType, switcher.Invoke)
+		calls := 0
+		got, err := i.Invoke(t.Context(), node(constants.SwitchNodeType, 1), registry.Invocation{
+			Config: map[string]json.RawMessage{"rules": []byte(`[{"id":"bfbb31bc-d4b5-44ec-b9eb-a09d68e74083","operator":"IS_TRUE"}]`)},
+			ResolveInput: func(ctx context.Context, field string) (json.RawMessage, error) {
+				calls++
+				if _, exists := ctx.Deadline(); !exists || field != "value" {
+					t.Fatal("resolver did not receive the attempt context")
+				}
+				<-ctx.Done()
+				return []byte("true"), nil
+			},
+		})
+		if err != nil || calls != 1 || got.Output != nil || got.SelectedPort != "" || !errors.Is(got.AttemptError, context.DeadlineExceeded) || !errors.Is(got.HandlerError, context.DeadlineExceeded) {
+			t.Fatalf("late resolver success: %+v %v calls=%d", got, err, calls)
+		}
+	})
+}
+
+func TestSwitchSelectionObservation(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		selections []string
+		failure    error
+		wantPort   string
+		guard      bool
+	}{
+		{"selected", []string{"default"}, nil, "default", false},
+		{"missing", nil, nil, "", true},
+		{"empty", []string{""}, nil, "", true},
+		{"duplicate", []string{"default", "default"}, nil, "", true},
+		{"failed after selection", []string{"default"}, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "Switch input invalid"}, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			i := invoker(t, constants.SwitchNodeType, func(ctx context.Context, call registry.Invocation) (map[string]any, error) {
+				for _, port := range tc.selections {
+					_ = call.SelectPort(ctx, port)
+				} // Deliberately ignore guards to test invoker enforcement.
+				return map[string]any{}, tc.failure
+			})
+			got, err := i.Invoke(t.Context(), node(constants.SwitchNodeType, 1000), registry.Invocation{})
+			if err != nil || got.SelectedPort != tc.wantPort || errors.Is(got.HandlerError, xerror.ErrInvocationInvalid) != tc.guard {
+				t.Fatalf("%+v %v", got, err)
+			}
+			if (tc.guard || tc.failure != nil) && got.Output != nil {
+				t.Fatal("failed call leaked output")
+			}
+		})
+	}
+	for _, parentStop := range []bool{false, true} {
+		synctest.Test(t, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			i := invoker(t, constants.SwitchNodeType, func(attempt context.Context, call registry.Invocation) (map[string]any, error) {
+				if err := call.SelectPort(attempt, "default"); err != nil {
+					t.Fatal(err)
+				}
+				if parentStop {
+					cancel()
+				} else {
+					time.Sleep(time.Second)
+				}
+				return map[string]any{}, nil
+			})
+			got, err := i.Invoke(ctx, node(constants.SwitchNodeType, 1), registry.Invocation{})
+			if err != nil || got.Output != nil || got.SelectedPort != "" || got.HandlerError != nil {
+				t.Fatalf("late success: %+v %v", got, err)
+			}
+			if parentStop && !errors.Is(got.ParentError, context.Canceled) {
+				t.Fatal(got.ParentError)
+			}
+			if !parentStop && !errors.Is(got.AttemptError, context.DeadlineExceeded) {
+				t.Fatal(got.AttemptError)
+			}
+		})
+	}
+	i := invoker(t, "flow.start", func(_ context.Context, call registry.Invocation) (map[string]any, error) {
+		if call.SelectPort != nil || call.ResolveInput != nil {
+			t.Fatal("ordinary handler received control capabilities")
+		}
+		return map[string]any{}, nil
+	})
+	if _, err := i.Invoke(t.Context(), node("flow.start", 1000), registry.Invocation{
+		SelectPort: func(context.Context, string) error { t.Fatal("caller selected a route"); return nil },
+		ResolveInput: func(context.Context, string) (json.RawMessage, error) {
+			t.Fatal("caller resolved an input")
+			return nil, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
@@ -26,12 +27,15 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/end"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/start"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/switcher"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/adb"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/executionlifecycle"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/runadmission"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/editorgraph"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/runtimeir"
+	validationservice "github.com/A2MaTex/a2matex-runtime/internal/validation/service"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	"github.com/google/uuid"
 )
@@ -88,7 +92,7 @@ func startStore(t *testing.T) *startFixture {
 		}
 		return delay.Invoke(ctx, call)
 	}
-	handlers, err := registry.New(catalog, []registry.Registration{{Type: "flow.start", RuntimeHandler: "flow.start", Run: start.Invoke}, {Type: "flow.delay", RuntimeHandler: "flow.delay", Run: delayRun}, {Type: "flow.end", RuntimeHandler: "flow.end", Run: end.Invoke}})
+	handlers, err := registry.New(catalog, []registry.Registration{{Type: "flow.start", RuntimeHandler: "flow.start", Run: start.Invoke}, {Type: "flow.delay", RuntimeHandler: "flow.delay", Run: delayRun}, {Type: "flow.end", RuntimeHandler: "flow.end", Run: end.Invoke}, {Type: constants.SwitchNodeType, RuntimeHandler: constants.SwitchNodeType, Run: switcher.Invoke}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +125,8 @@ func startStore(t *testing.T) *startFixture {
 		t.Fatal(err)
 	}
 	f.token = session.ConnectionToken()
-	f.router = newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(f.repo, starter), nil, slog.New(slog.NewJSONHandler(&f.logs, nil)))
+	f.router = newRouter(buildinfo.Info{}, session, workflowvalidation.NewHandler(validationservice.New(catalog)), nil,
+		runs.NewHandler(f.repo, starter), handlers.SupportedNodes(), slog.New(slog.NewJSONHandler(&f.logs, nil)))
 	raw, err := os.ReadFile("../execution/runner/testdata/workflow.json")
 	if err != nil {
 		t.Fatal(err)
@@ -180,6 +185,126 @@ func (f *startFixture) settled(t *testing.T, id string, status string) execution
 		case <-ctx.Done():
 			t.Fatalf("did not settle as %s: %+v", status, snapshot)
 		}
+	}
+}
+
+func TestSwitchCompileStartAndObserveBranches(t *testing.T) {
+	f := startStore(t)
+	close(f.resume)
+	infoRequest := httptest.NewRequest(http.MethodGet, "/api/v1/runtime-info", nil)
+	infoRequest.Header.Set("Authorization", "Bearer "+f.token)
+	infoResponse := httptest.NewRecorder()
+	f.router.ServeHTTP(infoResponse, infoRequest)
+	if infoResponse.Code != http.StatusOK || !strings.Contains(infoResponse.Body.String(), `{"type":"flow.switch","runtimeHandler":"flow.switch"}`) {
+		t.Fatalf("Switch capability missing: %s", infoResponse.Body.String())
+	}
+	raw, err := os.ReadFile("../../examples/g15/switch-score.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var example struct {
+		EditorGraph editorgraph.Graph `json:"editorGraph"`
+		InputSchema json.RawMessage   `json:"inputSchema"`
+	}
+	if err := json.Unmarshal(raw, &example); err != nil {
+		t.Fatal(err)
+	}
+	// Keep the human-readable example's real delays, but shorten this integration check.
+	for i := range example.EditorGraph.Nodes {
+		if example.EditorGraph.Nodes[i].Type == "flow.delay" {
+			example.EditorGraph.Nodes[i].Bindings["durationMs"] = []byte(`{"kind":"LITERAL","value":0}`)
+		}
+	}
+	compile := func() json.RawMessage {
+		t.Helper()
+		body, err := json.Marshal(example)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/workflow-compilation", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+f.token)
+		req.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		f.router.ServeHTTP(response, req)
+		var result validationservice.CompilationResult
+		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || result.Validation.Status != "VALID" || len(result.RuntimeIR) == 0 {
+			t.Fatalf("compilation: %d %s", response.Code, response.Body.String())
+		}
+		return result.RuntimeIR
+	}
+	f.request.RuntimeIR = compile()
+	for _, tc := range []struct{ score, branch string }{{"30", "low_wait"}, {"75", "middle_wait"}, {"150", "high_wait"}} {
+		f.request.RequestID = uuid.NewString()
+		f.request.Devices[0].Inputs = []byte(`{"score":` + tc.score + `}`)
+		created := f.post(t, t.Context(), f.request, http.StatusCreated)
+		terminal := f.settled(t, created.RunGroup.ID, constants.ExecutionSucceeded)
+		page, err := f.repo.Attempts(t.Context(), terminal.DeviceExecutions[0].ID, 0, constants.MaxAttemptPageSize)
+		if err != nil || len(page.Attempts) != 4 {
+			t.Fatalf("attempts: %+v %v", page, err)
+		}
+		for i, id := range []string{"start", "check_score", tc.branch, "end"} {
+			if page.Attempts[i].NodeID != id || page.Attempts[i].Status != constants.ExecutionSucceeded {
+				t.Fatalf("unexpected attempt: %+v", page.Attempts[i])
+			}
+		}
+		if string(page.Attempts[1].Output) != "{}" {
+			t.Fatal("Switch exposed route metadata as output")
+		}
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/runs/"+created.RunGroup.ID, nil)
+		req.Header.Set("Authorization", "Bearer "+f.token)
+		response := httptest.NewRecorder()
+		f.router.ServeHTTP(response, req)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"status":"SUCCEEDED"`) {
+			t.Fatalf("snapshot: %d %s", response.Code, response.Body.String())
+		}
+		if replay := f.post(t, t.Context(), f.request, http.StatusOK); replay.RunGroup.ID != created.RunGroup.ID {
+			t.Fatal("Switch replay created another execution")
+		}
+	}
+	if f.delayCalls.Load() != 3 {
+		t.Fatal("unselected branch or replay executed a delay")
+	}
+	// The same IDs/edges remain valid after changing rule priority.
+	var rules []json.RawMessage
+	if err := json.Unmarshal(example.EditorGraph.Nodes[1].Config["rules"], &rules); err != nil {
+		t.Fatal(err)
+	}
+	rules[0], rules[1] = rules[1], rules[0]
+	example.EditorGraph.Nodes[1].Config["rules"], err = json.Marshal(rules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.request.RuntimeIR = compile()
+	f.request.RequestID = uuid.NewString()
+	f.request.Devices[0].Inputs = []byte(`{"score":30}`)
+	created := f.post(t, t.Context(), f.request, http.StatusCreated)
+	terminal := f.settled(t, created.RunGroup.ID, constants.ExecutionSucceeded)
+	page, err := f.repo.Attempts(t.Context(), terminal.DeviceExecutions[0].ID, 0, constants.MaxAttemptPageSize)
+	if err != nil || len(page.Attempts) != 4 || page.Attempts[2].NodeID != "middle_wait" {
+		t.Fatalf("reordered rules: %+v %v", page, err)
+	}
+	// A reached deferred binding fails through the configured error route.
+	example.EditorGraph.Nodes[1].ErrorPolicy = constants.ErrorPolicyErrorBranch
+	example.EditorGraph.Nodes[1].Bindings["db505e3c-49b6-47e5-bd5d-f2a935bef173"] = []byte(`{"kind":"FLOW_VARIABLE","name":"threshold"}`)
+	example.EditorGraph.Edges = append(example.EditorGraph.Edges, editorgraph.Edge{
+		ID: "error_edge", SourceNodeID: "check_score", SourcePort: constants.NodeErrorPort, TargetNodeID: "end",
+	})
+	f.request.RuntimeIR = compile()
+	f.request.RequestID = uuid.NewString()
+	created = f.post(t, t.Context(), f.request, http.StatusCreated)
+	terminal = f.settled(t, created.RunGroup.ID, constants.ExecutionSucceeded)
+	page, err = f.repo.Attempts(t.Context(), terminal.DeviceExecutions[0].ID, 0, constants.MaxAttemptPageSize)
+	if err != nil || len(page.Attempts) != 3 || page.Attempts[1].Status != constants.ExecutionFailed || page.Attempts[2].NodeID != "end" {
+		t.Fatalf("error-branch continuation: %+v %v", page, err)
+	}
+	if !strings.Contains(string(page.Attempts[1].Error), constants.CommandInputUnsupported) || page.Attempts[1].Output != nil || f.delayCalls.Load() != 4 {
+		t.Fatal("failed Switch retried, exposed output, or dispatched a normal branch")
+	}
+	if strings.Contains(f.logs.String(), f.token) || strings.Contains(f.logs.String(), `"score":`) {
+		t.Fatal("Switch leaked credentials or inputs")
 	}
 }
 

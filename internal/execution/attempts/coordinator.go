@@ -3,6 +3,7 @@ package attempts
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
@@ -85,10 +86,14 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 		return Result{}, attemptError("attempt_request_invalid", xerror.ErrAttemptInvalid)
 	}
 	switch request.Node.Type {
-	case constants.SwitchNodeType, constants.SetVariableNodeType, constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType:
+	case constants.SetVariableNodeType, constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType:
 		return Result{}, attemptError("attempt_node_unsupported", xerror.ErrAttemptInvalid)
 	}
-	inputs, stageError := c.dependencies.Bindings.ResolveInputs(ctx, request.Node, request.Values)
+	var inputs ir.Object
+	var stageError error
+	if request.Node.Type != constants.SwitchNodeType {
+		inputs, stageError = c.dependencies.Bindings.ResolveInputs(ctx, request.Node, request.Values)
+	}
 	if err := entryError(ctx, request); err != nil {
 		return Result{}, err
 	}
@@ -111,9 +116,15 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 	var observation invocation.Observation
 	control := snapshot(request)
 	if stageError == nil && contextError(ctx) == nil && !control.GroupCancellation {
-		observation, stageError = c.dependencies.Invoker.Invoke(ctx, request.Node, registry.Invocation{
+		call := registry.Invocation{
 			ADBSerial: request.ADBSerial, Config: request.Node.Config, Inputs: inputs,
-		})
+		}
+		if request.Node.Type == constants.SwitchNodeType {
+			call.ResolveInput = func(ctx context.Context, field string) (json.RawMessage, error) {
+				return c.dependencies.Bindings.Resolve(ctx, request.Node, field, request.Values)
+			}
+		}
+		observation, stageError = c.dependencies.Invoker.Invoke(ctx, request.Node, call)
 	} else if stageError == nil && control.GroupCancellation {
 		// Accepted cancellation may arrive before the parent's signal propagates.
 		observation.ParentError = context.Canceled

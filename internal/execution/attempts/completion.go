@@ -10,6 +10,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/invocation"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/outcomes"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/retry"
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/routing"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
@@ -41,7 +42,13 @@ func (c *Coordinator) completion(ctx context.Context, request Request, observati
 			next = request.Node.ID
 		}
 		if err == nil && decision == nil {
-			route, routeError := c.dependencies.Routes.Select(ctx, request.Node.ID, outcome.Status)
+			var route routing.Decision
+			var routeError error
+			if request.Node.Type == constants.SwitchNodeType {
+				route, routeError = c.dependencies.Routes.SelectSwitch(ctx, request.Node.ID, outcome.Status, observation.SelectedPort)
+			} else {
+				route, routeError = c.dependencies.Routes.Select(ctx, request.Node.ID, outcome.Status)
+			}
 			next, err = route.NextNodeID, routeError
 		}
 		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {

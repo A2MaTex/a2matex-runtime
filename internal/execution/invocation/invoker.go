@@ -8,6 +8,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation"
+	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
@@ -15,6 +16,7 @@ import (
 // Output is retained only when the handler and both observed contexts succeeded.
 type Observation struct {
 	Output       map[string]any
+	SelectedPort string
 	HandlerError error
 	AttemptError error
 	ParentError  error
@@ -67,7 +69,35 @@ func (i *Invoker) Invoke(ctx context.Context, node ir.Node, call registry.Invoca
 	if err := contextError(attemptCtx); err != nil {
 		return Observation{}, xerror.WithOperation(operation, err)
 	}
+	var selected string
+	var selectionError error
+	// Only the invoker owns route authority; never forward caller-supplied selection.
+	call.SelectPort = nil
+	if node.Type == constants.SwitchNodeType {
+		call.SelectPort = func(ctx context.Context, port string) error {
+			if err := contextError(attemptCtx); err != nil {
+				return xerror.WithOperation(operation, err)
+			}
+			if err := contextError(ctx); err != nil {
+				return xerror.WithOperation(operation, err)
+			}
+			if selected != "" || port == "" {
+				selectionError = &xerror.OperationError{Operation: operation, Detail: "invocation_selection_invalid", Err: xerror.ErrInvocationInvalid}
+				return selectionError
+			}
+			selected = port
+			return nil
+		}
+	} else {
+		call.ResolveInput = nil
+	}
 	output, handlerError := run(attemptCtx, call)
+	if selectionError != nil {
+		handlerError = selectionError
+	} else if node.Type == constants.SwitchNodeType && handlerError == nil && selected == "" &&
+		contextError(attemptCtx) == nil && contextError(ctx) == nil {
+		handlerError = &xerror.OperationError{Operation: operation, Detail: "invocation_selection_missing", Err: xerror.ErrInvocationInvalid}
+	}
 	observation := Observation{
 		HandlerError: xerror.WithOperation(operation, handlerError),
 		ParentError:  contextError(ctx),
@@ -75,6 +105,7 @@ func (i *Invoker) Invoke(ctx context.Context, node ir.Node, call registry.Invoca
 	}
 	if observation.HandlerError == nil && observation.AttemptError == nil && observation.ParentError == nil {
 		observation.Output = output
+		observation.SelectedPort = selected
 	}
 	return observation, nil
 }

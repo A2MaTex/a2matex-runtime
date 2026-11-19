@@ -17,6 +17,10 @@ type Invocation struct {
 	Inputs    map[string]json.RawMessage
 	// StageScreenshot is supplied by the runner for the active Screenshot attempt.
 	StageScreenshot func(context.Context, []byte) (string, error)
+	// ResolveInput and SelectPort are synchronous, attempt-scoped Switch capabilities.
+	// Handlers must not retain these callbacks or call them from another goroutine.
+	ResolveInput func(context.Context, string) (json.RawMessage, error)
+	SelectPort   func(context.Context, string) error
 }
 
 type Handler func(context.Context, Invocation) (map[string]any, error)

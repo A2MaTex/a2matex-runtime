@@ -1,0 +1,172 @@
+{
+  "editorGraph": {
+    "schemaVersion": 1,
+    "entryNodeId": "start",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "flow.start",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": "check_score",
+        "type": "flow.switch",
+        "config": {
+          "rules": [
+            {
+              "id": "bfbb31bc-d4b5-44ec-b9eb-a09d68e74083",
+              "operator": "LT"
+            },
+            {
+              "id": "db505e3c-49b6-47e5-bd5d-f2a935bef173",
+              "operator": "LT"
+            }
+          ]
+        },
+        "bindings": {
+          "value": {
+            "kind": "WORKFLOW_INPUT",
+            "inputName": "score"
+          },
+          "bfbb31bc-d4b5-44ec-b9eb-a09d68e74083": {
+            "kind": "LITERAL",
+            "value": 50
+          },
+          "db505e3c-49b6-47e5-bd5d-f2a935bef173": {
+            "kind": "LITERAL",
+            "value": 100
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 200,
+          "y": 0
+        }
+      },
+      {
+        "id": "low_wait",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 1000
+          }
+        },
+        "timeoutMs": 5000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 400,
+          "y": -150
+        }
+      },
+      {
+        "id": "middle_wait",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 2000
+          }
+        },
+        "timeoutMs": 5000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 400,
+          "y": 0
+        }
+      },
+      {
+        "id": "high_wait",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 3000
+          }
+        },
+        "timeoutMs": 5000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 400,
+          "y": 150
+        }
+      },
+      {
+        "id": "end",
+        "type": "flow.end",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 600,
+          "y": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "sourceNodeId": "start",
+        "sourcePort": "success",
+        "targetNodeId": "check_score"
+      },
+      {
+        "id": "e2",
+        "sourceNodeId": "check_score",
+        "sourcePort": "bfbb31bc-d4b5-44ec-b9eb-a09d68e74083",
+        "targetNodeId": "low_wait"
+      },
+      {
+        "id": "e3",
+        "sourceNodeId": "check_score",
+        "sourcePort": "db505e3c-49b6-47e5-bd5d-f2a935bef173",
+        "targetNodeId": "middle_wait"
+      },
+      {
+        "id": "e4",
+        "sourceNodeId": "check_score",
+        "sourcePort": "default",
+        "targetNodeId": "high_wait"
+      },
+      {
+        "id": "e5",
+        "sourceNodeId": "low_wait",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      },
+      {
+        "id": "e6",
+        "sourceNodeId": "middle_wait",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      },
+      {
+        "id": "e7",
+        "sourceNodeId": "high_wait",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      }
+    ]
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "score": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "score"
+    ],
+    "additionalProperties": false
+  }
+}

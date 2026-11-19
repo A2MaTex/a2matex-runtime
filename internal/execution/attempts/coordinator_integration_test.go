@@ -16,6 +16,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/routing"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/end"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/switcher"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
 	"github.com/A2MaTex/a2matex-runtime/internal/repositories"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
@@ -116,6 +117,96 @@ func assertStoredResult(t *testing.T, repo *repositories.ExecutionRepository, r 
 		if device.Status != want || device.NextNodeID != nil || snapshot.RunGroup.Status != want {
 			t.Fatalf("terminal snapshot: %+v", snapshot)
 		}
+	}
+}
+
+func switchRequest() Request {
+	r := requestFor(constants.SwitchNodeType)
+	r.Node.Config = ir.Object{"rules": []byte(`[{"id":"bfbb31bc-d4b5-44ec-b9eb-a09d68e74083","operator":"LT"},{"id":"db505e3c-49b6-47e5-bd5d-f2a935bef173","operator":"LT"}]`)}
+	r.Node.Inputs = ir.Object{
+		"value":                                []byte(`{"source":"WORKFLOW_INPUT","inputName":"score"}`),
+		"bfbb31bc-d4b5-44ec-b9eb-a09d68e74083": []byte(`{"source":"LITERAL","value":50}`),
+		"db505e3c-49b6-47e5-bd5d-f2a935bef173": []byte(`{"source":"LITERAL","value":100}`),
+	}
+	r.Values.WorkflowInputs = ir.Object{"score": []byte("30")}
+	r.Node.RetryPolicy.MaxAttempts = 3
+	return r
+}
+
+func TestSQLiteSwitchOutcomes(t *testing.T) {
+	for _, tc := range []struct {
+		name, score                    string
+		missing, errorBranch, producer bool
+		status                         string
+	}{
+		{"first match", "30", false, false, false, constants.ExecutionSucceeded},
+		{"second match", "75", false, false, false, constants.ExecutionSucceeded},
+		{"default", "150", false, false, false, constants.ExecutionSucceeded},
+		{"unvisited missing output", "30", true, false, false, constants.ExecutionSucceeded},
+		{"reached missing output STOP", "75", true, false, false, constants.ExecutionFailed},
+		{"reached missing output ERROR_BRANCH", "75", true, true, false, constants.ExecutionFailed},
+		{"type mismatch", `"75"`, false, true, false, constants.ExecutionFailed},
+		{"committed producer", "7", false, false, true, constants.ExecutionSucceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := switchRequest()
+			r.Values.WorkflowInputs["score"] = []byte(tc.score)
+			if tc.missing {
+				r.Node.Inputs["db505e3c-49b6-47e5-bd5d-f2a935bef173"] = []byte(`{"source":"NODE_OUTPUT","nodeId":"producer","field":"durationMs"}`)
+			}
+			if tc.errorBranch {
+				r.Node.ErrorPolicy = constants.ErrorPolicyErrorBranch
+			}
+			if tc.producer {
+				r.Node.Inputs["value"] = []byte(`{"source":"NODE_OUTPUT","nodeId":"producer","field":"durationMs"}`)
+				r.Values.CommittedOutputs = map[string]ir.Object{"producer": {"durationMs": []byte("7")}}
+			}
+			repo, checkpoints, _ := storeFixture(t, r)
+			handler := func(ctx context.Context, call registry.Invocation) (map[string]any, error) {
+				if rows := storedAttempts(t, repo, r); len(rows) != 1 || rows[0].Status != constants.ExecutionRunning {
+					t.Fatal("evaluation preceded confirmed begin")
+				}
+				return switcher.Invoke(ctx, call)
+			}
+			got, err := coordinator(t, dependencies(t, r, handler, checkpoints)).Run(t.Context(), r)
+			if err != nil || !got.Finished || got.Outcome.Status != tc.status || got.Retry != nil {
+				t.Fatalf("%+v %v", got, err)
+			}
+			if tc.status == constants.ExecutionSucceeded && string(got.Outcome.Output) != "{}" {
+				t.Fatal("Switch output is not empty")
+			}
+			if tc.status == constants.ExecutionFailed && (got.Outcome.Error == nil || got.Outcome.Error.Code != constants.CommandInputUnsupported || got.Outcome.Error.Retryable) {
+				t.Fatalf("unsafe failure: %+v", got)
+			}
+			assertStoredResult(t, repo, r, got)
+		})
+	}
+}
+
+func TestSwitchCheckpointFaultsDoNotReleaseContinuation(t *testing.T) {
+	for _, beginFailure := range []bool{true, false} {
+		r := switchRequest()
+		s := &checkpointStub{}
+		failure := func(context.Context, execution.FinishAttemptRequest) (execution.CheckpointResult, error) {
+			return execution.CheckpointResult{}, xerror.ErrExecutionCommitUnknown
+		}
+		if beginFailure {
+			s.begin = func(context.Context, execution.BeginAttemptRequest) (execution.CheckpointResult, error) {
+				return execution.CheckpointResult{}, xerror.ErrExecutionCommitUnknown
+			}
+		} else {
+			s.finish = failure
+		}
+		calls := 0
+		handler := func(ctx context.Context, call registry.Invocation) (map[string]any, error) {
+			calls++
+			return switcher.Invoke(ctx, call)
+		}
+		got, err := coordinator(t, dependencies(t, r, handler, s)).Run(t.Context(), r)
+		if !errors.Is(err, xerror.ErrExecutionCommitUnknown) || (calls == 0) != beginFailure {
+			t.Fatalf("%+v %v calls=%d", got, err, calls)
+		}
+		assertUnreleased(t, got, !beginFailure)
 	}
 }
 

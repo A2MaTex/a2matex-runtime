@@ -234,10 +234,70 @@ func TestSelectFailures(t *testing.T) {
 	}
 }
 
-func TestSwitchRemainsDeferred(t *testing.T) {
+func TestSwitchRoutesAndGuards(t *testing.T) {
+	const rule = "bfbb31bc-d4b5-44ec-b9eb-a09d68e74083"
+	doc := workflow()
+	doc.Nodes[1].Type = constants.SwitchNodeType
+	doc.Nodes[1].Config = ir.Object{"rules": []byte(`[{"id":"` + rule + `","operator":"EQ"}]`)}
+	doc.Edges[1].SourcePort = rule
+	doc.Edges = append(doc.Edges, edge("launch", "default", "end"))
+	r := newRouter(t, doc)
+	for _, tc := range []struct{ status, port, next, deviceStatus string }{
+		{constants.ExecutionSucceeded, rule, "tap", constants.ExecutionRunning},
+		{constants.ExecutionSucceeded, "default", "end", constants.ExecutionRunning},
+		{constants.ExecutionFailed, "", "back", constants.ExecutionRunning},
+		{constants.ExecutionTimedOut, "", "back", constants.ExecutionRunning},
+	} {
+		got, err := r.SelectSwitch(t.Context(), "launch", tc.status, tc.port)
+		if err != nil || got.NextNodeID != tc.next || got.DeviceStatus != tc.deviceStatus {
+			t.Fatalf("%+v: %+v %v", tc, got, err)
+		}
+	}
+	for _, port := range []string{"", "success", "error", "unknown"} {
+		if _, err := r.SelectSwitch(t.Context(), "launch", constants.ExecutionSucceeded, port); err == nil {
+			t.Fatalf("accepted port %q", port)
+		}
+	}
+	for _, status := range []string{constants.ExecutionCancelled, constants.ExecutionInterrupted, constants.ExecutionRunning} {
+		if _, err := r.SelectSwitch(t.Context(), "launch", status, rule); err == nil {
+			t.Fatalf("accepted status %s", status)
+		}
+	}
+	if _, err := r.SelectSwitch(t.Context(), "start", constants.ExecutionSucceeded, "default"); err == nil {
+		t.Fatal("ordinary node accepted Switch selection")
+	}
+	for _, bad := range []string{"missing default", "unknown port", "duplicate port", "missing rules"} {
+		d := doc
+		d.Nodes = append([]ir.Node(nil), doc.Nodes...)
+		d.Edges = append([]ir.Edge(nil), doc.Edges...)
+		switch bad {
+		case "missing default":
+			d.Edges = d.Edges[:len(d.Edges)-1]
+		case "unknown port":
+			d.Edges[1].SourcePort = "unknown"
+		case "duplicate port":
+			d.Edges = append(d.Edges, d.Edges[1])
+		case "missing rules":
+			d.Nodes[1].Config = nil
+		}
+		if _, err := routing.New(t.Context(), d); err == nil {
+			t.Fatalf("accepted %s", bad)
+		}
+	}
+	doc.Nodes[1].ErrorPolicy = constants.ErrorPolicyStop
+	doc.Edges = append(doc.Edges[:2:2], doc.Edges[3:]...)
+	r = newRouter(t, doc)
+	got, err := r.SelectSwitch(t.Context(), "launch", constants.ExecutionFailed, "")
+	if err != nil || got.NextNodeID != "" || got.DeviceStatus != constants.ExecutionFailed {
+		t.Fatalf("STOP: %+v %v", got, err)
+	}
+}
+
+func TestOrdinarySelectionRejectsSwitch(t *testing.T) {
 	t.Parallel()
 	document := workflow()
 	document.Nodes[1].Type = constants.SwitchNodeType
+	document.Nodes[1].Config = ir.Object{"rules": []byte(`[{"id":"bfbb31bc-d4b5-44ec-b9eb-a09d68e74083","operator":"LT"}]`)}
 	document.Edges[1].SourcePort = "bfbb31bc-d4b5-44ec-b9eb-a09d68e74083"
 	document.Edges = append(document.Edges, edge("launch", "default", "tap"))
 	r := newRouter(t, document)

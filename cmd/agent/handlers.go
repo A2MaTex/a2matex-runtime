@@ -10,6 +10,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/start"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/swipe"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/switcher"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/tap"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/adb"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
@@ -19,6 +20,7 @@ func newHandlerRegistry(catalog *nodecontract.Registry, dispatcher *adb.Dispatch
 	keyEvents := keyevent.NewKeyEvents(dispatcher)
 	return registry.New(catalog, []registry.Registration{
 		{Type: "flow.start", RuntimeHandler: "flow.start", Run: start.Invoke},
+		{Type: "flow.switch", RuntimeHandler: "flow.switch", Run: switcher.Invoke},
 		{Type: "flow.end", RuntimeHandler: "flow.end", Run: end.Invoke},
 		{Type: "flow.delay", RuntimeHandler: "flow.delay", Run: delay.Invoke},
 		{Type: "android.tap", RuntimeHandler: "android.tap", Run: tap.NewTap(dispatcher).Invoke},

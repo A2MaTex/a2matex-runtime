@@ -1,10 +1,12 @@
-// Package routing selects ordinary successors from an admitted workflow.
+// Package routing selects successors from an admitted workflow.
 package routing
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
@@ -23,6 +25,7 @@ type Router struct {
 type route struct {
 	nodeType, errorPolicy      string
 	successNodeID, errorNodeID string
+	switchPorts                map[string]string
 }
 
 // New copies routing metadata. It does not replace G1's whole-document admission.
@@ -50,7 +53,26 @@ func New(ctx context.Context, document ir.Document) (*Router, error) {
 		if !ir.ValidIdentifier(node.ID) || duplicate || !validPolicy {
 			return fail("routing_document_invalid")
 		}
-		nodes[node.ID] = route{nodeType: node.Type, errorPolicy: node.ErrorPolicy}
+		prepared := route{nodeType: node.Type, errorPolicy: node.ErrorPolicy}
+		if node.Type == constants.SwitchNodeType {
+			var rules []struct {
+				ID string `json:"id"`
+			}
+			if json.Unmarshal(node.Config["rules"], &rules) != nil || len(rules) < 1 || len(rules) > constants.MaxSwitchRules {
+				return fail("routing_switch_rules_invalid")
+			}
+			prepared.switchPorts = map[string]string{"default": ""}
+			if node.ErrorPolicy == constants.ErrorPolicyErrorBranch {
+				prepared.switchPorts[constants.NodeErrorPort] = ""
+			}
+			for _, rule := range rules {
+				if _, duplicate := prepared.switchPorts[rule.ID]; duplicate || !nodecontract.ValidRuleID(rule.ID) {
+					return fail("routing_switch_rules_invalid")
+				}
+				prepared.switchPorts[rule.ID] = ""
+			}
+		}
+		nodes[node.ID] = prepared
 	}
 
 	seen := make(map[[2]string]struct{}, len(document.Edges))
@@ -70,7 +92,12 @@ func New(ctx context.Context, document ir.Document) (*Router, error) {
 		case constants.EndNodeType:
 			return fail("routing_edges_invalid")
 		case constants.SwitchNodeType:
-			// Dynamic port coverage is admitted by G1 and executed by G15.
+			if _, known := node.switchPorts[edge.SourcePort]; !known {
+				return fail("routing_edges_invalid")
+			}
+			node.switchPorts[edge.SourcePort] = edge.TargetNodeID
+			node.errorNodeID = node.switchPorts[constants.NodeErrorPort]
+			nodes[edge.SourceNodeID] = node
 			continue
 		}
 		switch edge.SourcePort {
@@ -97,7 +124,11 @@ func New(ctx context.Context, document ir.Document) (*Router, error) {
 				return fail("routing_edges_invalid")
 			}
 		case constants.SwitchNodeType:
-			continue
+			for _, target := range node.switchPorts {
+				if target == "" {
+					return fail("routing_edges_invalid")
+				}
+			}
 		default:
 			if node.successNodeID == "" || (node.errorPolicy == constants.ErrorPolicyErrorBranch && node.errorNodeID == "") {
 				return fail("routing_edges_invalid")
@@ -113,6 +144,16 @@ func New(ctx context.Context, document ir.Document) (*Router, error) {
 // Select consumes a final ordinary outcome after the caller has declined retry.
 // Cancellation, interruption, Switch evaluation, and persistence errors bypass it.
 func (r *Router) Select(ctx context.Context, nodeID, attemptStatus string) (Decision, error) {
+	return r.selectRoute(ctx, nodeID, attemptStatus, "", false)
+}
+
+// SelectSwitch consumes a proposed port only for a successful Switch outcome.
+// Failed and timed-out outcomes reuse the ordinary error policy after G8 declines retry.
+func (r *Router) SelectSwitch(ctx context.Context, nodeID, attemptStatus, selectedPort string) (Decision, error) {
+	return r.selectRoute(ctx, nodeID, attemptStatus, selectedPort, true)
+}
+
+func (r *Router) selectRoute(ctx context.Context, nodeID, attemptStatus, selectedPort string, switchSelection bool) (Decision, error) {
 	const operation = "select_workflow_route"
 	fail := func(reason string) (Decision, error) {
 		return Decision{}, routingError(ctx, operation, reason)
@@ -127,14 +168,23 @@ func (r *Router) Select(ctx context.Context, nodeID, attemptStatus string) (Deci
 	if !exists {
 		return fail("routing_node_unavailable")
 	}
-	if node.nodeType == constants.SwitchNodeType {
+	if node.nodeType == constants.SwitchNodeType && !switchSelection {
 		return fail("routing_switch_unsupported")
+	}
+	if switchSelection && node.nodeType != constants.SwitchNodeType {
+		return fail("routing_node_not_switch")
 	}
 
 	var decision Decision
 	switch attemptStatus {
 	case constants.ExecutionSucceeded:
 		decision = Decision{NextNodeID: node.successNodeID, DeviceStatus: constants.ExecutionRunning}
+		if switchSelection {
+			if selectedPort == constants.NodeErrorPort || node.switchPorts[selectedPort] == "" {
+				return fail("routing_switch_selection_invalid")
+			}
+			decision.NextNodeID = node.switchPorts[selectedPort]
+		}
 		if node.nodeType == constants.EndNodeType {
 			decision = Decision{DeviceStatus: constants.ExecutionSucceeded}
 		}
