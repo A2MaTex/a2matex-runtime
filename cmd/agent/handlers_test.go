@@ -33,6 +33,7 @@ func TestBuiltInHandlers(t *testing.T) {
 		{Type: "android.long_press", RuntimeHandler: "android.long_press"},
 		{Type: "android.press_back", RuntimeHandler: "android.press_back"},
 		{Type: "android.press_home", RuntimeHandler: "android.press_home"},
+		{Type: "android.screenshot", RuntimeHandler: "android.screenshot"},
 		{Type: "android.swipe", RuntimeHandler: "android.swipe"},
 		{Type: "android.tap", RuntimeHandler: "android.tap"},
 		{Type: "flow.delay", RuntimeHandler: "flow.delay"},

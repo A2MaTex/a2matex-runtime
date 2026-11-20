@@ -25,6 +25,7 @@ type Dependencies struct {
 	Invoker     *invocation.Invoker
 	Outputs     *outputs.Validator
 	Checkpoints attempts.Checkpoints
+	Artifacts   attempts.ScreenshotArtifacts
 	Now         func() time.Time
 }
 
@@ -92,8 +93,15 @@ func New(ctx context.Context, document *ir.Document, dependencies Dependencies) 
 	if err != nil {
 		return nil, xerror.WithOperation(operation, err)
 	}
-	coordinator, err := attempts.New(attempts.Dependencies{Bindings: dependencies.Bindings, Invoker: dependencies.Invoker,
-		Outputs: dependencies.Outputs, Routes: routes, Checkpoints: dependencies.Checkpoints, Now: dependencies.Now})
+	coordinator, err := attempts.New(attempts.Dependencies{
+		Bindings:    dependencies.Bindings,
+		Invoker:     dependencies.Invoker,
+		Outputs:     dependencies.Outputs,
+		Routes:      routes,
+		Checkpoints: dependencies.Checkpoints,
+		Artifacts:   dependencies.Artifacts,
+		Now:         dependencies.Now,
+	})
 	if err != nil {
 		return nil, xerror.WithOperation(operation, err)
 	}

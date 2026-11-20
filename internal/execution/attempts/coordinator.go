@@ -30,6 +30,7 @@ type Dependencies struct {
 	Outputs     *outputs.Validator
 	Routes      *routing.Router
 	Checkpoints Checkpoints
+	Artifacts   ScreenshotArtifacts
 	Now         func() time.Time
 }
 
@@ -88,11 +89,14 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 		return Result{}, attemptError("attempt_request_invalid", xerror.ErrAttemptInvalid)
 	}
 	switch request.Node.Type {
-	case constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType:
+	case constants.WaitVariableNodeType, constants.LogNodeType:
 		return Result{}, attemptError("attempt_node_unsupported", xerror.ErrAttemptInvalid)
 	}
 	if request.Node.Type == constants.SetVariableNodeType && request.VariableStore == nil {
 		return Result{}, attemptError("variable_write_authority_unavailable", xerror.ErrVariableInvalid)
+	}
+	if request.Node.Type == constants.ScreenshotNodeType && c.dependencies.Artifacts == nil {
+		return Result{}, screenshotGuard("screenshot_store_unavailable")
 	}
 	var inputs ir.Object
 	var stageError error
@@ -118,11 +122,21 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 		return Result{}, err
 	}
 	active := Result{Began: true, Sequence: begin.Sequence}
+	var shot *screenshotStage
+	if request.Node.Type == constants.ScreenshotNodeType {
+		shot = &screenshotStage{store: c.dependencies.Artifacts, attemptID: request.Ref.AttemptID}
+		defer shot.cleanup(ctx, request)
+	}
 	var observation invocation.Observation
 	control := snapshot(request)
 	if stageError == nil && contextError(ctx) == nil && !control.GroupCancellation {
 		call := registry.Invocation{
 			ADBSerial: request.ADBSerial, Config: request.Node.Config, Inputs: inputs,
+		}
+		if shot != nil {
+			call.StageScreenshot = func(attemptCtx context.Context, data []byte) (string, error) {
+				return shot.stage(ctx, attemptCtx, data)
+			}
 		}
 		if request.Node.Type == constants.SwitchNodeType {
 			call.ResolveInput = func(ctx context.Context, field string) (json.RawMessage, error) {
@@ -134,7 +148,18 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 		// Accepted cancellation may arrive before the parent's signal propagates.
 		observation.ParentError = context.Canceled
 	}
+	if shot != nil {
+		shot.closed = true
+		if stageError == nil && observation.HandlerError == nil && observation.AttemptError == nil && observation.ParentError == nil {
+			stageError = shot.failure // An ignored callback failure must not become success.
+		}
+	}
 	finish, outcome, err := c.completion(ctx, request, observation, stageError, started)
+	if err == nil && shot != nil && outcome.Status == constants.ExecutionSucceeded {
+		if pairingError := shot.validate(outcome.Output); pairingError != nil {
+			finish, outcome, err = c.completion(ctx, request, observation, pairingError, started)
+		}
+	}
 	if err != nil {
 		return active, err
 	}
@@ -142,6 +167,10 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 	if request.Node.Type == constants.SetVariableNodeType && outcome.Status == constants.ExecutionSucceeded {
 		committed, finish, outcome, err = c.assign(ctx, request, inputs, observation, started, begin.Sequence, finish, outcome)
 	} else {
+		if shot != nil {
+			shot.attach(&finish)
+			shot.submitted = true // D4/D5 now own settlement, including uncertain returns.
+		}
 		committed, err = c.dependencies.Checkpoints.FinishAttempt(ctx, finish)
 	}
 	if err != nil {

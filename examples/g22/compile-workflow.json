@@ -1,0 +1,374 @@
+{
+  "editorGraph": {
+    "schemaVersion": 1,
+    "entryNodeId": "start",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "flow.start",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": "home",
+        "type": "android.press_home",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 200,
+          "y": 0
+        }
+      },
+      {
+        "id": "tap",
+        "type": "android.tap",
+        "config": {
+          "targetMode": "SCREEN_PERCENT"
+        },
+        "bindings": {
+          "xPercent": {
+            "kind": "LITERAL",
+            "value": 25
+          },
+          "yPercent": {
+            "kind": "LITERAL",
+            "value": 50
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 400,
+          "y": 0
+        },
+        "retryPolicy": {
+          "maxAttempts": 2,
+          "delayMs": 500
+        }
+      },
+      {
+        "id": "swipe",
+        "type": "android.swipe",
+        "config": {
+          "targetMode": "SCREEN_PERCENT"
+        },
+        "bindings": {
+          "startXPercent": {
+            "kind": "LITERAL",
+            "value": 50
+          },
+          "startYPercent": {
+            "kind": "LITERAL",
+            "value": 80
+          },
+          "endXPercent": {
+            "kind": "LITERAL",
+            "value": 50
+          },
+          "endYPercent": {
+            "kind": "LITERAL",
+            "value": 30
+          },
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 200
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 600,
+          "y": 0
+        }
+      },
+      {
+        "id": "long_press",
+        "type": "android.long_press",
+        "config": {
+          "targetMode": "ABSOLUTE_PIXELS"
+        },
+        "bindings": {
+          "x": {
+            "kind": "LITERAL",
+            "value": 40
+          },
+          "y": {
+            "kind": "LITERAL",
+            "value": 50
+          },
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 300
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 800,
+          "y": 0
+        }
+      },
+      {
+        "id": "type_text",
+        "type": "android.input_text",
+        "config": {},
+        "bindings": {
+          "text": {
+            "kind": "WORKFLOW_INPUT",
+            "inputName": "text"
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 1000,
+          "y": 0
+        }
+      },
+      {
+        "id": "capture",
+        "type": "android.screenshot",
+        "config": {
+          "targetMode": "SCREEN_PERCENT"
+        },
+        "bindings": {
+          "startXPercent": {
+            "kind": "LITERAL",
+            "value": 20
+          },
+          "startYPercent": {
+            "kind": "LITERAL",
+            "value": 20
+          },
+          "endXPercent": {
+            "kind": "LITERAL",
+            "value": 40
+          },
+          "endYPercent": {
+            "kind": "LITERAL",
+            "value": 30
+          }
+        },
+        "errorPolicy": "ERROR_BRANCH",
+        "editor": {
+          "x": 1200,
+          "y": 0
+        }
+      },
+      {
+        "id": "remember",
+        "type": "flow.set_variable",
+        "config": {
+          "scope": "FLOW",
+          "name": "capture_ref"
+        },
+        "bindings": {
+          "value": {
+            "kind": "NODE_OUTPUT",
+            "nodeId": "capture",
+            "field": "artifactId"
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 1400,
+          "y": 0
+        }
+      },
+      {
+        "id": "share",
+        "type": "flow.set_variable",
+        "config": {
+          "scope": "RUN_GROUP",
+          "name": "capture_ref"
+        },
+        "bindings": {
+          "value": {
+            "kind": "FLOW_VARIABLE",
+            "name": "capture_ref"
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 1600,
+          "y": 0
+        }
+      },
+      {
+        "id": "choose",
+        "type": "flow.switch",
+        "config": {
+          "rules": [
+            {
+              "id": "a91a476f-7707-4750-b9f6-40f44c7af09b",
+              "operator": "EQ"
+            }
+          ]
+        },
+        "bindings": {
+          "value": {
+            "kind": "FLOW_VARIABLE",
+            "name": "capture_ref"
+          },
+          "a91a476f-7707-4750-b9f6-40f44c7af09b": {
+            "kind": "GLOBAL_VARIABLE",
+            "name": "capture_ref"
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 1800,
+          "y": 0
+        }
+      },
+      {
+        "id": "wait",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "WORKFLOW_INPUT",
+            "inputName": "holdMs"
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 2000,
+          "y": 0
+        },
+        "timeoutMs": 120000
+      },
+      {
+        "id": "fallback",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 0
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 2200,
+          "y": 0
+        }
+      },
+      {
+        "id": "end",
+        "type": "flow.end",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 2400,
+          "y": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "sourceNodeId": "start",
+        "sourcePort": "success",
+        "targetNodeId": "home"
+      },
+      {
+        "id": "e2",
+        "sourceNodeId": "home",
+        "sourcePort": "success",
+        "targetNodeId": "tap"
+      },
+      {
+        "id": "e3",
+        "sourceNodeId": "tap",
+        "sourcePort": "success",
+        "targetNodeId": "swipe"
+      },
+      {
+        "id": "e4",
+        "sourceNodeId": "swipe",
+        "sourcePort": "success",
+        "targetNodeId": "long_press"
+      },
+      {
+        "id": "e5",
+        "sourceNodeId": "long_press",
+        "sourcePort": "success",
+        "targetNodeId": "type_text"
+      },
+      {
+        "id": "e6",
+        "sourceNodeId": "type_text",
+        "sourcePort": "success",
+        "targetNodeId": "capture"
+      },
+      {
+        "id": "e7",
+        "sourceNodeId": "capture",
+        "sourcePort": "success",
+        "targetNodeId": "remember"
+      },
+      {
+        "id": "e8",
+        "sourceNodeId": "remember",
+        "sourcePort": "success",
+        "targetNodeId": "share"
+      },
+      {
+        "id": "e9",
+        "sourceNodeId": "share",
+        "sourcePort": "success",
+        "targetNodeId": "choose"
+      },
+      {
+        "id": "e10",
+        "sourceNodeId": "capture",
+        "sourcePort": "error",
+        "targetNodeId": "fallback"
+      },
+      {
+        "id": "e11",
+        "sourceNodeId": "choose",
+        "sourcePort": "a91a476f-7707-4750-b9f6-40f44c7af09b",
+        "targetNodeId": "wait"
+      },
+      {
+        "id": "e12",
+        "sourceNodeId": "choose",
+        "sourcePort": "default",
+        "targetNodeId": "fallback"
+      },
+      {
+        "id": "e13",
+        "sourceNodeId": "wait",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      },
+      {
+        "id": "e14",
+        "sourceNodeId": "fallback",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      }
+    ]
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "holdMs": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 60000
+      },
+      "text": {
+        "type": "string",
+        "maxLength": 10000
+      }
+    },
+    "required": ["holdMs", "text"],
+    "additionalProperties": false
+  }
+}

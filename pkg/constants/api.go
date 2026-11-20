@@ -25,6 +25,7 @@ const (
 	APIErrorMessageInternal           = "internal server error"
 	APIErrorMessageADBUnavailable     = "unable to refresh Android devices"
 	APIErrorMessageSnapshotReadFailed = "unable to read execution snapshot"
+	APIErrorMessageArtifactReadFailed = "unable to read screenshot artifact"
 
 	APIDeviceStatusReady       = "READY"
 	APIDeviceStatusUnavailable = "UNAVAILABLE"

@@ -8,6 +8,7 @@ package main
 
 import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/artifacts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
@@ -60,7 +61,7 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	artifactService := services.NewArtifactService(store, executionRepository, logger)
 	checkpointService := services.NewCheckpointService(executionRepository, artifactService)
 	executionlifecycleService := executionlifecycle.New(checkpointService)
-	runadmissionService, err := newRunAdmission(registry, registryRegistry, info, devicePreflight, executionRepository, executionlifecycleService, checkpointService)
+	runadmissionService, err := newRunAdmission(registry, registryRegistry, info, devicePreflight, executionRepository, executionlifecycleService, checkpointService, artifactService)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +70,8 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		return nil, err
 	}
 	runsHandler := runs.NewHandler(executionRepository, startService)
-	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, registryRegistry, logger)
+	artifactsHandler := artifacts.NewHandler(artifactService, logger)
+	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, artifactsHandler, registryRegistry, logger)
 	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewOwnerPublisher(cfg, session, owner)
 	executionRecovery := services.NewExecutionRecovery(executionRepository, logger)

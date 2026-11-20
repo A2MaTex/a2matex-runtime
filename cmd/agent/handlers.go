@@ -8,6 +8,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/launchapp"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/longpress"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
+	"github.com/A2MaTex/a2matex-runtime/internal/handlers/screenshot"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/setvariable"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/start"
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/swipe"
@@ -32,5 +33,6 @@ func newHandlerRegistry(catalog *nodecontract.Registry, dispatcher *adb.Dispatch
 		{Type: "android.press_home", RuntimeHandler: "android.press_home", Run: keyEvents.PressHome},
 		{Type: "android.launch_app", RuntimeHandler: "android.launch_app", Run: launchapp.NewLaunchApp(dispatcher).Invoke},
 		{Type: "android.input_text", RuntimeHandler: "android.input_text", Run: inputtext.NewInputText(dispatcher).Invoke},
+		{Type: "android.screenshot", RuntimeHandler: "android.screenshot", Run: screenshot.NewScreenshot(dispatcher).Invoke},
 	})
 }

@@ -14,14 +14,21 @@ import (
 func Recovery(logger *slog.Logger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		defer func() {
-			if recover() == nil {
+			failure := recover()
+			if failure == nil {
 				return
+			}
+			if failure == http.ErrAbortHandler {
+				panic(failure)
 			}
 
 			logger.ErrorContext(ctx.Request.Context(), "recovered local API panic",
 				"component", "local_http_server",
 				"event", "local_api_panic_recovered",
 			)
+			if ctx.Writer.Written() {
+				panic(http.ErrAbortHandler)
+			}
 			apiresponse.Abort(
 				ctx,
 				http.StatusInternalServerError,

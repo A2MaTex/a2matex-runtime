@@ -60,11 +60,7 @@ func TestAdmissionUsesActualEnabledRegistryWithoutDispatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if kind == "android.screenshot" {
-				if len(result.Validation.Errors) != 1 || result.Validation.Errors[0].Code != validation.CodeNodeRuntimeHandlerUnavailable {
-					t.Fatalf("disabled Screenshot accepted: %+v", result)
-				}
-			} else if result.Validation.Status != validation.StatusValid {
+			if result.Validation.Status != validation.StatusValid {
 				t.Fatalf("enabled pair rejected: %+v", result)
 			}
 		})

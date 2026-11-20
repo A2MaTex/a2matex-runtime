@@ -17,7 +17,7 @@ import (
 
 func newRunAdmission(catalog *nodecontract.Registry, handlers *registry.Registry, info buildinfo.Info,
 	preflight *services.DevicePreflight, repository *repositories.ExecutionRepository,
-	lifecycle *executionlifecycle.Service, checkpoints *services.CheckpointService,
+	lifecycle *executionlifecycle.Service, checkpoints *services.CheckpointService, artifacts *services.ArtifactService,
 ) (*runadmission.Service, error) {
 	validator, err := runtimeir.New(catalog, handlers, info.Version)
 	if err != nil {
@@ -37,5 +37,11 @@ func newRunAdmission(catalog *nodecontract.Registry, handlers *registry.Registry
 	}
 	return runadmission.New(runadmission.Dependencies{Validator: validator, Preflight: preflight,
 		Repository: repository, Lifecycle: lifecycle,
-		Runner: runner.Dependencies{Bindings: resolver, Invoker: invoker, Outputs: output, Checkpoints: checkpoints}})
+		Runner: runner.Dependencies{
+			Bindings:    resolver,
+			Invoker:     invoker,
+			Outputs:     output,
+			Checkpoints: checkpoints,
+			Artifacts:   artifacts,
+		}})
 }

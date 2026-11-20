@@ -6,6 +6,7 @@ import (
 	"github.com/google/wire"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/api"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/artifacts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
@@ -64,6 +65,8 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		services.NewExecutionRecovery,
 		wire.Bind(new(execution.ArtifactRepository), new(*repositories.ExecutionRepository)),
 		services.NewArtifactService,
+		wire.Bind(new(artifacts.Reader), new(*services.ArtifactService)),
+		artifacts.NewHandler,
 		wire.Bind(new(services.ArtifactDiscarder), new(*services.ArtifactService)),
 		wire.Bind(new(execution.EventRetentionRepository), new(*repositories.ExecutionRepository)),
 		services.NewEventRetention,

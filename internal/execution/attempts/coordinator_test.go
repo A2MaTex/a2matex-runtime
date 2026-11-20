@@ -193,7 +193,7 @@ func TestNewAndRunGuards(t *testing.T) {
 			assertUnreleased(t, got, false)
 		})
 	}
-	for _, kind := range []string{constants.WaitVariableNodeType, constants.ScreenshotNodeType, constants.LogNodeType} {
+	for _, kind := range []string{constants.WaitVariableNodeType, constants.LogNodeType} {
 		t.Run(kind, func(t *testing.T) {
 			r := requestFor("flow.start")
 			s := &checkpointStub{}
@@ -413,7 +413,7 @@ func TestWholeEventCeilingAndBackwardClock(t *testing.T) {
 	if err != nil || !got.Finished || !s.last.Now.Equal(now) {
 		t.Fatalf("clock clamp: %+v %v", got, err)
 	}
-	// G3 accepts this string schema; G9 still rejects Screenshot before begin.
+	// G3 accepts this string schema; a real Screenshot also requires its owned stage.
 	// No production catalog extension is needed to exercise the A6 projection.
 	large := map[string]any{"artifactId": strings.Repeat("x", constants.MaxEventBytes-100)}
 	checked, err := d.Outputs.Validate(t.Context(), constants.ScreenshotNodeType, large)
@@ -426,8 +426,8 @@ func TestWholeEventCeilingAndBackwardClock(t *testing.T) {
 	if !successFits(r, now, json.RawMessage(`{}`)) {
 		t.Fatal("small success event rejected")
 	}
-	// Exercise completion with the string schema only; Run's scope guard remains
-	// in force and no Screenshot handler, stage callback, or artifact is enabled.
+	// Exercise completion with the string schema only, without invoking a handler
+	// or submitting synthetic artifact metadata to a checkpoint.
 	r.Node.Type = constants.ScreenshotNodeType
 	finish, outcome, err := coordinator(t, d).completion(t.Context(), r, invocation.Observation{Output: large}, nil, now)
 	if err != nil || outcome.Status != constants.ExecutionFailed || outcome.Error == nil ||
