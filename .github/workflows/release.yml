@@ -57,6 +57,35 @@ jobs:
           ldflags="-X github.com/A2MaTex/a2matex-runtime/internal/buildinfo.Version=$version -X github.com/A2MaTex/a2matex-runtime/internal/buildinfo.Commit=$commit -X github.com/A2MaTex/a2matex-runtime/internal/buildinfo.BuildTime=$build_time"
           go build -buildvcs=false -ldflags "$ldflags" -o "dist/$EXECUTABLE" ./cmd/agent
           "dist/$EXECUTABLE" --help
+      - name: Sign Windows Runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE_BASE64 -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            throw 'Windows Runtime releases require signing certificate secrets.'
+          }
+          $certificate = Join-Path $env:RUNNER_TEMP 'a2matex-runtime-signing.pfx'
+          try {
+            [IO.File]::WriteAllBytes(
+              $certificate,
+              [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64)
+            )
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $signtool) { throw 'signtool.exe was not found.' }
+            & $signtool.FullName sign /fd SHA256 /f $certificate /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td SHA256 dist/a2matex-runtime.exe
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+            $signature = Get-AuthenticodeSignature dist/a2matex-runtime.exe
+            if ($signature.Status -ne 'Valid') {
+              throw "Runtime Authenticode signature is $($signature.Status)"
+            }
+          } finally {
+            Remove-Item $certificate -Force -ErrorAction SilentlyContinue
+          }
       - name: Archive Linux Runtime
         if: runner.os == 'Linux'
         shell: bash
