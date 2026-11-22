@@ -24,25 +24,22 @@ func (f singleAdmitFunc) AdmitSingleDevice(ctx context.Context, r runadmission.R
 type startOwner struct {
 	trace       *[]string
 	dispatchErr error
-	dispatch    func(*runner.Runner, runner.Request, func(context.Context) error) error
+	dispatch    func(string, *runner.Runner, []runner.Request) error
 }
 
 func (o startOwner) BeginStart(ctx context.Context) (context.Context, func(), error) {
 	*o.trace = append(*o.trace, "reserve")
 	return ctx, func() { *o.trace = append(*o.trace, "release") }, nil
 }
-func (o startOwner) Dispatch(worker *runner.Runner, request runner.Request, onExit func(context.Context) error) error {
+func (o startOwner) DispatchGroup(id string, worker *runner.Runner, devices []runner.Request) error {
 	*o.trace = append(*o.trace, "dispatch")
 	if o.dispatch != nil {
-		return o.dispatch(worker, request, onExit)
-	}
-	if o.dispatchErr == nil && onExit != nil {
-		return onExit(context.Background())
+		return o.dispatch(id, worker, devices)
 	}
 	return o.dispatchErr
 }
 
-func TestStartTransfersBoundRAMWithoutMutatingPreparedWork(t *testing.T) {
+func TestStartTransfersPreparedGroupWithoutAllocatingRAM(t *testing.T) {
 	for _, name := range []string{"accepted", "dispatch failure", "snapshot failure"} {
 		t.Run(name, func(t *testing.T) {
 			f := fixture(t, 1)
@@ -51,10 +48,12 @@ func TestStartTransfersBoundRAMWithoutMutatingPreparedWork(t *testing.T) {
 				t.Fatal(err)
 			}
 			var trace []string
-			var owned runner.Request
-			var cleanup func(context.Context) error
-			owner := startOwner{trace: &trace, dispatch: func(_ *runner.Runner, request runner.Request, onExit func(context.Context) error) error {
-				owned, cleanup = request, onExit
+			var transferred []runner.Request
+			owner := startOwner{trace: &trace, dispatch: func(id string, worker *runner.Runner, devices []runner.Request) error {
+				transferred = devices
+				if id != created.RunGroupID || worker != created.Work.Runner {
+					t.Fatal("incorrect group handoff")
+				}
 				if name == "dispatch failure" {
 					return xerror.ErrExecutionLifecycleInvalid
 				}
@@ -74,18 +73,9 @@ func TestStartTransfersBoundRAMWithoutMutatingPreparedWork(t *testing.T) {
 			if (name == "accepted") != (err == nil) {
 				t.Fatal(err)
 			}
-			if owned.VariableStore == nil || cleanup == nil || !owned.Variables.ValidFor(created.RunGroupID, created.Work.Devices[0].DeviceExecutionID) {
-				t.Fatal("missing ownership")
-			}
-			if created.Work.Devices[0].VariableStore != nil || created.Work.Devices[0].Variables.Lookup != nil {
-				t.Fatal("prepared work was mutated")
-			}
-			_, found, readErr := owned.Variables.Lookup(t.Context(), constants.VariableScopeFlow, "missing")
-			if found || (name == "dispatch failure" && !errors.Is(readErr, xerror.ErrVariableUnavailable)) || (name != "dispatch failure" && readErr != nil) {
-				t.Fatal(found, readErr)
-			}
-			if err := cleanup(t.Context()); err != nil {
-				t.Fatal(err)
+			if !reflect.DeepEqual(transferred, created.Work.Devices) || len(transferred) != 1 ||
+				transferred[0].VariableStore != nil || transferred[0].Variables.Lookup != nil {
+				t.Fatal("start must transfer prepared work without installing RAM authority")
 			}
 		})
 	}

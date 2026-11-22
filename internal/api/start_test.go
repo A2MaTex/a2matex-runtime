@@ -364,6 +364,28 @@ func TestStartHTTPRejectsMultipleDevicesAndSemanticErrorsBeforeWriting(t *testin
 	}
 }
 
+func TestStartHTTPConsecutiveGroupsRetainHistoricalReplay(t *testing.T) {
+	f := startStore(t)
+	first := f.post(t, t.Context(), f.request, 201)
+	f.waitDelay(t)
+	close(f.resume)
+	f.settled(t, first.RunGroup.ID, constants.ExecutionSucceeded)
+	next := f.request
+	next.RequestID = uuid.NewString()
+	second := f.post(t, t.Context(), next, 201)
+	if second.RunGroup.ID == first.RunGroup.ID {
+		t.Fatal("new request reused historical group")
+	}
+	f.settled(t, second.RunGroup.ID, constants.ExecutionSucceeded)
+	before := f.counts(t)
+	if replay := f.post(t, t.Context(), f.request, 200); replay.RunGroup.ID != first.RunGroup.ID {
+		t.Fatal("historical replay changed group ownership")
+	}
+	if after := f.counts(t); after != before || after != [4]int{2, 2, 8, 32} || f.delayCalls.Load() != 4 {
+		t.Fatalf("consecutive groups/replay: before=%v after=%v calls=%d", before, after, f.delayCalls.Load())
+	}
+}
+
 func TestStartHTTPIntentionalStopCancelsActiveAttempt(t *testing.T) {
 	f := startStore(t)
 	created := f.post(t, t.Context(), f.request, 201)

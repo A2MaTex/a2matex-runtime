@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
+	"github.com/A2MaTex/a2matex-runtime/internal/execution/attempts"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/bindings"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/invocation"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/ir"
@@ -33,6 +34,11 @@ func (checkpoints) FinishAttempt(context.Context, execution.FinishAttemptRequest
 }
 
 func managedWork(t *testing.T) (*Service, *runner.Runner, runner.Request) {
+	t.Helper()
+	return managedWorkWithCheckpoints(t, checkpoints{})
+}
+
+func managedWorkWithCheckpoints(t *testing.T, writer attempts.Checkpoints) (*Service, *runner.Runner, runner.Request) {
 	t.Helper()
 	l := New(services.NewCheckpointService(nil, nil))
 	if err := l.Start(t.Context()); err != nil {
@@ -60,7 +66,7 @@ func managedWork(t *testing.T) (*Service, *runner.Runner, runner.Request) {
 	}
 	w, err := runner.New(t.Context(), &ir.Document{EntryNodeID: "end", Nodes: []ir.Node{{ID: "end", Type: constants.EndNodeType, RuntimeHandler: constants.EndNodeType,
 		Config: ir.Object{}, Inputs: ir.Object{}, TimeoutMS: 1000, RetryPolicy: ir.RetryPolicy{MaxAttempts: 1}, ErrorPolicy: constants.ErrorPolicyStop}}},
-		runner.Dependencies{Bindings: b, Outputs: o, Invoker: i, Checkpoints: checkpoints{}})
+		runner.Dependencies{Bindings: b, Outputs: o, Invoker: i, Checkpoints: writer})
 	if err != nil {
 		t.Fatal(err)
 	}

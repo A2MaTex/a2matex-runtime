@@ -27,6 +27,7 @@ type Service struct {
 	admissionContext                    context.Context
 	cancelAdmissions                    context.CancelFunc
 	workers                             map[string]context.CancelFunc
+	group                               *groupExecution
 	admissions                          int
 	drained, done, shutdownDone         chan struct{}
 	drainOnce, doneOnce                 sync.Once
@@ -252,7 +253,7 @@ func (l *Service) gateError() error {
 }
 
 func (l *Service) signalDrained() {
-	if l.closed && len(l.workers) == 0 && l.admissions == 0 {
+	if l.closed && len(l.workers) == 0 && l.admissions == 0 && l.group == nil {
 		l.drainOnce.Do(func() { close(l.drained) })
 	}
 }
@@ -272,6 +273,9 @@ func (l *Service) cancellations() []context.CancelFunc {
 	result := make([]context.CancelFunc, 0, len(l.workers))
 	for _, cancel := range l.workers {
 		result = append(result, cancel)
+	}
+	if l.group != nil {
+		result = append(result, l.group.cancel)
 	}
 	return result
 }

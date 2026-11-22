@@ -63,21 +63,25 @@ func (l *Service) cleanupRun(ctx context.Context, onExit func(context.Context) e
 	if onExit == nil {
 		return nil
 	}
-	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), constants.CheckpointTimeout)
+	cleanup, cancel := l.cleanupContext(ctx)
 	defer cancel()
-	l.mu.Lock()
-	deadline := l.deadline
-	l.mu.Unlock()
-	if !deadline.IsZero() {
-		var stop context.CancelFunc
-		cleanup, stop = context.WithDeadline(cleanup, deadline)
-		defer stop()
-	}
 	err := xerror.WithOperation("release_run_variables", onExit(cleanup))
 	if err != nil {
 		l.Fail(err)
 	}
 	return err
+}
+
+func (l *Service) cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), constants.CheckpointTimeout)
+	l.mu.Lock()
+	deadline := l.deadline
+	l.mu.Unlock()
+	if !deadline.IsZero() {
+		bounded, stop := context.WithDeadline(cleanup, deadline)
+		return bounded, func() { stop(); cancel() }
+	}
+	return cleanup, cancel
 }
 
 // Fail publishes the infrastructure-stop fence without waiting on its caller's lease.
