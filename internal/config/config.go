@@ -68,6 +68,10 @@ func Load(overrides Overrides) (Config, error) {
 		return Config{}, xerror.WithOperation("read_config_file", err)
 	}
 
+	// Viper can discard empty maps before strict decoding; reject the removed section as well.
+	if loader.InConfig("execution") {
+		return Config{}, invalidSetting("execution", fmt.Errorf("execution settings are not supported"))
+	}
 	if _, ok := loader.Get("adb.executable_path").(string); !ok {
 		return Config{}, invalidSetting("adb.executable_path", fmt.Errorf("adb.executable_path must be a string"))
 	}

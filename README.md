@@ -56,6 +56,18 @@ Supported command-line overrides:
 ```
 
 The HTTP listener rejects non-loopback addresses.
+
+Execution capacity equals the number of admitted selected devices. Users control
+resource usage through device selection; there is no separate maximum-device
+setting in YAML, environment, CLI or the run request. Only selected devices may
+execute. The current public start API still accepts one device; H3/H4 add full
+multi-device completion and public dispatch. Practical capacity depends on hardware.
+
+Remove the former execution-concurrency section from local YAML files; unknown
+configuration keys remain errors. The former capacity environment variable is
+unregistered and has no effect. Other configuration still loads only when selected
+with `--config`; `make run` does not select a configuration file automatically.
+
 Unknown configuration-file keys and invalid values stop startup before the HTTP server is created. Configuration is loaded once; changing the file requires restarting Runtime.
 
 ## Commands

@@ -24,8 +24,7 @@ func TestDevicePreflightValidatesBeforeDiscovery(t *testing.T) {
 		serials []string
 		detail  string
 	}{
-		{"empty", nil, "1 through"},
-		{"too many", make([]string, constants.MaxAdmissionDevices+1), "1 through"},
+		{"empty", nil, "at least one"},
 		{"duplicate", []string{"serial", "serial"}, "index 1"},
 		{"blank", []string{""}, "index 0"},
 		{"whitespace", []string{"a", "serial "}, "index 1"},
@@ -48,7 +47,7 @@ func TestDevicePreflightValidatesBeforeDiscovery(t *testing.T) {
 }
 
 func TestDevicePreflightAcceptsOnlySelectedSerialsInOrder(t *testing.T) {
-	for _, count := range []int{1, constants.MaxAdmissionDevices} {
+	for _, count := range []int{1, 128} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
 			endpoints := []adb.Endpoint{{ADBSerial: "unselected", State: adb.Connected}}
 			serials := make([]string, count)

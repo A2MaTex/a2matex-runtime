@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"reflect"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/A2MaTex/a2matex-runtime/internal/execution"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
@@ -133,7 +135,10 @@ func TestRecoveryCleanAndQueuedStore(t *testing.T) {
 		t.Fatalf("clean recovery wrote events: %+v, %v", state, err)
 	}
 	admission := testAdmission(0)
-	admission.Devices = admission.Devices[:1]
+	admission.Devices = make([]execution.AdmissionDevice, 128)
+	for i := range admission.Devices {
+		admission.Devices[i] = execution.AdmissionDevice{DeviceExecutionID: testExecutionID(100 + i), ADBSerial: fmt.Sprint("emulator-", i), EntryNodeID: "start_01"}
+	}
 	// Exercise a host clock that moved backward between admission and restart.
 	admission.Now = time.Now().UTC().Add(time.Hour)
 	if _, err := repo.Admit(t.Context(), admission); err != nil {
@@ -144,7 +149,8 @@ func TestRecoveryCleanAndQueuedStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot, err := repo.SnapshotByID(t.Context(), admission.RunGroupID)
-	if err != nil || snapshot.Cursor != "4" || snapshot.DeviceExecutions[0].Status != constants.ExecutionInterrupted ||
+	if err != nil || snapshot.Cursor != fmt.Sprint(2*(len(admission.Devices)+1)) ||
+		len(snapshot.DeviceExecutions) != len(admission.Devices) || snapshot.RunGroup.Summary.Interrupted != len(admission.Devices) || snapshot.DeviceExecutions[0].Status != constants.ExecutionInterrupted ||
 		snapshot.DeviceExecutions[0].StartedAt != nil || snapshot.RunGroup.FinishedAt == nil || *snapshot.RunGroup.FinishedAt != snapshot.RunGroup.CreatedAt {
 		t.Fatalf("queued recovery: %+v, %v", snapshot, err)
 	}

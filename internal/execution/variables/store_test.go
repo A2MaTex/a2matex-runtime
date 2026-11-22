@@ -95,7 +95,7 @@ func TestIdentityAndUnavailableGuards(t *testing.T) {
 		devices     []string
 	}{
 		{"group", "bad", []string{a}}, {"empty", group, nil}, {"invalid device", group, []string{"bad"}},
-		{"duplicate", group, []string{a, a}}, {"too many", group, make([]string, constants.MaxAdmissionDevices+1)},
+		{"duplicate", group, []string{a, a}}, {"blank members", group, make([]string, 33)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if s, err := New(tc.group, tc.devices); s != nil || !errors.Is(err, xerror.ErrVariableInvalid) {

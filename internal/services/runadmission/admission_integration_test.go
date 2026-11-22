@@ -133,7 +133,7 @@ func wrappedRepository(f *integration) repositoryStub {
 	return repositoryStub{lookup: f.repo.LookupRequest, admit: f.repo.Admit, snapshot: f.repo.SnapshotByID}
 }
 func TestSQLiteAdmissionAndReplayBoundaries(t *testing.T) {
-	for _, count := range []int{1, constants.MaxAdmissionDevices} {
+	for _, count := range []int{1, 128} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
 			f := fixture(t, count)
 			s := service(t, f.deps)

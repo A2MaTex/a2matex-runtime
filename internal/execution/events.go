@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
@@ -41,6 +42,31 @@ type EventPage struct {
 	Events []Event
 	State  EventStreamState
 	More   bool
+}
+
+type EventAppender interface {
+	AppendEvents(context.Context, []PendingEvent) ([]string, error)
+}
+
+// AppendEventBatches keeps each append bounded within the caller's single state
+// transaction. The caller must roll back on any error; only commit publishes a wakeup.
+func AppendEventBatches(ctx context.Context, tx EventAppender, events []PendingEvent) (string, error) {
+	if len(events) == 0 {
+		return "", xerror.ErrExecutionInvalidInput
+	}
+	var last string
+	for len(events) > 0 {
+		count := min(len(events), constants.MaxEventBatchSize)
+		cursors, err := tx.AppendEvents(ctx, events[:count])
+		if err != nil {
+			return "", err
+		}
+		if len(cursors) != count {
+			return "", xerror.ErrExecutionInvalidInput
+		}
+		last, events = cursors[count-1], events[count:]
+	}
+	return last, nil
 }
 
 // EventReader accepts numeric cursors internally. Zero starts at the beginning

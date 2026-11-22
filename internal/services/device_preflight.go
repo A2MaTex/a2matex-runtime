@@ -94,8 +94,8 @@ func (p *DevicePreflight) check(ctx context.Context, serials []string) (DeviceSe
 }
 
 func validateSelection(serials []string) error {
-	if len(serials) == 0 || len(serials) > constants.MaxAdmissionDevices {
-		return fmt.Errorf("%w: expected 1 through %d devices", xerror.ErrInvalidDeviceSelection, constants.MaxAdmissionDevices)
+	if len(serials) == 0 {
+		return fmt.Errorf("%w: expected at least one device", xerror.ErrInvalidDeviceSelection)
 	}
 	seen := make(map[string]struct{}, len(serials))
 	for index, serial := range serials {

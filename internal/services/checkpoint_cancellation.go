@@ -34,11 +34,11 @@ func (s *CheckpointService) CancelUnfinished(ctx context.Context, request execut
 		if err := tx.CancelUnfinished(ctx, write); err != nil {
 			return err
 		}
-		cursors, err := tx.AppendEvents(ctx, events)
+		cursor, err := execution.AppendEventBatches(ctx, tx, events)
 		if err != nil {
 			return err
 		}
-		result = execution.CancellationResult{RunGroupID: write.RunGroupID, Changed: true, Cursor: cursors[len(cursors)-1]}
+		result = execution.CancellationResult{RunGroupID: write.RunGroupID, Changed: true, Cursor: cursor}
 		return nil
 	})
 	if err != nil {

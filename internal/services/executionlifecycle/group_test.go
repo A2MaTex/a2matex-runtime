@@ -43,7 +43,7 @@ func writeGroup(t *testing.T, g *groupExecution, index int, scope constants.Vari
 }
 
 func TestNewGroupOwnsOrderedInputsAndIsolatedViews(t *testing.T) {
-	for _, count := range []int{1, constants.MaxAdmissionDevices} {
+	for _, count := range []int{1, 128} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
 			id, devices := groupDevices(count)
 			g, err := newGroup(t.Context(), id, &runner.Runner{}, devices)
@@ -89,9 +89,6 @@ func TestNewGroupRejectsInvalidWorkBeforeOwnership(t *testing.T) {
 		"group":  func(id *string, _ **runner.Runner, _ *[]runner.Request) { *id = "invalid" },
 		"runner": func(_ *string, worker **runner.Runner, _ *[]runner.Request) { *worker = nil },
 		"empty":  func(_ *string, _ **runner.Runner, devices *[]runner.Request) { *devices = nil },
-		"too many": func(id *string, _ **runner.Runner, devices *[]runner.Request) {
-			*id, *devices = groupDevices(constants.MaxAdmissionDevices + 1)
-		},
 		"mixed group": func(_ *string, _ **runner.Runner, devices *[]runner.Request) {
 			(*devices)[1].RunGroupID = uuid.NewString()
 		},

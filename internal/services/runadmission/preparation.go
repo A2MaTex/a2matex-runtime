@@ -22,7 +22,7 @@ import (
 
 func requestValues(request Request) ([]string, []json.RawMessage, error) {
 	const operation = "check_run_admission_request"
-	if len(request.Devices) == 0 || len(request.Devices) > constants.MaxAdmissionDevices {
+	if len(request.Devices) == 0 {
 		return nil, nil, xerror.WithOperation(operation, xerror.ErrRunAdmissionInvalid)
 	}
 	if len(request.RuntimeIR) > constants.RuntimeIRMaxContentBytes {

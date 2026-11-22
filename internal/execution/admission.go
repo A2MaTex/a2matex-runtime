@@ -4,7 +4,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	"github.com/google/uuid"
 )
 
@@ -24,7 +23,7 @@ func ValidID(id string) bool {
 // ValidNewAdmission checks in-memory inputs for a new run without accessing SQLite.
 func ValidNewAdmission(admission Admission) bool {
 	if !ValidID(admission.RunGroupID) || admission.Now.IsZero() ||
-		len(admission.Devices) == 0 || len(admission.Devices) > constants.MaxAdmissionDevices {
+		len(admission.Devices) == 0 {
 		return false
 	}
 	ids, serials := make(map[string]bool), make(map[string]bool)

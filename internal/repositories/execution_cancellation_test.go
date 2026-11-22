@@ -186,7 +186,7 @@ func TestCancellationMaximumBatchAndClockRollback(t *testing.T) {
 	repo := executionStore(t)
 	admission := testAdmission(0)
 	admission.Now = time.Now().Add(time.Hour)
-	admission.Devices = make([]execution.AdmissionDevice, constants.MaxAdmissionDevices)
+	admission.Devices = make([]execution.AdmissionDevice, 128)
 	for i := range admission.Devices {
 		admission.Devices[i] = execution.AdmissionDevice{DeviceExecutionID: testExecutionID(100 + i), ADBSerial: fmt.Sprint("emulator-", i), EntryNodeID: "start_01"}
 	}
@@ -201,12 +201,26 @@ func TestCancellationMaximumBatchAndClockRollback(t *testing.T) {
 	}
 	before, _ := repo.EventWatermark(t.Context())
 	cancelRemaining(t, service)
-	page, err := repo.ReplayEvents(t.Context(), before.Watermark, constants.MaxEventBatchSize)
-	if err != nil || len(page.Events) != 65 {
-		t.Fatalf("batch: %d %v", len(page.Events), err)
+	after, total := before.Watermark, 0
+	for {
+		page, err := repo.ReplayEvents(t.Context(), after, constants.MaxEventPageSize)
+		if err != nil || len(page.Events) == 0 {
+			t.Fatalf("batch: %d %v", total, err)
+		}
+		total += len(page.Events)
+		if !page.More {
+			break
+		}
+		after, err = execution.ParseEventCursor(page.Events[len(page.Events)-1].Cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if total != 2*len(admission.Devices)+1 {
+		t.Fatalf("cancellation events: %d", total)
 	}
 	snapshot, err := repo.SnapshotByID(t.Context(), admission.RunGroupID)
-	if err != nil || snapshot.RunGroup.Summary.Cancelled != constants.MaxAdmissionDevices || *snapshot.RunGroup.FinishedAt < snapshot.RunGroup.CreatedAt {
+	if err != nil || snapshot.RunGroup.Summary.Cancelled != len(admission.Devices) || *snapshot.RunGroup.FinishedAt < snapshot.RunGroup.CreatedAt {
 		t.Fatalf("clock rollback: %+v %v", snapshot, err)
 	}
 }

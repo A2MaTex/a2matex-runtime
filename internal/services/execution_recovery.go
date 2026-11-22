@@ -39,7 +39,7 @@ func (s *ExecutionRecovery) Start(ctx context.Context) error {
 		if err := tx.InterruptRecovery(ctx, recovery); err != nil {
 			return xerror.WithOperation("interrupt_unfinished_execution", err)
 		}
-		_, err = tx.AppendEvents(ctx, events)
+		_, err = execution.AppendEventBatches(ctx, tx, events)
 		return xerror.WithOperation("append_recovery_events", err)
 	})
 	if err != nil {

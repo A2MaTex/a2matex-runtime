@@ -105,10 +105,6 @@ func (l *Service) beginRun(ctx context.Context, worker *runner.Runner, request r
 		cancel()
 		return nil, nil, lifecycleError(operation, xerror.ErrExecutionStaleState)
 	}
-	if len(l.workers) >= constants.MaxAdmissionDevices {
-		cancel()
-		return nil, nil, lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
-	}
 	l.workers[request.DeviceExecutionID] = cancel
 	return workerCtx, cancel, nil
 }
@@ -149,6 +145,9 @@ func (l *Service) runRegistered(workerCtx context.Context, worker *runner.Runner
 func (l *Service) PrepareStop(reason constants.ExecutionStopReason, deadline time.Time) {
 	l.mu.Lock()
 	l.closed = true
+	if l.group != nil {
+		l.group.queue.stop()
+	}
 	if l.cancelAdmissions != nil {
 		l.cancelAdmissions()
 	}
@@ -263,6 +262,9 @@ func (l *Service) recordFailure(err error) {
 		l.failure = err
 	}
 	l.closed = true
+	if l.group != nil {
+		l.group.queue.stop()
+	}
 	if l.cancelAdmissions != nil {
 		l.cancelAdmissions()
 	}

@@ -61,8 +61,8 @@ func (s *ExecutionRepository) snapshot(ctx context.Context, query string, args .
 
 func readDevices(ctx context.Context, tx Tx, groupID string) ([]execution.DeviceExecution, error) {
 	const query = `SELECT id,adb_serial,status,next_node_id,created_at,started_at,finished_at,terminal_error_json
-		FROM device_executions WHERE run_group_id = ? ORDER BY admission_ordinal,id LIMIT ?`
-	rows, err := tx.QueryContext(ctx, query, groupID, constants.MaxAdmissionDevices+1)
+		FROM device_executions WHERE run_group_id = ? ORDER BY admission_ordinal,id`
+	rows, err := tx.QueryContext(ctx, query, groupID)
 	if err != nil {
 		return nil, storageError(ctx, "read_run_devices", err)
 	}
@@ -82,7 +82,7 @@ func readDevices(ctx context.Context, tx Tx, groupID string) ([]execution.Device
 		device.TerminalError = terminalError
 		devices = append(devices, device)
 	}
-	if err := rows.Err(); err != nil || len(devices) == 0 || len(devices) > constants.MaxAdmissionDevices {
+	if err := rows.Err(); err != nil || len(devices) == 0 {
 		return nil, storageError(ctx, "verify_run_devices", err)
 	}
 	return devices, nil

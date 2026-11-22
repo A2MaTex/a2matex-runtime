@@ -24,6 +24,7 @@ type groupExecution struct {
 	worker  *runner.Runner
 	devices []runner.Request
 	store   *variables.Store
+	queue   *deviceQueue
 	done    chan struct{}
 }
 
@@ -31,7 +32,7 @@ func newGroup(ctx context.Context, id string, worker *runner.Runner, devices []r
 	invalid := func() (*groupExecution, error) {
 		return nil, lifecycleError("configure_execution_group", xerror.ErrExecutionLifecycleInvalid)
 	}
-	if !execution.ValidID(id) || worker == nil || len(devices) == 0 || len(devices) > constants.MaxAdmissionDevices {
+	if !execution.ValidID(id) || worker == nil || len(devices) == 0 {
 		return invalid()
 	}
 	ids := make([]string, len(devices))
@@ -51,6 +52,10 @@ func newGroup(ctx context.Context, id string, worker *runner.Runner, devices []r
 			owned[i].WorkflowInputs[name] = bytes.Clone(value)
 		}
 	}
+	queue, err := newDeviceQueue(ids)
+	if err != nil {
+		return nil, err
+	}
 	store, err := variables.New(id, ids)
 	if err != nil {
 		return nil, lifecycleError("configure_execution_group", err)
@@ -64,7 +69,7 @@ func newGroup(ctx context.Context, id string, worker *runner.Runner, devices []r
 			}}
 	}
 	groupCtx, cancel := context.WithCancel(ctx)
-	return &groupExecution{id: id, ctx: groupCtx, cancel: cancel, worker: worker, devices: owned, store: store, done: make(chan struct{})}, nil
+	return &groupExecution{id: id, ctx: groupCtx, cancel: cancel, worker: worker, devices: owned, store: store, queue: queue, done: make(chan struct{})}, nil
 }
 
 // close runs only after execution and its synchronous checkpoint callbacks return.
@@ -108,6 +113,7 @@ func (l *Service) DispatchGroup(id string, worker *runner.Runner, devices []runn
 			stopping := l.started && l.failure == nil && (l.prepared || owner.Err() != nil)
 			l.mu.Unlock()
 			if stopping {
+				g.queue.stop()
 				return nil // The start lease retains admitted rows for G11/D6 settlement.
 			}
 			return lifecycleError(operation, gateErr)
@@ -129,10 +135,16 @@ func (l *Service) DispatchGroup(id string, worker *runner.Runner, devices []runn
 			}
 		}
 		device := g.devices[0]
-		if _, exists := l.workers[device.DeviceExecutionID]; exists || len(l.workers) >= constants.MaxAdmissionDevices {
+		if _, exists := l.workers[device.DeviceExecutionID]; exists {
 			l.mu.Unlock()
 			return lifecycleError(operation, xerror.ErrExecutionStaleState)
 		}
+		index, ok := g.queue.take()
+		if !ok {
+			l.mu.Unlock()
+			return lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
+		}
+		device = g.devices[index]
 		ctx, cancel := context.WithCancel(g.ctx)
 		l.group, l.workers[device.DeviceExecutionID], registered = g, cancel, true
 		l.mu.Unlock()
@@ -141,10 +153,17 @@ func (l *Service) DispatchGroup(id string, worker *runner.Runner, devices []runn
 			_, _ = l.runRegistered(ctx, worker, device, g.close) // G11 publishes failures before ownership is released.
 			g.cancel()
 			l.mu.Lock()
-			defer l.mu.Unlock()
+			releaseErr := g.queue.release(device.DeviceExecutionID)
+			if releaseErr != nil {
+				l.recordFailure(releaseErr)
+			}
 			l.group = nil
 			close(g.done)
 			l.signalDrained()
+			l.mu.Unlock()
+			if releaseErr != nil {
+				l.Fail(releaseErr)
+			}
 		}()
 		return nil
 	}

@@ -83,14 +83,19 @@ func insertAdmission(ctx context.Context, tx Tx, admission execution.Admission) 
 	if _, err := tx.ExecContext(ctx, group, admission.RunGroupID, admission.RequestID, now); err != nil {
 		return storageError(ctx, "insert_run_group", err)
 	}
-	deviceRows, deviceArgs := make([]string, 0, len(admission.Devices)), make([]any, 0, len(admission.Devices)*6)
-	for ordinal, device := range admission.Devices {
-		deviceRows = append(deviceRows, "(?,?,?,?,'QUEUED',?,?)")
-		deviceArgs = append(deviceArgs, device.DeviceExecutionID, admission.RunGroupID, device.ADBSerial, ordinal, device.EntryNodeID, now)
-	}
 	const devices = "INSERT INTO device_executions(id,run_group_id,adb_serial,admission_ordinal,status,next_node_id,created_at) VALUES "
-	if _, err := tx.ExecContext(ctx, devices+strings.Join(deviceRows, ","), deviceArgs...); err != nil {
-		return storageError(ctx, "insert_selected_devices", err)
+	// Bound SQL parameters without limiting the admitted group or committing a partial selection.
+	for offset := 0; offset < len(admission.Devices); {
+		end := offset + min(constants.DeviceInsertBatchSize, len(admission.Devices)-offset)
+		deviceRows, deviceArgs := make([]string, 0, end-offset), make([]any, 0, (end-offset)*6)
+		for index, device := range admission.Devices[offset:end] {
+			deviceRows = append(deviceRows, "(?,?,?,?,'QUEUED',?,?)")
+			deviceArgs = append(deviceArgs, device.DeviceExecutionID, admission.RunGroupID, device.ADBSerial, offset+index, device.EntryNodeID, now)
+		}
+		if _, err := tx.ExecContext(ctx, devices+strings.Join(deviceRows, ","), deviceArgs...); err != nil {
+			return storageError(ctx, "insert_selected_devices", err)
+		}
+		offset = end
 	}
 	return appendAdmissionEvents(ctx, tx, admission)
 }
@@ -111,6 +116,6 @@ func appendAdmissionEvents(ctx context.Context, tx Tx, admission execution.Admis
 			RunGroupID: admission.RunGroupID, DeviceExecutionID: device.DeviceExecutionID,
 			OccurredAt: admission.Now, Payload: payload})
 	}
-	_, err := tx.AppendEvents(ctx, events)
+	_, err := execution.AppendEventBatches(ctx, tx, events)
 	return err
 }

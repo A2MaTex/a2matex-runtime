@@ -426,12 +426,12 @@ func TestBudgetsAndTruncation(t *testing.T) {
 	if !errors.Is(err, xerror.ErrRuntimeIRPayloadTooLarge) {
 		t.Fatalf("IR byte limit: %v", err)
 	}
-	inputs := make([]json.RawMessage, 32)
+	inputs := make([]json.RawMessage, 128)
 	for i := range inputs {
 		inputs[i] = []byte("{}")
 	}
 	wantValid(t, check(t, v, raw(base(t)), inputs...))
-	for _, count := range []int{0, 33} {
+	for _, count := range []int{0} {
 		r, err := v.Validate(context.Background(), raw(base(t)), make([]json.RawMessage, count))
 		if err != nil {
 			t.Fatal(err)

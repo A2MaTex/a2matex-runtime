@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
-	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
@@ -39,8 +38,8 @@ func (tx Tx) ReadRecoveryState(ctx context.Context) (execution.RecoveryState, er
 }
 
 func (tx Tx) recoveryDevices(ctx context.Context, groupID string) ([]execution.RecoveryDevice, error) {
-	const query = `SELECT id,status,next_node_id,created_at,started_at FROM device_executions WHERE run_group_id = ? LIMIT ?`
-	rows, err := tx.QueryContext(ctx, query, groupID, constants.MaxAdmissionDevices+1)
+	const query = `SELECT id,status,next_node_id,created_at,started_at FROM device_executions WHERE run_group_id = ?`
+	rows, err := tx.QueryContext(ctx, query, groupID)
 	if err != nil {
 		return nil, storageError(ctx, "read_recovery_devices", err)
 	}
@@ -62,17 +61,14 @@ func (tx Tx) recoveryDevices(ctx context.Context, groupID string) ([]execution.R
 	if err := rows.Err(); err != nil {
 		return nil, storageError(ctx, "read_recovery_devices", err)
 	}
-	if len(devices) > constants.MaxAdmissionDevices {
-		return nil, xerror.ErrRecoveryIntegrity
-	}
 	return devices, nil
 }
 
 func (tx Tx) recoveryAttempts(ctx context.Context) ([]execution.RecoveryAttempt, error) {
 	const query = `SELECT a.id,a.device_execution_id,a.node_id,a.attempt_number,a.started_at,
 		NOT EXISTS(SELECT 1 FROM node_attempts newer WHERE newer.device_execution_id = a.device_execution_id AND newer.sequence > a.sequence)
-	FROM node_attempts a INDEXED BY node_attempts_one_running WHERE a.status = 'RUNNING' LIMIT ?`
-	rows, err := tx.QueryContext(ctx, query, constants.MaxAdmissionDevices+1)
+	FROM node_attempts a INDEXED BY node_attempts_one_running WHERE a.status = 'RUNNING'`
+	rows, err := tx.QueryContext(ctx, query)
 	if err != nil {
 		return nil, storageError(ctx, "read_active_attempts_for_recovery", err)
 	}
@@ -87,9 +83,6 @@ func (tx Tx) recoveryAttempts(ctx context.Context) ([]execution.RecoveryAttempt,
 	}
 	if err := rows.Err(); err != nil {
 		return nil, storageError(ctx, "read_active_attempts_for_recovery", err)
-	}
-	if len(attempts) > constants.MaxAdmissionDevices {
-		return nil, xerror.ErrRecoveryIntegrity
 	}
 	return attempts, nil
 }

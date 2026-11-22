@@ -61,7 +61,7 @@ func (v *Validator) Validate(ctx context.Context, rawIR json.RawMessage, deviceI
 		remaining -= len(raw)
 	}
 	c := &checks{ctx: ctx}
-	if len(deviceInputs) < 1 || len(deviceInputs) > constants.MaxAdmissionDevices {
+	if len(deviceInputs) < 1 {
 		c.contract(validation.Path{"devices"})
 		if err := ctx.Err(); err != nil {
 			return Result{}, xerror.WithOperation("check_admission_context", err)

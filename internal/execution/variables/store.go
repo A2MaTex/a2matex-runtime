@@ -28,7 +28,7 @@ type Store struct {
 }
 
 func New(runGroupID string, deviceExecutionIDs []string) (*Store, error) {
-	if !execution.ValidID(runGroupID) || len(deviceExecutionIDs) < 1 || len(deviceExecutionIDs) > constants.MaxAdmissionDevices {
+	if !execution.ValidID(runGroupID) || len(deviceExecutionIDs) < 1 {
 		return nil, xerror.WithOperation("configure_scoped_variables", xerror.ErrVariableInvalid)
 	}
 	s := &Store{groupID: runGroupID, gate: make(chan struct{}, 1), flows: make(map[string]*scopeState, len(deviceExecutionIDs))}

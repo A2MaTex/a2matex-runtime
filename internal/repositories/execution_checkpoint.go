@@ -112,8 +112,8 @@ func (tx Tx) UpdateCheckpointDevice(ctx context.Context, device execution.Device
 }
 
 func (tx Tx) OtherDeviceStatuses(ctx context.Context, ref execution.AttemptRef) ([]string, error) {
-	const query = `SELECT status FROM device_executions WHERE run_group_id = ? AND id <> ? LIMIT ?`
-	rows, err := tx.QueryContext(ctx, query, ref.RunGroupID, ref.DeviceExecutionID, constants.MaxAdmissionDevices)
+	const query = `SELECT status FROM device_executions WHERE run_group_id = ? AND id <> ?`
+	rows, err := tx.QueryContext(ctx, query, ref.RunGroupID, ref.DeviceExecutionID)
 	if err != nil {
 		return nil, storageError(ctx, "read_sibling_device_states", err)
 	}
@@ -126,7 +126,7 @@ func (tx Tx) OtherDeviceStatuses(ctx context.Context, ref execution.AttemptRef) 
 		}
 		statuses = append(statuses, status)
 	}
-	if err := rows.Err(); err != nil || len(statuses) >= constants.MaxAdmissionDevices {
+	if err := rows.Err(); err != nil {
 		return nil, storageError(ctx, "verify_sibling_device_states", err)
 	}
 	return statuses, nil

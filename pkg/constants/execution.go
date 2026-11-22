@@ -23,7 +23,7 @@ const (
 )
 
 const (
-	MaxAdmissionDevices         = 32
+	DeviceInsertBatchSize       = 100
 	MaxAttemptPageSize          = 100
 	MaxEventPageSize            = 100
 	MaxEventBatchSize           = 100

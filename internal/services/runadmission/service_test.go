@@ -290,11 +290,11 @@ func TestCommitOutcomes(t *testing.T) {
 func TestRequestGuardsBeforeValidation(t *testing.T) {
 	for name, mutate := range map[string]func(*runadmission.Request){
 		"id": func(r *runadmission.Request) { r.RequestID = "bad" }, "empty": func(r *runadmission.Request) { r.Devices = nil },
-		"too many":    func(r *runadmission.Request) { r.Devices = make([]runadmission.DeviceInput, 33) },
-		"serial":      func(r *runadmission.Request) { r.Devices[0].ADBSerial = " invalid " },
-		"duplicate":   func(r *runadmission.Request) { r.Devices = append(r.Devices, r.Devices[0]) },
-		"ir bytes":    func(r *runadmission.Request) { r.RuntimeIR = make([]byte, constants.RuntimeIRMaxContentBytes+1) },
-		"input bytes": func(r *runadmission.Request) { r.Devices[0].Inputs = make([]byte, constants.RunRequestMaxContentBytes) },
+		"blank serials": func(r *runadmission.Request) { r.Devices = make([]runadmission.DeviceInput, 33) },
+		"serial":        func(r *runadmission.Request) { r.Devices[0].ADBSerial = " invalid " },
+		"duplicate":     func(r *runadmission.Request) { r.Devices = append(r.Devices, r.Devices[0]) },
+		"ir bytes":      func(r *runadmission.Request) { r.RuntimeIR = make([]byte, constants.RuntimeIRMaxContentBytes+1) },
+		"input bytes":   func(r *runadmission.Request) { r.Devices[0].Inputs = make([]byte, constants.RunRequestMaxContentBytes) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			var trace []string
