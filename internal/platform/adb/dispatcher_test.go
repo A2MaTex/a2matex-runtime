@@ -222,9 +222,13 @@ func TestDispatchClassifiesActionOutcomeWithoutRetry(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			resolver := NewResolver(config.ADBConfig{})
 			resolver.verified.Executable = "verified executable"
-			calls := 0
-			resolver.run = func(context.Context, string, []string, time.Duration) processrunner.Result {
-				calls++
+			calls, observations := 0, 0
+			resolver.run = func(_ context.Context, _ string, args []string, _ time.Duration) processrunner.Result {
+				if reflect.DeepEqual(args, []string{"devices", "-l"}) {
+					observations++
+				} else {
+					calls++
+				}
 				return processrunner.Result{Outcome: test.outcome, Stderr: []byte("private diagnostics")}
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
@@ -240,6 +244,13 @@ func TestDispatchClassifiesActionOutcomeWithoutRetry(t *testing.T) {
 			}
 			if calls != 1 {
 				t.Fatalf("action calls = %d, want 1", calls)
+			}
+			wantObservations := 0
+			if test.outcome == processrunner.NonzeroExit {
+				wantObservations = 1
+			}
+			if observations != wantObservations {
+				t.Fatalf("transport observations = %d, want %d", observations, wantObservations)
 			}
 		})
 	}

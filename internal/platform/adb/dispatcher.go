@@ -91,9 +91,15 @@ func (d *Dispatcher) runDevice(ctx context.Context, serial, operation string, ar
 	} else {
 		result = processrunner.RunWithStdoutLimit(ctx, toolchain.Executable, args, remaining, stdoutLimit)
 	}
+	if contextErr := ctx.Err(); contextErr != nil {
+		return result, xerror.WithOperation(operation, contextErr)
+	}
 	err = dispatchError(result)
 	if err == nil {
 		return result, nil
+	}
+	if result.Outcome == processrunner.NonzeroExit {
+		err = d.classifyTransportFailure(ctx, serial, err)
 	}
 	detail := string(result.Outcome)
 	if result.ExitCode != nil {
