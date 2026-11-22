@@ -32,6 +32,7 @@ func main() {
 func run() int {
 	var overrides config.Overrides
 	var migrateUp bool
+	var ownerStdio bool
 	var ownerCommands, ownerReady uint64
 
 	startupLogger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
@@ -44,6 +45,7 @@ func run() int {
 	flags.BoolVar(&migrateUp, "migrate-up", false, "apply pending SQLite migrations and exit")
 	flags.Uint64Var(&ownerCommands, "owner-command-pipe", 0, "inherited command pipe handle")
 	flags.Uint64Var(&ownerReady, "owner-ready-pipe", 0, "inherited readiness pipe handle")
+	flags.BoolVar(&ownerStdio, "owner-stdio", false, "use inherited stdin/stdout for managed ownership")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			flags.SetOutput(os.Stderr)
@@ -54,13 +56,21 @@ func run() int {
 		return exitInvalidFlags
 	}
 
-	var managed bool
+	var managed, commandPipeSet, readyPipeSet bool
 	flags.Visit(func(option *flag.Flag) {
-		if option.Name == "owner-command-pipe" || option.Name == "owner-ready-pipe" {
-			managed = true
+		switch option.Name {
+		case "owner-command-pipe":
+			commandPipeSet = true
+		case "owner-ready-pipe":
+			readyPipeSet = true
 		}
 	})
-	if managed && (migrateUp || uint64(uintptr(ownerCommands)) != ownerCommands || uint64(uintptr(ownerReady)) != ownerReady) {
+	managed = ownerStdio || commandPipeSet || readyPipeSet
+	invalidManagedLaunch := migrateUp ||
+		(ownerStdio && (commandPipeSet || readyPipeSet)) ||
+		(!ownerStdio && commandPipeSet != readyPipeSet) ||
+		(!ownerStdio && (uint64(uintptr(ownerCommands)) != ownerCommands || uint64(uintptr(ownerReady)) != ownerReady))
+	if managed && invalidManagedLaunch {
 		logRuntimeFailure(context.Background(), startupLogger, "validate_managed_launch", "invalid managed Runtime launch options", nil)
 		return exitFailure
 	}
@@ -92,7 +102,11 @@ func run() int {
 
 	var owner *discovery.Owner
 	if managed {
-		owner, err = discovery.OpenOwner(uintptr(ownerCommands), uintptr(ownerReady))
+		if ownerStdio {
+			owner, err = discovery.OpenOwnerFiles(os.Stdin, os.Stdout)
+		} else {
+			owner, err = discovery.OpenOwner(uintptr(ownerCommands), uintptr(ownerReady))
+		}
 		if err != nil {
 			logRuntimeFailure(ctx, startupLogger, "open_owner_pipes", "managed launch requires two valid, distinct inherited pipes", err)
 			return exitFailure

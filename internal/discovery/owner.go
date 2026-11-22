@@ -26,17 +26,33 @@ func OpenOwner(commandHandle, readyHandle uintptr) (*Owner, error) {
 
 	commands := os.NewFile(commandHandle, "runtime-owner-commands")
 	ready := os.NewFile(readyHandle, "runtime-owner-ready")
+	return OpenOwnerFiles(commands, ready)
+}
+
+// OpenOwnerFiles accepts already inherited pipe endpoints. It is used by the
+// Windows launcher, where HANDLE values are not POSIX file descriptor numbers
+// and Node exposes inherited anonymous pipes safely as child stdin/stdout.
+func OpenOwnerFiles(commands, ready *os.File) (*Owner, error) {
+	if commands == nil || ready == nil || commands.Fd() == ready.Fd() {
+		closeOwnerFiles(commands, ready)
+		return nil, errors.New("managed launch requires two distinct inherited pipes")
+	}
 	if !isPipe(commands) || !isPipe(ready) {
-		if commands != nil {
-			_ = commands.Close()
-		}
-		if ready != nil {
-			_ = ready.Close()
-		}
+		closeOwnerFiles(commands, ready)
 		return nil, errors.New("managed launch requires valid inherited pipes")
 	}
 	preventOwnerPipeInheritance(commands, ready)
 	return &Owner{commands: commands, ready: ready}, nil
+}
+
+func closeOwnerFiles(commands, ready *os.File) {
+	sameFile := commands != nil && ready != nil && commands.Fd() == ready.Fd()
+	if commands != nil {
+		_ = commands.Close()
+	}
+	if ready != nil && !sameFile {
+		_ = ready.Close()
+	}
 }
 
 func isPipe(file *os.File) bool {

@@ -44,3 +44,36 @@ func TestOwnerWatchPreservesStopCause(t *testing.T) {
 		})
 	}
 }
+
+func TestOpenOwnerFilesUsesInheritedAnonymousPipes(t *testing.T) {
+	commands, commandWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	readyReader, ready, err := os.Pipe()
+	if err != nil {
+		_ = commands.Close()
+		_ = commandWriter.Close()
+		t.Fatal(err)
+	}
+	defer commandWriter.Close()
+	defer readyReader.Close()
+
+	owner, err := OpenOwnerFiles(commands, ready)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+
+	if err := owner.publish([]byte(`{"state":"ready"}`)); err != nil {
+		t.Fatal(err)
+	}
+	buffer := make([]byte, 64)
+	count, err := readyReader.Read(buffer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(buffer[:count]); got != "{\"state\":\"ready\"}\n" {
+		t.Fatalf("readiness frame: %q", got)
+	}
+}
