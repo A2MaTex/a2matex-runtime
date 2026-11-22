@@ -103,7 +103,11 @@ func run() int {
 	var owner *discovery.Owner
 	if managed {
 		if ownerStdio {
-			owner, err = discovery.OpenOwnerFiles(os.Stdin, os.Stdout)
+			ownerReady := os.Stdout
+			owner, err = discovery.OpenOwnerFiles(os.Stdin, ownerReady)
+			// stdout is now the private readiness channel. Keep all application
+			// logging on stderr so no log record can corrupt the single frame.
+			os.Stdout = os.Stderr
 		} else {
 			owner, err = discovery.OpenOwner(uintptr(ownerCommands), uintptr(ownerReady))
 		}
