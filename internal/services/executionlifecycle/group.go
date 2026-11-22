@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/bindings"
@@ -81,13 +82,9 @@ func (g *groupExecution) close(ctx context.Context) error {
 	return nil
 }
 
-// DispatchGroup consumes confirmed admission under the existing start lease.
-// H1 keeps live dispatch single-device; H2-H4 add scheduling and expand admission.
+// DispatchGroup consumes the complete confirmed admission under the existing start lease.
 func (l *Service) DispatchGroup(id string, worker *runner.Runner, devices []runner.Request) (err error) {
 	const operation = "handoff_admitted_group"
-	if len(devices) != constants.MaxStartDevices {
-		return lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
-	}
 	l.mu.Lock()
 	owner := l.ownerContext
 	l.mu.Unlock()
@@ -134,37 +131,108 @@ func (l *Service) DispatchGroup(id string, worker *runner.Runner, devices []runn
 				return lifecycleError("join_execution_group", joinCtx.Err())
 			}
 		}
-		device := g.devices[0]
-		if _, exists := l.workers[device.DeviceExecutionID]; exists {
+		for _, device := range g.devices {
+			if _, exists := l.workers[device.DeviceExecutionID]; exists {
+				l.mu.Unlock()
+				return lifecycleError(operation, xerror.ErrExecutionStaleState)
+			}
+		}
+		l.group, registered = g, true
+		l.mu.Unlock()
+		return l.startGroup(g)
+	}
+}
+
+// The producer finishes all Add calls before starting the group's final Wait.
+func (l *Service) startGroup(g *groupExecution) error {
+	const operation = "register_group_worker"
+	var workers sync.WaitGroup
+	defer func() { go l.retireGroup(g, &workers) }()
+	for {
+		l.mu.Lock()
+		if err := l.gateError(); err != nil {
+			g.queue.stop()
+			stopping := l.failure == nil && (l.prepared || l.ownerContext.Err() != nil)
+			if l.failure != nil {
+				err = l.failure
+			}
 			l.mu.Unlock()
-			return lifecycleError(operation, xerror.ErrExecutionStaleState)
+			if stopping {
+				return nil // G11/D6 settles members left pending after the stop fence.
+			}
+			return lifecycleError(operation, err)
 		}
 		index, ok := g.queue.take()
 		if !ok {
+			if g.queue.next == len(g.queue.members) {
+				l.mu.Unlock()
+				return nil
+			}
+			err := lifecycleError(operation, xerror.ErrExecutionStaleState)
+			l.recordFailure(err)
 			l.mu.Unlock()
-			return lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
+			l.Fail(err)
+			return err
 		}
-		device = g.devices[index]
+		device := g.devices[index]
+		if _, exists := l.workers[device.DeviceExecutionID]; exists {
+			err := lifecycleError(operation, errors.Join(xerror.ErrExecutionStaleState, g.queue.release(device.DeviceExecutionID)))
+			l.recordFailure(err)
+			l.mu.Unlock()
+			l.Fail(err)
+			return err
+		}
 		ctx, cancel := context.WithCancel(g.ctx)
-		l.group, l.workers[device.DeviceExecutionID], registered = g, cancel, true
+		l.workers[device.DeviceExecutionID] = cancel
+		workers.Add(1)
 		l.mu.Unlock()
 		go func() {
+			defer workers.Done()
 			defer cancel()
-			_, _ = l.runRegistered(ctx, worker, device, g.close) // G11 publishes failures before ownership is released.
-			g.cancel()
+			_, _ = l.runRegistered(ctx, g.worker, device, nil) // Publishes fatal errors before another registration.
 			l.mu.Lock()
-			releaseErr := g.queue.release(device.DeviceExecutionID)
-			if releaseErr != nil {
-				l.recordFailure(releaseErr)
+			err := g.queue.release(device.DeviceExecutionID)
+			if err != nil {
+				l.recordFailure(err)
 			}
-			l.group = nil
-			close(g.done)
-			l.signalDrained()
 			l.mu.Unlock()
-			if releaseErr != nil {
-				l.Fail(releaseErr)
+			if err != nil {
+				l.Fail(err)
 			}
 		}()
-		return nil
+	}
+}
+
+func (l *Service) retireGroup(g *groupExecution, workers *sync.WaitGroup) {
+	workers.Wait()
+	l.mu.Lock()
+	valid := l.group == g && len(g.queue.active) == 0
+	for _, id := range g.queue.members {
+		if _, exists := l.workers[id]; exists {
+			valid = false
+		}
+	}
+	if !valid {
+		l.recordFailure(lifecycleError("retire_execution_group", xerror.ErrExecutionStaleState))
+	}
+	l.mu.Unlock()
+	if !valid {
+		l.Fail(lifecycleError("retire_execution_group", xerror.ErrExecutionStaleState))
+	}
+	// The last returning member cannot close RAM while siblings/callbacks use it.
+	_ = l.cleanupRun(g.ctx, g.close) // Cleanup failures are published before retirement.
+	g.cancel()
+	l.mu.Lock()
+	current := l.group == g
+	if current {
+		l.group = nil
+	} else {
+		l.recordFailure(lifecycleError("retire_execution_group", xerror.ErrExecutionStaleState))
+	}
+	close(g.done)
+	l.signalDrained()
+	l.mu.Unlock()
+	if !current {
+		l.Fail(lifecycleError("retire_execution_group", xerror.ErrExecutionStaleState))
 	}
 }

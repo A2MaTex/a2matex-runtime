@@ -44,6 +44,14 @@ func managedWorkWithCheckpoints(t *testing.T, writer attempts.Checkpoints) (*Ser
 	if err := l.Start(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+	w := lifecycleRunner(t, writer, &ir.Document{EntryNodeID: "end", Nodes: []ir.Node{{ID: "end", Type: constants.EndNodeType, RuntimeHandler: constants.EndNodeType,
+		Config: ir.Object{}, Inputs: ir.Object{}, TimeoutMS: 1000, RetryPolicy: ir.RetryPolicy{MaxAttempts: 1}, ErrorPolicy: constants.ErrorPolicyStop}}},
+		[]registry.Registration{{Type: constants.EndNodeType, RuntimeHandler: constants.EndNodeType, Run: end.Invoke}})
+	return l, w, runner.Request{RunGroupID: uuid.NewString(), DeviceExecutionID: uuid.NewString(), ADBSerial: "controlled", WorkflowInputs: ir.Object{}}
+}
+
+func lifecycleRunner(t *testing.T, writer attempts.Checkpoints, doc *ir.Document, entries []registry.Registration) *runner.Runner {
+	t.Helper()
 	catalog, err := nodecontract.NewDefaultRegistry()
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +64,7 @@ func managedWorkWithCheckpoints(t *testing.T, writer attempts.Checkpoints) (*Ser
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := registry.New(catalog, []registry.Registration{{Type: constants.EndNodeType, RuntimeHandler: constants.EndNodeType, Run: end.Invoke}})
+	h, err := registry.New(catalog, entries)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,13 +72,11 @@ func managedWorkWithCheckpoints(t *testing.T, writer attempts.Checkpoints) (*Ser
 	if err != nil {
 		t.Fatal(err)
 	}
-	w, err := runner.New(t.Context(), &ir.Document{EntryNodeID: "end", Nodes: []ir.Node{{ID: "end", Type: constants.EndNodeType, RuntimeHandler: constants.EndNodeType,
-		Config: ir.Object{}, Inputs: ir.Object{}, TimeoutMS: 1000, RetryPolicy: ir.RetryPolicy{MaxAttempts: 1}, ErrorPolicy: constants.ErrorPolicyStop}}},
-		runner.Dependencies{Bindings: b, Outputs: o, Invoker: i, Checkpoints: writer})
+	w, err := runner.New(t.Context(), doc, runner.Dependencies{Bindings: b, Outputs: o, Invoker: i, Checkpoints: writer})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return l, w, runner.Request{RunGroupID: uuid.NewString(), DeviceExecutionID: uuid.NewString(), ADBSerial: "controlled", WorkflowInputs: ir.Object{}}
+	return w
 }
 
 func TestDispatchCleanupPrecedesDrainAndReportsFailure(t *testing.T) {

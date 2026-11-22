@@ -23,6 +23,14 @@ type StartDeviceInput struct {
 }
 
 type AdmissionErrorResponse struct {
-	Error      apiresponse.Error  `json:"error"`
-	Validation *validation.Result `json:"validation,omitempty"`
+	Error              apiresponse.Error           `json:"error"`
+	Validation         *validation.Result          `json:"validation,omitempty"`
+	UnavailableDevices []UnavailableDeviceResponse `json:"unavailableDevices,omitempty"`
+}
+
+// UnavailableDeviceResponse refers to a zero-based position in the submitted selection.
+type UnavailableDeviceResponse struct {
+	Index     int               `json:"index"`
+	ADBSerial string            `json:"adbSerial"`
+	Reason    apiresponse.Error `json:"reason"`
 }

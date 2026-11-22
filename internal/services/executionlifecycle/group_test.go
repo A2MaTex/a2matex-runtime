@@ -222,13 +222,12 @@ func TestDispatchGroupWaitsForPriorCleanupAndRetainsFreshRAM(t *testing.T) {
 	})
 }
 
-func TestDispatchGroupKnownStopAndSingleDeviceGuard(t *testing.T) {
+func TestDispatchGroupKnownStopAndEmptySelection(t *testing.T) {
 	for _, stopped := range []bool{false, true} {
 		t.Run(fmt.Sprint(stopped), func(t *testing.T) {
 			l, worker, request := managedWork(t)
-			id, devices := groupDevices(2)
-			if err := l.DispatchGroup(id, worker, devices); !errors.Is(err, xerror.ErrExecutionLifecycleInvalid) {
-				t.Fatal("multi-device guard", err)
+			if err := l.DispatchGroup(uuid.NewString(), worker, nil); !errors.Is(err, xerror.ErrExecutionLifecycleInvalid) {
+				t.Fatal("empty selection", err)
 			}
 			if l.group != nil || len(l.workers) != 0 {
 				t.Fatal("partial group dispatch")

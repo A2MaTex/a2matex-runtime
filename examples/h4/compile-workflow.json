@@ -1,0 +1,74 @@
+{
+  "editorGraph": {
+    "schemaVersion": 1,
+    "entryNodeId": "start",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "flow.start",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": "wait",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "WORKFLOW_INPUT",
+            "inputName": "delayMs"
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 200,
+          "y": 0
+        }
+      },
+      {
+        "id": "end",
+        "type": "flow.end",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 400,
+          "y": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "sourceNodeId": "start",
+        "sourcePort": "success",
+        "targetNodeId": "wait"
+      },
+      {
+        "id": "e2",
+        "sourceNodeId": "wait",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      }
+    ]
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "delayMs": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    },
+    "required": [
+      "delayMs"
+    ],
+    "additionalProperties": false
+  }
+}

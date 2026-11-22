@@ -1,0 +1,100 @@
+{
+  "requestId": "827a0d8b-c172-45b0-b95f-d60e058f271e",
+  "runtimeIr": {
+    "formatVersion": 1,
+    "minimumRuntimeVersion": "0.1.0",
+    "metadata": {
+      "sourceGraphSchemaVersion": 1
+    },
+    "entryNodeId": "start",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "delayMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "delayMs"
+      ],
+      "additionalProperties": false
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "type": "flow.start",
+        "runtimeHandler": "flow.start",
+        "config": {},
+        "inputs": {},
+        "timeoutMs": 1000,
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        },
+        "errorPolicy": "STOP"
+      },
+      {
+        "id": "wait",
+        "type": "flow.delay",
+        "runtimeHandler": "flow.delay",
+        "config": {},
+        "inputs": {
+          "durationMs": {
+            "source": "WORKFLOW_INPUT",
+            "inputName": "delayMs"
+          }
+        },
+        "timeoutMs": 15000,
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        },
+        "errorPolicy": "STOP"
+      },
+      {
+        "id": "end",
+        "type": "flow.end",
+        "runtimeHandler": "flow.end",
+        "config": {},
+        "inputs": {},
+        "timeoutMs": 1000,
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        },
+        "errorPolicy": "STOP"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "sourceNodeId": "start",
+        "sourcePort": "success",
+        "targetNodeId": "wait"
+      },
+      {
+        "id": "e2",
+        "sourceNodeId": "wait",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      }
+    ],
+    "requiredCapabilities": []
+  },
+  "devices": [
+    {
+      "adbSerial": "emulator-5554",
+      "inputs": {
+        "delayMs": 1000
+      }
+    },
+    {
+      "adbSerial": "emulator-5556",
+      "inputs": {
+        "delayMs": 3000
+      }
+    }
+  ]
+}

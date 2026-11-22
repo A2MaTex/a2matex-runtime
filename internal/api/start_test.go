@@ -41,14 +41,29 @@ import (
 	"github.com/google/uuid"
 )
 
-type readyStartDevice struct{ calls atomic.Int32 }
+type readyStartDevice struct {
+	calls   atomic.Int32
+	serials []string
+	offline map[string]bool
+}
 
 func (s *readyStartDevice) Discover(context.Context) ([]adb.Endpoint, error) {
 	s.calls.Add(1)
-	return []adb.Endpoint{{ADBSerial: "z-device", State: adb.Connected}}, nil
+	serials := s.serials
+	if serials == nil {
+		serials = []string{"z-device"}
+	}
+	endpoints := make([]adb.Endpoint, len(serials))
+	for i, serial := range serials {
+		endpoints[len(serials)-1-i] = adb.Endpoint{ADBSerial: serial, State: adb.Connected}
+	}
+	return endpoints, nil
 }
-func (*readyStartDevice) ProbeReadiness(context.Context, adb.Endpoint) (adb.Readiness, error) {
-	return adb.Readiness{ADBSerial: "z-device", Ready: true}, nil
+func (s *readyStartDevice) ProbeReadiness(_ context.Context, endpoint adb.Endpoint) (adb.Readiness, error) {
+	if s.offline[endpoint.ADBSerial] {
+		return adb.Readiness{ADBSerial: endpoint.ADBSerial, Reason: &adb.UnavailableReason{Code: constants.DeviceOffline, Message: "device is offline"}}, nil
+	}
+	return adb.Readiness{ADBSerial: endpoint.ADBSerial, Ready: true}, nil
 }
 
 type startFixture struct {
@@ -57,6 +72,7 @@ type startFixture struct {
 	request      runs.StartRequest
 	delayStarted chan struct{}
 	resume       chan struct{}
+	entered      chan registry.Invocation
 	delayCalls   atomic.Int32
 	source       *readyStartDevice
 	logs         bytes.Buffer
@@ -85,6 +101,9 @@ func startStore(t *testing.T) *startFixture {
 	var once sync.Once
 	delayRun := func(ctx context.Context, call registry.Invocation) (map[string]any, error) {
 		f.delayCalls.Add(1)
+		if f.entered != nil {
+			f.entered <- call
+		}
 		once.Do(func() { close(f.delayStarted) })
 		select {
 		case <-ctx.Done():
@@ -169,7 +188,7 @@ func (f *startFixture) waitDelay(t *testing.T) {
 }
 func (f *startFixture) settled(t *testing.T, id string, status string) execution.Snapshot {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()
@@ -342,13 +361,13 @@ func TestStartHTTPExecutesOnceAndSurvivesRequestCancellation(t *testing.T) {
 	}
 }
 
-func TestStartHTTPRejectsMultipleDevicesAndSemanticErrorsBeforeWriting(t *testing.T) {
+func TestStartHTTPRejectsDuplicateDevicesAndSemanticErrorsBeforeWriting(t *testing.T) {
 	f := startStore(t)
 	multi := f.request
-	multi.Devices = append(append([]runs.StartDeviceInput{}, multi.Devices...), runs.StartDeviceInput{ADBSerial: "other", Inputs: json.RawMessage(`{}`)})
+	multi.Devices = append(append([]runs.StartDeviceInput{}, multi.Devices...), f.request.Devices[0])
 	f.post(t, t.Context(), multi, 400)
 	if f.source.calls.Load() != 0 {
-		t.Fatal("multiple selection reached ADB")
+		t.Fatal("duplicate selection reached ADB")
 	}
 	invalid := f.request
 	invalid.RuntimeIR = json.RawMessage(`{}`)

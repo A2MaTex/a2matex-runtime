@@ -30,9 +30,6 @@ const (
 	APIDeviceStatusReady       = "READY"
 	APIDeviceStatusUnavailable = "UNAVAILABLE"
 
-	// Phase H replaces this public-start limit with bounded multi-device scheduling.
-	MaxStartDevices = 1
-
 	APIErrorMessageAdmissionFailed            = "run admission failed"
 	APIErrorMessageRuntimeBusy                = "another workflow run is active"
 	APIErrorMessageRuntimeStopping            = "runtime is stopping"

@@ -39,7 +39,14 @@ func (h *Handler) Start(ctx *gin.Context) {
 		failure := apiresponse.Error{Code: result.Rejection.FailureCode, Message: constants.APIErrorMessageAdmissionFailed,
 			Retryable: result.Rejection.Validation == nil}
 		apiresponse.SetFailure(ctx, failure, nil)
-		ctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, AdmissionErrorResponse{Error: failure, Validation: result.Rejection.Validation})
+		response := AdmissionErrorResponse{Error: failure, Validation: result.Rejection.Validation}
+		for _, issue := range result.Rejection.Unavailable {
+			response.UnavailableDevices = append(response.UnavailableDevices, UnavailableDeviceResponse{
+				Index: issue.Index, ADBSerial: issue.ADBSerial,
+				Reason: apiresponse.Error{Code: issue.Reason.Code, Message: issue.Reason.Message, Retryable: true},
+			})
+		}
+		ctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, response)
 		return
 	}
 	switch result.Disposition {

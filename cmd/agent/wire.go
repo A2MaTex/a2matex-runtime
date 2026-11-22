@@ -56,7 +56,7 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		wire.Bind(new(runs.SnapshotReader), new(*repositories.ExecutionRepository)),
 		runs.NewHandler,
 		newRunAdmission,
-		wire.Bind(new(runadmission.SingleDeviceAdmitter), new(*runadmission.Service)),
+		wire.Bind(new(runadmission.Admitter), new(*runadmission.Service)),
 		wire.Bind(new(runadmission.SnapshotReader), new(*repositories.ExecutionRepository)),
 		wire.Bind(new(runadmission.ExecutionOwner), new(*executionlifecycle.Service)),
 		runadmission.NewStarter,

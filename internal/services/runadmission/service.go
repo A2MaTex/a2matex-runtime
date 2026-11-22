@@ -24,15 +24,6 @@ func New(dependencies Dependencies) (*Service, error) {
 // Admit returns owned work after confirmed commit, even if the request is then
 // cancelled. Its trusted caller must hand that work to owner-bound scheduling.
 func (s *Service) Admit(ctx context.Context, request Request) (Result, error) {
-	return s.admit(ctx, request, 0)
-}
-
-// AdmitSingleDevice applies the G14 MVP limit only after request-ID replay lookup.
-func (s *Service) AdmitSingleDevice(ctx context.Context, request Request) (Result, error) {
-	return s.admit(ctx, request, constants.MaxStartDevices)
-}
-
-func (s *Service) admit(ctx context.Context, request Request, maxDevices int) (Result, error) {
 	if err := contextError(ctx); err != nil {
 		return Result{}, xerror.WithOperation("check_run_admission_context", err)
 	}
@@ -48,9 +39,6 @@ func (s *Service) admit(ctx context.Context, request Request, maxDevices int) (R
 	}
 	if !errors.Is(err, xerror.ErrExecutionNotFound) {
 		return Result{}, xerror.WithOperation("look_up_run_admission", err)
-	}
-	if maxDevices > 0 && len(request.Devices) > maxDevices {
-		return Result{}, xerror.WithOperation("check_run_admission_request", xerror.ErrRunAdmissionInvalid)
 	}
 	serials, inputs, err := requestValues(request)
 	if err != nil {

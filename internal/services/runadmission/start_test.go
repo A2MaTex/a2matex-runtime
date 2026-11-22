@@ -2,7 +2,6 @@ package runadmission_test
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -15,9 +14,9 @@ import (
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
 
-type singleAdmitFunc func(context.Context, runadmission.Request) (runadmission.Result, error)
+type startAdmitFunc func(context.Context, runadmission.Request) (runadmission.Result, error)
 
-func (f singleAdmitFunc) AdmitSingleDevice(ctx context.Context, r runadmission.Request) (runadmission.Result, error) {
+func (f startAdmitFunc) Admit(ctx context.Context, r runadmission.Request) (runadmission.Result, error) {
 	return f(ctx, r)
 }
 
@@ -42,7 +41,7 @@ func (o startOwner) DispatchGroup(id string, worker *runner.Runner, devices []ru
 func TestStartTransfersPreparedGroupWithoutAllocatingRAM(t *testing.T) {
 	for _, name := range []string{"accepted", "dispatch failure", "snapshot failure"} {
 		t.Run(name, func(t *testing.T) {
-			f := fixture(t, 1)
+			f := fixture(t, 3)
 			created, err := service(t, f.deps).Admit(t.Context(), f.req)
 			if err != nil {
 				t.Fatal(err)
@@ -65,7 +64,7 @@ func TestStartTransfersPreparedGroupWithoutAllocatingRAM(t *testing.T) {
 				}
 				return f.repo.SnapshotByID(ctx, id)
 			}}
-			starter, err := runadmission.NewStarter(singleAdmitFunc(func(context.Context, runadmission.Request) (runadmission.Result, error) { return created, nil }), reader, owner)
+			starter, err := runadmission.NewStarter(startAdmitFunc(func(context.Context, runadmission.Request) (runadmission.Result, error) { return created, nil }), reader, owner)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -73,7 +72,7 @@ func TestStartTransfersPreparedGroupWithoutAllocatingRAM(t *testing.T) {
 			if (name == "accepted") != (err == nil) {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(transferred, created.Work.Devices) || len(transferred) != 1 ||
+			if !reflect.DeepEqual(transferred, created.Work.Devices) || len(transferred) != 3 ||
 				transferred[0].VariableStore != nil || transferred[0].Variables.Lookup != nil {
 				t.Fatal("start must transfer prepared work without installing RAM authority")
 			}
@@ -82,30 +81,26 @@ func TestStartTransfersPreparedGroupWithoutAllocatingRAM(t *testing.T) {
 }
 func (o startOwner) Fail(error) { *o.trace = append(*o.trace, "fail") }
 
-func TestSingleDeviceAdmissionRetainsReplayAndInternalCapacity(t *testing.T) {
+func TestMultiDeviceAdmissionRetainsReplay(t *testing.T) {
 	f := fixture(t, 2)
 	s := service(t, f.deps)
-	if _, err := s.AdmitSingleDevice(t.Context(), f.req); !errors.Is(err, xerror.ErrRunAdmissionInvalid) {
-		t.Fatalf("multiple devices: %v", err)
+	created, err := s.Admit(t.Context(), f.req)
+	if err != nil || created.Work == nil || len(created.Work.Devices) != 2 {
+		t.Fatalf("complete admission: %+v %v", created, err)
 	}
-	requireCounts(t, f, 0, 0, 0)
-	request := f.req
-	request.Devices = request.Devices[:1]
-	created, err := s.AdmitSingleDevice(t.Context(), request)
-	if err != nil || created.Work == nil {
-		t.Fatalf("single admission: %+v %v", created, err)
-	}
-	replay, err := s.AdmitSingleDevice(t.Context(), f.req)
+	replacement := f.req
+	replacement.Devices = nil
+	replay, err := s.Admit(t.Context(), replacement)
 	if err != nil || replay.Disposition != constants.AdmissionExisting || replay.Work != nil {
-		t.Fatalf("replacement device semantics: %+v %v", replay, err)
+		t.Fatalf("replacement semantics: %+v %v", replay, err)
 	}
-	requireCounts(t, f, 1, 1, 2)
+	requireCounts(t, f, 1, 2, 3)
 }
 
 func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
-	for _, name := range []string{"created", "disconnect after commit", "snapshot error", "handoff error", "uncertain commit", "broken work", "injected view", "injected store", "existing", "busy"} {
+	for _, name := range []string{"created", "disconnect after commit", "snapshot error", "handoff error", "uncertain commit", "broken work", "injected view", "injected store", "later group", "later duplicate", "existing", "busy"} {
 		t.Run(name, func(t *testing.T) {
-			f := fixture(t, 1)
+			f := fixture(t, 3)
 			created, err := service(t, f.deps).Admit(t.Context(), f.req)
 			if err != nil {
 				t.Fatal(err)
@@ -117,7 +112,7 @@ func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
 			if name == "handoff error" {
 				owner.dispatchErr = xerror.ErrExecutionLifecycleInvalid
 			}
-			admitter := singleAdmitFunc(func(context.Context, runadmission.Request) (runadmission.Result, error) {
+			admitter := startAdmitFunc(func(context.Context, runadmission.Request) (runadmission.Result, error) {
 				trace = append(trace, "admit")
 				switch name {
 				case "disconnect after commit":
@@ -127,7 +122,7 @@ func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
 				case "broken work":
 					return runadmission.Result{Disposition: constants.AdmissionCreated}, nil
 				case "injected view":
-					created.Work.Devices[0].Variables.RunGroupID = created.RunGroupID
+					created.Work.Devices[2].Variables.RunGroupID = created.RunGroupID
 				case "injected store":
 					store, err := variables.New(created.RunGroupID, []string{created.Work.Devices[0].DeviceExecutionID})
 					if err != nil {
@@ -138,7 +133,11 @@ func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
 							t.Error(err)
 						}
 					})
-					created.Work.Devices[0].VariableStore = store
+					created.Work.Devices[2].VariableStore = store
+				case "later group":
+					created.Work.Devices[2].RunGroupID = created.Work.Devices[0].DeviceExecutionID
+				case "later duplicate":
+					created.Work.Devices[2].DeviceExecutionID = created.Work.Devices[0].DeviceExecutionID
 				case "existing":
 					s, _ := f.repo.SnapshotByID(t.Context(), created.RunGroupID)
 					return runadmission.Result{Disposition: constants.AdmissionExisting, Snapshot: &s}, nil
@@ -163,7 +162,7 @@ func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
 			switch name {
 			case "handoff error":
 				want = []string{"reserve", "admit", "dispatch", "fail", "release"}
-			case "uncertain commit", "broken work", "injected view", "injected store":
+			case "uncertain commit", "broken work", "injected view", "injected store", "later group", "later duplicate":
 				want = []string{"reserve", "admit", "fail", "release"}
 			case "existing", "busy":
 				want = []string{"reserve", "admit", "release"}
@@ -183,7 +182,7 @@ func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
 }
 
 func TestStartStopBetweenCommitAndHandoffSettlesQueuedWork(t *testing.T) {
-	f := fixture(t, 1)
+	f := fixture(t, 3)
 	wrapped := wrappedRepository(f)
 	wrapped.admit = func(ctx context.Context, a execution.Admission) (execution.AdmissionResult, error) {
 		r, err := f.repo.Admit(ctx, a)
@@ -210,5 +209,5 @@ func TestStartStopBetweenCommitAndHandoffSettlesQueuedWork(t *testing.T) {
 	if err != nil || snapshot.RunGroup.Status != constants.ExecutionCancelled || f.calls.Load() != 0 {
 		t.Fatalf("settlement: %+v %v", snapshot, err)
 	}
-	requireCounts(t, f, 1, 1, 4)
+	requireCounts(t, f, 1, 3, 8)
 }
