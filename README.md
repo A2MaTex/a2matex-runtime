@@ -58,6 +58,19 @@ Supported command-line overrides:
 The HTTP listener rejects non-loopback addresses.
 Unknown configuration-file keys and invalid values stop startup before the HTTP server is created. Configuration is loaded once; changing the file requires restarting Runtime.
 
+## Studio-managed launch
+
+Studio owns Runtime through two private, directional channels. Linux may pass
+inherited pipe descriptors with `--owner-command-pipe` and
+`--owner-ready-pipe`. Windows uses `--owner-stdio`: child stdin receives the
+single shutdown frame and child stdout publishes exactly one readiness frame.
+In stdio mode application logs are redirected to stderr so readiness credentials
+cannot be mixed with logs. Closing the command channel is treated as owner loss
+and stops Runtime.
+
+The two launch modes are mutually exclusive. They are internal Studio/Runtime
+integration contracts, not user-facing standalone configuration.
+
 ## Commands
 
 ```bash
