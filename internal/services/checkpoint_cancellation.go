@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -14,7 +15,7 @@ import (
 // CancelUnfinished requires accepted cancellation and joined/fenced execution work.
 // The caller supplies the supervisor's bounded completion context.
 func (s *CheckpointService) CancelUnfinished(ctx context.Context, request execution.CancellationRequest) (execution.CancellationResult, error) {
-	if _, bounded := ctx.Deadline(); !bounded || request.Now.IsZero() {
+	if _, bounded := ctx.Deadline(); !bounded || request.Now.IsZero() || (request.RunGroupID != "" && !execution.ValidID(request.RunGroupID)) {
 		return execution.CancellationResult{}, xerror.WithOperation("cancel_unfinished_execution", xerror.ErrExecutionInvalidInput)
 	}
 	if err := s.lockWriter(ctx, true); err != nil {
@@ -23,9 +24,29 @@ func (s *CheckpointService) CancelUnfinished(ctx context.Context, request execut
 	defer func() { <-s.gate }()
 	var result execution.CancellationResult
 	err := s.repository.WithCancellationTx(ctx, func(tx execution.CancellationTx) error {
+		if request.RunGroupID != "" {
+			reader, ok := tx.(execution.CancellationTargetTx)
+			if !ok {
+				return xerror.ErrExecutionLifecycleInvalid
+			}
+			target, err := reader.ReadCancellationTarget(ctx, request.RunGroupID)
+			if err != nil {
+				return err
+			}
+			if target.Status != constants.ExecutionRunning && target.Status != constants.ExecutionPaused {
+				if target.HasUnfinished {
+					return xerror.ErrRecoveryIntegrity
+				}
+				result = execution.CancellationResult{RunGroupID: request.RunGroupID, Status: target.Status}
+				return nil // Confirm this terminal target even if a newer group was admitted.
+			}
+		}
 		state, err := tx.ReadCancellationState(ctx)
 		if err != nil {
 			return err
+		}
+		if request.RunGroupID != "" && state.RunGroupID != request.RunGroupID {
+			return xerror.ErrExecutionStaleState
 		}
 		write, events, err := cancellationPlan(state, request.Now.UTC())
 		if err != nil || write.RunGroupID == "" {
@@ -38,10 +59,13 @@ func (s *CheckpointService) CancelUnfinished(ctx context.Context, request execut
 		if err != nil {
 			return err
 		}
-		result = execution.CancellationResult{RunGroupID: write.RunGroupID, Changed: true, Cursor: cursor}
+		result = execution.CancellationResult{RunGroupID: write.RunGroupID, Changed: true, Cursor: cursor, Status: constants.ExecutionCancelled}
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, xerror.ErrExecutionNotFound) || errors.Is(err, xerror.ErrExecutionStaleState) {
+			return execution.CancellationResult{}, xerror.WithOperation("cancel_unfinished_execution", err)
+		}
 		return execution.CancellationResult{}, s.fail(xerror.WithOperation("cancel_unfinished_execution", err))
 	}
 	return result, nil

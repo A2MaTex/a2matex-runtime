@@ -38,6 +38,42 @@ func cancelRemaining(t *testing.T, service *services.CheckpointService) executio
 	return result
 }
 
+func TestLiveCancellationTargetsExactGroupAndPreservesNewAdmission(t *testing.T) {
+	repo, service, admission := cancellationFixture(t, 2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	before, _ := repo.SnapshotByID(ctx, admission.RunGroupID)
+	missing := execution.CancellationRequest{RunGroupID: testExecutionID(98), Now: time.Now().UTC()}
+	if _, err := service.CancelUnfinished(ctx, missing); !errors.Is(err, xerror.ErrExecutionNotFound) {
+		t.Fatal("missing target", err)
+	}
+	after, _ := repo.SnapshotByID(ctx, admission.RunGroupID)
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("wrong target changed current group", after)
+	}
+	request := execution.CancellationRequest{RunGroupID: admission.RunGroupID, Now: time.Now().UTC()}
+	result, err := service.CancelUnfinished(ctx, request)
+	if err != nil || !result.Changed || result.Status != constants.ExecutionCancelled {
+		t.Fatal(result, err)
+	}
+	settled, _ := repo.SnapshotByID(ctx, admission.RunGroupID)
+	next := testAdmission(10)
+	if _, err := repo.Admit(ctx, next); err != nil {
+		t.Fatal(err)
+	}
+	newBefore, _ := repo.SnapshotByID(ctx, next.RunGroupID)
+	duplicate, err := service.CancelUnfinished(ctx, request)
+	if err != nil || duplicate.Changed || duplicate.Status != constants.ExecutionCancelled || duplicate.RunGroupID != admission.RunGroupID {
+		t.Fatal("terminal exact target", duplicate, err)
+	}
+	newAfter, _ := repo.SnapshotByID(ctx, next.RunGroupID)
+	oldAfter, _ := repo.SnapshotByID(ctx, admission.RunGroupID)
+	settled.Cursor = oldAfter.Cursor // A newer admission advances every snapshot's global watermark.
+	if !reflect.DeepEqual(newBefore, newAfter) || !reflect.DeepEqual(settled, oldAfter) {
+		t.Fatal("late cancellation touched a new group/history")
+	}
+}
+
 func TestCancellationPreservesTerminalHistoryAndRestart(t *testing.T) {
 	for _, gap := range []string{"queued", "between", "retry", "active"} {
 		t.Run(gap, func(t *testing.T) {
