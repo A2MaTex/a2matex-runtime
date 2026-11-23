@@ -114,7 +114,7 @@ func validPreparedWork(id string, work *PreparedRun) bool {
 		view := device.Variables
 		if device.RunGroupID != id || !execution.ValidID(device.DeviceExecutionID) || ids[device.DeviceExecutionID] ||
 			!adb.ValidSerial(device.ADBSerial) || serials[device.ADBSerial] || device.WorkflowInputs == nil ||
-			device.Control != nil || device.VariableStore != nil || view.RunGroupID != "" || view.DeviceExecutionID != "" || view.Lookup != nil {
+			device.Control != nil || device.BeforeAttempt != nil || device.VariableStore != nil || view.RunGroupID != "" || view.DeviceExecutionID != "" || view.Lookup != nil {
 			return false
 		}
 		ids[device.DeviceExecutionID], serials[device.ADBSerial] = true, true

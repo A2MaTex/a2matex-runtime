@@ -98,7 +98,7 @@ func TestMultiDeviceAdmissionRetainsReplay(t *testing.T) {
 }
 
 func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
-	for _, name := range []string{"created", "disconnect after commit", "snapshot error", "handoff error", "uncertain commit", "broken work", "injected view", "injected store", "later group", "later duplicate", "existing", "busy"} {
+	for _, name := range []string{"created", "disconnect after commit", "snapshot error", "handoff error", "uncertain commit", "broken work", "injected view", "injected store", "injected boundary", "later group", "later duplicate", "existing", "busy"} {
 		t.Run(name, func(t *testing.T) {
 			f := fixture(t, 3)
 			created, err := service(t, f.deps).Admit(t.Context(), f.req)
@@ -121,6 +121,8 @@ func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
 					return runadmission.Result{}, xerror.ErrExecutionCommitUnknown
 				case "broken work":
 					return runadmission.Result{Disposition: constants.AdmissionCreated}, nil
+				case "injected boundary":
+					created.Work.Devices[2].BeforeAttempt = func(context.Context, execution.Boundary) (bool, error) { return false, nil }
 				case "injected view":
 					created.Work.Devices[2].Variables.RunGroupID = created.RunGroupID
 				case "injected store":
@@ -162,7 +164,7 @@ func TestStartHandoffOrderingAndFailureFencing(t *testing.T) {
 			switch name {
 			case "handoff error":
 				want = []string{"reserve", "admit", "dispatch", "fail", "release"}
-			case "uncertain commit", "broken work", "injected view", "injected store", "later group", "later duplicate":
+			case "uncertain commit", "broken work", "injected view", "injected store", "injected boundary", "later group", "later duplicate":
 				want = []string{"reserve", "admit", "fail", "release"}
 			case "existing", "busy":
 				want = []string{"reserve", "admit", "release"}

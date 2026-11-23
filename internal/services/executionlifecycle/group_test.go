@@ -106,6 +106,9 @@ func TestNewGroupRejectsInvalidWorkBeforeOwnership(t *testing.T) {
 		"control": func(_ *string, _ **runner.Runner, devices *[]runner.Request) {
 			(*devices)[1].Control = func() attempts.Control { return attempts.Control{} }
 		},
+		"boundary": func(_ *string, _ **runner.Runner, devices *[]runner.Request) {
+			(*devices)[1].BeforeAttempt = func(context.Context, execution.Boundary) (bool, error) { return false, nil }
+		},
 		"view identity": func(_ *string, _ **runner.Runner, devices *[]runner.Request) {
 			(*devices)[1].Variables.DeviceExecutionID = uuid.NewString()
 		},

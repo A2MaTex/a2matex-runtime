@@ -37,6 +37,7 @@ type Request struct {
 	Variables         bindings.VariableView
 	VariableStore     *variables.Store
 	Control           func() attempts.Control
+	BeforeAttempt     func(context.Context, execution.Boundary) (bool, error)
 }
 
 // AttemptEvidence records acknowledgements, not a claim about current SQLite state.
@@ -131,6 +132,16 @@ func (r *Runner) Run(ctx context.Context, request Request) (Result, error) {
 	for {
 		if err := lifecycleError(ctx, request); err != nil {
 			return result, err
+		}
+		if request.BeforeAttempt != nil {
+			resumed, err := request.BeforeAttempt(ctx, execution.Boundary{DeviceExecutionID: request.DeviceExecutionID,
+				Status: expected, NextNodeID: result.NextNodeID, Sequence: result.LastAttempt.Sequence, AttemptID: result.LastAttempt.Ref.AttemptID})
+			if err != nil {
+				return result, xerror.WithOperation("await_attempt_permission", err)
+			}
+			if resumed {
+				expected = constants.ExecutionQueued
+			}
 		}
 		node, exists := r.nodes[result.NextNodeID]
 		if !exists || (number == 1 && visited[node.ID]) {

@@ -204,7 +204,12 @@ func (c completionCheckpoints) FinishAttempt(ctx context.Context, req execution.
 	return result, err
 }
 
-func sqliteGroup(t *testing.T, count int, handler registry.Handler) (*Service, *runner.Runner, []runner.Request, *repositories.ExecutionRepository, <-chan string) {
+type groupTestOptions struct {
+	wrap         func(*repositories.ExecutionRepository) execution.CheckpointRepository
+	expectedStop error
+}
+
+func sqliteGroup(t *testing.T, count int, handler registry.Handler, options ...groupTestOptions) (*Service, *runner.Runner, []runner.Request, *repositories.ExecutionRepository, <-chan string) {
 	t.Helper()
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", root)
@@ -214,7 +219,15 @@ func sqliteGroup(t *testing.T, count int, handler registry.Handler) (*Service, *
 		t.Fatal(err)
 	}
 	repo := repositories.NewExecutionRepository(store)
-	cp := services.NewCheckpointService(repo, nil)
+	var option groupTestOptions
+	if len(options) > 0 {
+		option = options[0]
+	}
+	var writerRepository execution.CheckpointRepository = repo
+	if option.wrap != nil {
+		writerRepository = option.wrap(repo)
+	}
+	cp := services.NewCheckpointService(writerRepository, nil)
 	l := New(cp)
 	if err := l.Start(t.Context()); err != nil {
 		t.Fatal(err)
@@ -223,7 +236,7 @@ func sqliteGroup(t *testing.T, count int, handler registry.Handler) (*Service, *
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		l.PrepareStop(constants.ExecutionStopOwnerLost, time.Now().Add(2*time.Second))
-		if err := l.Shutdown(ctx); err != nil {
+		if err := l.Shutdown(ctx); !errors.Is(err, option.expectedStop) {
 			t.Error(err)
 		}
 		if err := cp.Shutdown(ctx); err != nil {

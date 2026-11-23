@@ -61,6 +61,15 @@ const (
 
 type AdmissionDisposition string
 
+type GroupControlDisposition string
+
+const (
+	GroupControlAccepted      GroupControlDisposition = "ACCEPTED"
+	GroupControlCommitted     GroupControlDisposition = "COMMITTED"
+	GroupControlAlreadyTarget GroupControlDisposition = "ALREADY_TARGET"
+	GroupControlStale         GroupControlDisposition = "STALE"
+)
+
 const (
 	AdmissionCreated  AdmissionDisposition = "CREATED"
 	AdmissionExisting AdmissionDisposition = "EXISTING"

@@ -1,0 +1,110 @@
+{
+  "editorGraph": {
+    "schemaVersion": 1,
+    "entryNodeId": "start",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "flow.start",
+        "config": {},
+        "bindings": {},
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": "delay_1",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 5000
+          }
+        },
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 200,
+          "y": 0
+        }
+      },
+      {
+        "id": "home",
+        "type": "android.press_home",
+        "config": {},
+        "bindings": {},
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 400,
+          "y": 0
+        }
+      },
+      {
+        "id": "delay_2",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 1000
+          }
+        },
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 600,
+          "y": 0
+        }
+      },
+      {
+        "id": "end",
+        "type": "flow.end",
+        "config": {},
+        "bindings": {},
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 800,
+          "y": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "sourceNodeId": "start",
+        "sourcePort": "success",
+        "targetNodeId": "delay_1"
+      },
+      {
+        "id": "e2",
+        "sourceNodeId": "delay_1",
+        "sourcePort": "success",
+        "targetNodeId": "home"
+      },
+      {
+        "id": "e3",
+        "sourceNodeId": "home",
+        "sourcePort": "success",
+        "targetNodeId": "delay_2"
+      },
+      {
+        "id": "e4",
+        "sourceNodeId": "delay_2",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      }
+    ]
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  }
+}
