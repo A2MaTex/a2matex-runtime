@@ -1,0 +1,115 @@
+{
+  "editorGraph": {
+    "schemaVersion": 1,
+    "entryNodeId": "start",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "flow.start",
+        "config": {},
+        "bindings": {},
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": "wait",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "WORKFLOW_INPUT",
+            "inputName": "delayMs"
+          }
+        },
+        "timeoutMs": 15000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 200,
+          "y": 0
+        }
+      },
+      {
+        "id": "home",
+        "type": "android.press_home",
+        "config": {},
+        "bindings": {},
+        "timeoutMs": 15000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 400,
+          "y": 0
+        }
+      },
+      {
+        "id": "capture",
+        "type": "android.screenshot",
+        "config": {
+          "targetMode": "FULL_SCREEN"
+        },
+        "bindings": {},
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 600,
+          "y": 0
+        }
+      },
+      {
+        "id": "end",
+        "type": "flow.end",
+        "config": {},
+        "bindings": {},
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 800,
+          "y": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "sourceNodeId": "start",
+        "sourcePort": "success",
+        "targetNodeId": "wait"
+      },
+      {
+        "id": "e2",
+        "sourceNodeId": "wait",
+        "sourcePort": "success",
+        "targetNodeId": "home"
+      },
+      {
+        "id": "e3",
+        "sourceNodeId": "home",
+        "sourcePort": "success",
+        "targetNodeId": "capture"
+      },
+      {
+        "id": "e4",
+        "sourceNodeId": "capture",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      }
+    ]
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "delayMs": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    },
+    "required": [
+      "delayMs"
+    ],
+    "additionalProperties": false
+  }
+}

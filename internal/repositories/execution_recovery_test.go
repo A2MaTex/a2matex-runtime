@@ -55,6 +55,40 @@ func recoverStartup(t *testing.T, repo *ExecutionRepository) error {
 	return service.Start(t.Context())
 }
 
+func TestRecoveryCompleteGroupAcrossEventBatches(t *testing.T) {
+	repo := recoveryFixture(t)
+	admission := testAdmission(0)
+	admission.Devices = make([]execution.AdmissionDevice, 128)
+	for i := range admission.Devices {
+		admission.Devices[i] = execution.AdmissionDevice{DeviceExecutionID: testExecutionID(200 + i),
+			ADBSerial: fmt.Sprintf("h14-device-%d", i), EntryNodeID: "start_01"}
+	}
+	if _, err := repo.Admit(t.Context(), admission); err != nil {
+		t.Fatal(err)
+	}
+	repo = restartRecoveryStore(t, repo)
+	if err := recoverStartup(t, repo); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repo.SnapshotByID(t.Context(), admission.RunGroupID)
+	if err != nil || snapshot.RunGroup.Status != constants.ExecutionInterrupted || snapshot.RunGroup.Summary.Interrupted != 128 || len(snapshot.DeviceExecutions) != 128 || snapshot.Cursor != "258" {
+		t.Fatal("recovery truncated membership or events", snapshot, err)
+	}
+	for _, device := range snapshot.DeviceExecutions {
+		if device.StartedAt != nil || device.NextNodeID != nil || device.FinishedAt == nil {
+			t.Fatal("fabricated queued progress", device)
+		}
+	}
+	repo = restartRecoveryStore(t, repo)
+	if err := recoverStartup(t, repo); err != nil {
+		t.Fatal(err)
+	}
+	again, err := repo.SnapshotByID(t.Context(), admission.RunGroupID)
+	if err != nil || !reflect.DeepEqual(snapshot, again) {
+		t.Fatal("second recovery rewrote history", again, err)
+	}
+}
+
 func TestRecoveryReopensInterruptedTapExactlyOnce(t *testing.T) {
 	repo := recoveryFixture(t)
 	admission := testAdmission(0)

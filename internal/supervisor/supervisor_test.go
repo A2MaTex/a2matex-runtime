@@ -241,6 +241,31 @@ func testApp(components ...*fakeLifecycle) *App {
 	}
 }
 
+func TestFailedExecutionShutdownDoesNotLogCompletion(t *testing.T) {
+	t.Parallel()
+	for _, failure := range []error{context.DeadlineExceeded, errors.New("controlled settlement failure")} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			worker := newFakeLifecycle("execution_lifecycle", nil)
+			worker.shutdownErr = failure
+			application := testApp(worker)
+			logs := newLockedBuffer()
+			application.logger = slog.New(slog.NewJSONHandler(logs, nil))
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			result := make(chan error, 1)
+			go func() { result <- application.Run(ctx) }()
+			waitForLogEvent(t, logs, `"event":"runtime_ready"`)
+			cancel()
+			if err := receiveRunResult(t, result); !errors.Is(err, failure) {
+				t.Fatal("shutdown lost original failure", err)
+			}
+			if strings.Contains(logs.String(), "execution_shutdown_completed") || strings.Contains(logs.String(), `"event":"runtime_stopped"`) {
+				t.Fatal("failed shutdown reported clean completion", logs.String())
+			}
+		})
+	}
+}
+
 type fakeLifecycle struct {
 	name         string
 	startErr     error

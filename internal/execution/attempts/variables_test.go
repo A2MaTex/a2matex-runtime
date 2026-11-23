@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
 	"github.com/A2MaTex/a2matex-runtime/internal/execution/bindings"
@@ -444,6 +445,126 @@ func TestAssignmentRealSQLiteFaultBoundary(t *testing.T) {
 			}
 			if name != "transaction rollback" && fault.writes != 2 {
 				t.Fatal("checkpoint was retried", fault.writes)
+			}
+		})
+	}
+}
+
+type heldVariableCheckpoint struct {
+	Checkpoints
+	entered, release chan struct{}
+}
+
+func (c heldVariableCheckpoint) FinishAttempt(ctx context.Context, r execution.FinishAttemptRequest) (execution.CheckpointResult, error) {
+	close(c.entered)
+	select {
+	case <-ctx.Done():
+		return execution.CheckpointResult{}, ctx.Err()
+	case <-c.release:
+		return c.Checkpoints.FinishAttempt(ctx, r)
+	}
+}
+
+func TestAssignmentCrossDevicePublicationWithSQLite(t *testing.T) {
+	for _, rollback := range []bool{false, true} {
+		name := "ordered confirmed replacements"
+		if rollback {
+			name = "rollback fences competing reader"
+		}
+		t.Run(name, func(t *testing.T) {
+			r := variableRequest(t)
+			readerID := uuid.NewString()
+			store, err := variables.New(r.Ref.RunGroupID, []string{r.Ref.DeviceExecutionID, readerID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close(context.Background())
+			r.VariableStore = store
+			r.Node.Config["scope"] = []byte(`"RUN_GROUP"`)
+			r.Node.ID, r.Ref.NodeID = "assign_0", "assign_0"
+			doc := ir.Document{Nodes: []ir.Node{{ID: "end", Type: constants.EndNodeType, ErrorPolicy: constants.ErrorPolicyStop}}}
+			for i := range 3 {
+				n := r.Node
+				n.ID = fmt.Sprintf("assign_%d", i)
+				doc.Nodes = append(doc.Nodes, n)
+				next := "end"
+				if i < 2 {
+					next = fmt.Sprintf("assign_%d", i+1)
+				}
+				doc.Edges = append(doc.Edges, ir.Edge{SourceNodeID: n.ID, SourcePort: constants.NodeSuccessPort, TargetNodeID: next})
+			}
+			routes, err := routing.New(t.Context(), doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			repo, normal, db := storeFixture(t, r)
+			for i, value := range []string{"10", "20", "30"} {
+				r.Ref.AttemptID = uuid.NewString()
+				r.Node.ID, r.Ref.NodeID = fmt.Sprintf("assign_%d", i), fmt.Sprintf("assign_%d", i)
+				r.Node.Inputs["value"] = []byte(`{"source":"LITERAL","value":` + value + `}`)
+				if i > 0 {
+					r.ExpectedDeviceStatus = constants.ExecutionRunning
+				}
+				var cp Checkpoints = normal
+				var gate heldVariableCheckpoint
+				if i == 1 {
+					if rollback {
+						if _, err := db.DB().ExecContext(t.Context(), `CREATE TRIGGER h15_rollback BEFORE UPDATE ON node_attempts WHEN NEW.node_id='assign_1' AND NEW.status='SUCCEEDED' BEGIN SELECT RAISE(ABORT, 'controlled H15 rollback'); END`); err != nil {
+							t.Fatal(err)
+						}
+					}
+					gate = heldVariableCheckpoint{Checkpoints: normal, entered: make(chan struct{}), release: make(chan struct{})}
+					defer func() {
+						select {
+						case <-gate.release:
+						default:
+							close(gate.release)
+						}
+					}()
+					cp = gate
+				}
+				deps := dependencies(t, r, setvariable.Invoke, cp)
+				deps.Routes = routes
+				c := coordinator(t, deps)
+				done := make(chan error, 1)
+				go func(request Request) {
+					_, err := c.Run(t.Context(), request)
+					done <- err
+				}(r)
+				if i == 1 {
+					select {
+					case <-gate.entered:
+					case <-time.After(time.Second):
+						t.Fatal("assignment did not reach checkpoint gate")
+					}
+					ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+					_, found, readErr := store.Get(ctx, readerID, constants.VariableScopeRunGroup, "score")
+					cancel()
+					close(gate.release)
+					if found || !errors.Is(readErr, context.DeadlineExceeded) {
+						t.Fatal("reader observed an unconfirmed candidate", found, readErr)
+					}
+				}
+				select {
+				case err := <-done:
+					if rollback && i == 1 {
+						_, found, readErr := store.Get(t.Context(), readerID, constants.VariableScopeRunGroup, "score")
+						rows := storedAttempts(t, repo, r)
+						if err == nil || found || !errors.Is(readErr, xerror.ErrVariableUnavailable) || len(rows) != 2 || rows[0].Status != constants.ExecutionSucceeded || rows[1].Status != constants.ExecutionRunning {
+							t.Fatal("rollback published or rewrote confirmed history", err, found, readErr, rows)
+						}
+						return
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+				case <-time.After(time.Second):
+					t.Fatal("assignment did not join")
+				}
+				got, found, err := store.Get(t.Context(), readerID, constants.VariableScopeRunGroup, "score")
+				if err != nil || !found || string(got) != value {
+					t.Fatal("other device did not see last confirmed replacement", string(got), found, err)
+				}
 			}
 		})
 	}

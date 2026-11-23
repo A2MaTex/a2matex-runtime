@@ -263,3 +263,66 @@ func assertCommandError(t *testing.T, err error, code string, retryable bool) {
 		t.Fatalf("error = %#v, want %s with retryable=%t", err, code, retryable)
 	}
 }
+
+func TestTransportObservationMappingAndContextPrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name, listing, code string
+		observationFails    bool
+		cancel              bool
+		deadline            bool
+	}{
+		{name: "missing", code: constants.DeviceDisconnected},
+		{name: "connected keeps original", listing: "emulator-5554\tdevice\n", code: constants.CommandFailed},
+		{name: "offline", listing: "emulator-5554\toffline\n", code: constants.DeviceOffline},
+		{name: "unauthorized", listing: "emulator-5554\tunauthorized\n", code: constants.DeviceUnauthorized},
+		{name: "failed diagnostic cannot prove loss", observationFails: true, code: constants.CommandFailed},
+		{name: "cancel during diagnostic", cancel: true},
+		{name: "deadline during diagnostic", deadline: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			budget := time.Second
+			if tc.deadline {
+				budget = 50 * time.Millisecond
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), budget)
+			defer cancel()
+			resolver := NewResolver(config.ADBConfig{})
+			resolver.verified.Executable = "verified executable"
+			actions, observations := 0, 0
+			resolver.run = func(_ context.Context, _ string, args []string, _ time.Duration) processrunner.Result {
+				zero, one := 0, 1
+				if reflect.DeepEqual(args, []string{"devices", "-l"}) {
+					observations++
+					if tc.cancel {
+						cancel()
+					}
+					if tc.deadline {
+						<-ctx.Done()
+					}
+					if tc.observationFails {
+						return processrunner.Result{Outcome: processrunner.NonzeroExit, ExitCode: &one}
+					}
+					return processrunner.Result{Outcome: processrunner.Succeeded, ExitCode: &zero,
+						Stdout: []byte("List of devices attached\n" + tc.listing)}
+				}
+				actions++
+				return processrunner.Result{Outcome: processrunner.NonzeroExit, ExitCode: &one}
+			}
+			err := NewDispatcher(resolver).Dispatch(ctx, "emulator-5554", PressHomeCommand{})
+			if tc.cancel || tc.deadline {
+				want := context.Canceled
+				if tc.deadline {
+					want = context.DeadlineExceeded
+				}
+				if !errors.Is(err, want) {
+					t.Fatal("diagnostic replaced owner cancellation/deadline", err)
+				}
+			} else {
+				assertCommandError(t, err, tc.code, false)
+			}
+			if actions != 1 || observations != 1 {
+				t.Fatal("transport diagnosis repeated the action", actions, observations)
+			}
+		})
+	}
+}

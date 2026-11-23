@@ -1,0 +1,330 @@
+{
+  "editorGraph": {
+    "schemaVersion": 1,
+    "entryNodeId": "start",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "flow.start",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 0,
+          "y": 0
+        },
+        "timeoutMs": 10000,
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "home",
+        "type": "android.press_home",
+        "config": {},
+        "bindings": {},
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 180,
+          "y": 0
+        },
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "set_score",
+        "type": "flow.set_variable",
+        "config": {
+          "scope": "FLOW",
+          "name": "score"
+        },
+        "bindings": {
+          "value": {
+            "kind": "WORKFLOW_INPUT",
+            "inputName": "score"
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 360,
+          "y": 0
+        },
+        "timeoutMs": 10000,
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "set_threshold",
+        "type": "flow.set_variable",
+        "config": {
+          "scope": "RUN_GROUP",
+          "name": "threshold"
+        },
+        "bindings": {
+          "value": {
+            "kind": "LITERAL",
+            "value": 50
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 540,
+          "y": 0
+        },
+        "timeoutMs": 10000,
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "hold",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "WORKFLOW_INPUT",
+            "inputName": "holdMs"
+          }
+        },
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 720,
+          "y": 0
+        },
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "choose",
+        "type": "flow.switch",
+        "config": {
+          "rules": [
+            {
+              "id": "bfbb31bc-d4b5-44ec-b9eb-a09d68e74083",
+              "operator": "LT"
+            }
+          ]
+        },
+        "bindings": {
+          "value": {
+            "kind": "FLOW_VARIABLE",
+            "name": "score"
+          },
+          "bfbb31bc-d4b5-44ec-b9eb-a09d68e74083": {
+            "kind": "GLOBAL_VARIABLE",
+            "name": "threshold"
+          }
+        },
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 900,
+          "y": 0
+        },
+        "timeoutMs": 10000,
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "low_wait",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 100
+          }
+        },
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 1080,
+          "y": 0
+        },
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "high_wait",
+        "type": "flow.delay",
+        "config": {},
+        "bindings": {
+          "durationMs": {
+            "kind": "LITERAL",
+            "value": 200
+          }
+        },
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 1260,
+          "y": 100
+        },
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "capture",
+        "type": "android.screenshot",
+        "config": {
+          "targetMode": "FULL_SCREEN"
+        },
+        "bindings": {},
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 1440,
+          "y": 0
+        },
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "remember_capture",
+        "type": "flow.set_variable",
+        "config": {
+          "scope": "FLOW",
+          "name": "capture_ref"
+        },
+        "bindings": {
+          "value": {
+            "kind": "NODE_OUTPUT",
+            "nodeId": "capture",
+            "field": "artifactId"
+          }
+        },
+        "timeoutMs": 10000,
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 1620,
+          "y": 0
+        },
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "end",
+        "type": "flow.end",
+        "config": {},
+        "bindings": {},
+        "errorPolicy": "STOP",
+        "editor": {
+          "x": 1800,
+          "y": 0
+        },
+        "timeoutMs": 10000,
+        "retryPolicy": {
+          "maxAttempts": 1,
+          "delayMs": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "sourceNodeId": "start",
+        "sourcePort": "success",
+        "targetNodeId": "home"
+      },
+      {
+        "id": "e2",
+        "sourceNodeId": "home",
+        "sourcePort": "success",
+        "targetNodeId": "set_score"
+      },
+      {
+        "id": "e3",
+        "sourceNodeId": "set_score",
+        "sourcePort": "success",
+        "targetNodeId": "set_threshold"
+      },
+      {
+        "id": "e4",
+        "sourceNodeId": "set_threshold",
+        "sourcePort": "success",
+        "targetNodeId": "hold"
+      },
+      {
+        "id": "e5",
+        "sourceNodeId": "hold",
+        "sourcePort": "success",
+        "targetNodeId": "choose"
+      },
+      {
+        "id": "e6",
+        "sourceNodeId": "choose",
+        "sourcePort": "bfbb31bc-d4b5-44ec-b9eb-a09d68e74083",
+        "targetNodeId": "low_wait"
+      },
+      {
+        "id": "e7",
+        "sourceNodeId": "choose",
+        "sourcePort": "default",
+        "targetNodeId": "high_wait"
+      },
+      {
+        "id": "e8",
+        "sourceNodeId": "low_wait",
+        "sourcePort": "success",
+        "targetNodeId": "capture"
+      },
+      {
+        "id": "e9",
+        "sourceNodeId": "high_wait",
+        "sourcePort": "success",
+        "targetNodeId": "capture"
+      },
+      {
+        "id": "e10",
+        "sourceNodeId": "capture",
+        "sourcePort": "success",
+        "targetNodeId": "remember_capture"
+      },
+      {
+        "id": "e11",
+        "sourceNodeId": "remember_capture",
+        "sourcePort": "success",
+        "targetNodeId": "end"
+      }
+    ]
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      },
+      "holdMs": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 5000
+      }
+    },
+    "required": [
+      "score",
+      "holdMs"
+    ],
+    "additionalProperties": false
+  }
+}

@@ -431,3 +431,46 @@ func TestGroupFatalFenceRetiresUnstartedWork(t *testing.T) {
 		t.Fatal("shutdown lost the first failure", err)
 	}
 }
+
+func TestGroupStopBeforeCommittedHandoffSettlesEveryMember(t *testing.T) {
+	l, worker, devices, repo, _ := sqliteGroup(t, 2, func(context.Context, registry.Invocation) (map[string]any, error) {
+		t.Error("handoff dispatched after intentional stop")
+		return nil, nil
+	})
+	release, err := l.BeginAdmission(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	deadline := time.Now().Add(time.Second)
+	l.PrepareStop(constants.ExecutionStopIntentional, deadline)
+	finished := make(chan error, 1)
+	go func() { finished <- l.Shutdown(t.Context()) }()
+	// The fixture has committed admission; its still-held lease represents the handoff gap.
+	if err := l.DispatchGroup(devices[0].RunGroupID, worker, devices); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-finished:
+		t.Fatal("shutdown bypassed admitted handoff lease", err)
+	default:
+	}
+	before, err := repo.SnapshotByID(t.Context(), devices[0].RunGroupID)
+	if err != nil || before.RunGroup.Summary.Queued != 2 {
+		t.Fatal("settled before lease drained", before, err)
+	}
+	release()
+	if err := awaitGroupValue(t, finished); err != nil {
+		t.Fatal(err)
+	}
+	after, err := repo.SnapshotByID(t.Context(), devices[0].RunGroupID)
+	if err != nil || after.RunGroup.Summary.Cancelled != 2 {
+		t.Fatal("queued selection escaped settlement", after, err)
+	}
+	for _, device := range after.DeviceExecutions {
+		page, err := repo.Attempts(t.Context(), device.ID, 0, 0)
+		if err != nil || len(page.Attempts) != 0 || device.StartedAt != nil {
+			t.Fatal("fabricated queued progress", device, page, err)
+		}
+	}
+}

@@ -1,0 +1,18 @@
+{
+  "devices": [
+    {
+      "adbSerial": "REPLACE_WITH_FIRST_SERIAL",
+      "inputs": {
+        "score": 25,
+        "holdMs": 0
+      }
+    },
+    {
+      "adbSerial": "REPLACE_WITH_SECOND_SERIAL",
+      "inputs": {
+        "score": 75,
+        "holdMs": 0
+      }
+    }
+  ]
+}
