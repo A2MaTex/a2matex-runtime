@@ -54,6 +54,7 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		sqlitestore.New,
 		repositories.NewExecutionRepository,
 		wire.Bind(new(runs.SnapshotReader), new(*repositories.ExecutionRepository)),
+		wire.Bind(new(runs.Controller), new(*executionlifecycle.Service)),
 		runs.NewHandler,
 		newRunAdmission,
 		wire.Bind(new(runadmission.Admitter), new(*runadmission.Service)),

@@ -18,15 +18,7 @@ import (
 
 func readStart(ctx *gin.Context) (StartRequest, bool) {
 	r := ctx.Request
-	media, parameters, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	valid := err == nil && media == "application/json" && r.URL.RawQuery == ""
-	for name, value := range parameters {
-		valid = valid && name == "charset" && strings.EqualFold(value, "utf-8")
-	}
-	for _, encoding := range r.Header.Values("Content-Encoding") {
-		valid = valid && strings.TrimSpace(encoding) == ""
-	}
-	if !valid || r.Body == nil {
+	if !validJSONRequest(r) {
 		startError(ctx, nil)
 		return StartRequest{}, false
 	}
@@ -55,6 +47,18 @@ func readStart(ctx *gin.Context) (StartRequest, bool) {
 		return StartRequest{}, false
 	}
 	return request, true
+}
+
+func validJSONRequest(r *http.Request) bool {
+	media, parameters, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	valid := err == nil && media == "application/json" && r.URL.RawQuery == "" && r.Body != nil
+	for name, value := range parameters {
+		valid = valid && name == "charset" && strings.EqualFold(value, "utf-8")
+	}
+	for _, encoding := range r.Header.Values("Content-Encoding") {
+		valid = valid && strings.TrimSpace(encoding) == ""
+	}
+	return valid
 }
 
 func decodeStart(body []byte) (StartRequest, bool) {

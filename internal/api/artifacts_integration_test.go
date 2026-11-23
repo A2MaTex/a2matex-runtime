@@ -67,7 +67,7 @@ func TestArtifactDownloadOfG19CommittedPNG(t *testing.T) {
 				t.Fatal(err)
 			}
 			f.token = session.ConnectionToken()
-			f.router = newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(f.repo, nil), artifacts.NewHandler(storage, logger), nil, logger)
+			f.router = newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(f.repo, nil, nil), artifacts.NewHandler(storage, logger), nil, logger)
 			get := func(id string) *httptest.ResponseRecorder {
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+id, nil)
 				req.Header.Set("Authorization", "Bearer "+f.token)

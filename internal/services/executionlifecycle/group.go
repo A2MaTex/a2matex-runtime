@@ -19,14 +19,24 @@ import (
 
 // groupExecution owns live resources, not a second copy of persisted run state.
 type groupExecution struct {
-	id      string
-	ctx     context.Context
-	cancel  context.CancelFunc
-	worker  *runner.Runner
-	devices []runner.Request
-	store   *variables.Store
-	queue   *deviceQueue
-	done    chan struct{}
+	id           string
+	ctx          context.Context
+	cancel       context.CancelFunc
+	worker       *runner.Runner
+	devices      []runner.Request
+	store        *variables.Store
+	queue        *deviceQueue
+	done         chan struct{}
+	registered   bool
+	live         int
+	paused       bool
+	control      *groupControl
+	boundaries   map[string]execution.Boundary
+	changed      chan struct{}
+	resume       chan struct{}
+	controls     sync.WaitGroup
+	retiring     bool
+	cancellation *groupCancellation
 }
 
 func newGroup(ctx context.Context, id string, worker *runner.Runner, devices []runner.Request) (*groupExecution, error) {
@@ -43,7 +53,7 @@ func newGroup(ctx context.Context, id string, worker *runner.Runner, devices []r
 		view := device.Variables
 		if device.RunGroupID != id || !execution.ValidID(device.DeviceExecutionID) || seenIDs[device.DeviceExecutionID] ||
 			!adb.ValidSerial(device.ADBSerial) || seenSerials[device.ADBSerial] || device.WorkflowInputs == nil ||
-			device.Control != nil || device.VariableStore != nil || view.RunGroupID != "" || view.DeviceExecutionID != "" || view.Lookup != nil {
+			device.Control != nil || device.BeforeAttempt != nil || device.VariableStore != nil || view.RunGroupID != "" || view.DeviceExecutionID != "" || view.Lookup != nil {
 			return invalid()
 		}
 		ids[i], seenIDs[device.DeviceExecutionID], seenSerials[device.ADBSerial] = device.DeviceExecutionID, true, true
@@ -70,7 +80,8 @@ func newGroup(ctx context.Context, id string, worker *runner.Runner, devices []r
 			}}
 	}
 	groupCtx, cancel := context.WithCancel(ctx)
-	return &groupExecution{id: id, ctx: groupCtx, cancel: cancel, worker: worker, devices: owned, store: store, queue: queue, done: make(chan struct{})}, nil
+	return &groupExecution{id: id, ctx: groupCtx, cancel: cancel, worker: worker, devices: owned, store: store, queue: queue, done: make(chan struct{}),
+		boundaries: make(map[string]execution.Boundary), changed: make(chan struct{}, 1)}, nil
 }
 
 // close runs only after execution and its synchronous checkpoint callbacks return.
@@ -165,6 +176,7 @@ func (l *Service) startGroup(g *groupExecution) error {
 		index, ok := g.queue.take()
 		if !ok {
 			if g.queue.next == len(g.queue.members) {
+				g.registered = true
 				l.mu.Unlock()
 				return nil
 			}
@@ -175,6 +187,9 @@ func (l *Service) startGroup(g *groupExecution) error {
 			return err
 		}
 		device := g.devices[index]
+		device.BeforeAttempt = func(ctx context.Context, boundary execution.Boundary) (bool, error) {
+			return l.awaitBoundary(ctx, g, boundary)
+		}
 		if _, exists := l.workers[device.DeviceExecutionID]; exists {
 			err := lifecycleError(operation, errors.Join(xerror.ErrExecutionStaleState, g.queue.release(device.DeviceExecutionID)))
 			l.recordFailure(err)
@@ -184,6 +199,7 @@ func (l *Service) startGroup(g *groupExecution) error {
 		}
 		ctx, cancel := context.WithCancel(g.ctx)
 		l.workers[device.DeviceExecutionID] = cancel
+		g.live++
 		workers.Add(1)
 		l.mu.Unlock()
 		go func() {
@@ -206,6 +222,7 @@ func (l *Service) startGroup(g *groupExecution) error {
 func (l *Service) retireGroup(g *groupExecution, workers *sync.WaitGroup) {
 	workers.Wait()
 	l.mu.Lock()
+	g.retiring = true // No control registration may race the final join.
 	valid := l.group == g && len(g.queue.active) == 0
 	for _, id := range g.queue.members {
 		if _, exists := l.workers[id]; exists {
@@ -219,8 +236,14 @@ func (l *Service) retireGroup(g *groupExecution, workers *sync.WaitGroup) {
 	if !valid {
 		l.Fail(lifecycleError("retire_execution_group", xerror.ErrExecutionStaleState))
 	}
+	g.controls.Wait()
+	l.settleGroupCancellation(g)
 	// The last returning member cannot close RAM while siblings/callbacks use it.
-	_ = l.cleanupRun(g.ctx, g.close) // Cleanup failures are published before retirement.
+	cleanup, cancelCleanup := l.groupCleanupContext(g)
+	if err := g.close(cleanup); err != nil {
+		l.Fail(err)
+	}
+	cancelCleanup()
 	g.cancel()
 	l.mu.Lock()
 	current := l.group == g
@@ -229,6 +252,13 @@ func (l *Service) retireGroup(g *groupExecution, workers *sync.WaitGroup) {
 	} else {
 		l.recordFailure(lifecycleError("retire_execution_group", xerror.ErrExecutionStaleState))
 	}
+	if op := g.cancellation; op != nil {
+		op.finished = true
+		op.timer.Stop()
+		op.release()
+		l.admissions--
+	}
+	g.boundaries = nil
 	close(g.done)
 	l.signalDrained()
 	l.mu.Unlock()

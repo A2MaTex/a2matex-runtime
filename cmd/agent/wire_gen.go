@@ -69,7 +69,7 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	if err != nil {
 		return nil, err
 	}
-	runsHandler := runs.NewHandler(executionRepository, startService)
+	runsHandler := runs.NewHandler(executionRepository, startService, executionlifecycleService)
 	artifactsHandler := artifacts.NewHandler(artifactService, logger)
 	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, artifactsHandler, registryRegistry, logger)
 	server := httpserver.New(cfg, httpHandler)

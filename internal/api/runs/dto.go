@@ -11,6 +11,15 @@ import (
 // SnapshotResponse is the existing A7 projection, detached from its read transaction.
 type SnapshotResponse = execution.Snapshot
 
+type ActionRequest struct {
+	Action string `json:"action"`
+}
+
+type ActionConflictResponse struct {
+	Error    apiresponse.Error `json:"error"`
+	Snapshot SnapshotResponse  `json:"snapshot"`
+}
+
 type StartRequest struct {
 	RequestID string             `json:"requestId"`
 	RuntimeIR json.RawMessage    `json:"runtimeIr"`

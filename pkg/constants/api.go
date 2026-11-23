@@ -9,23 +9,31 @@ const (
 	RuntimeIRMaxContentBytes                = 1024 * 1024
 	RuntimeIRFormatVersion                  = 1
 	CacheControlNoStore                     = "no-store"
+	RunActionMaxContentBytes                = 1024
 
-	APIErrorCodeInvalidRequest   = "INVALID_REQUEST"
-	APIErrorCodeUnauthorized     = "UNAUTHORIZED"
-	APIErrorCodeResourceNotFound = "RESOURCE_NOT_FOUND"
-	APIErrorCodePayloadTooLarge  = "PAYLOAD_TOO_LARGE"
-	APIErrorCodeInternal         = InternalError
-	APIErrorCodeADBUnavailable   = ADBUnavailable
-	APIErrorCodeRuntimeBusy      = "RUNTIME_BUSY"
+	RunActionPause  = "PAUSE"
+	RunActionResume = "RESUME"
+	RunActionCancel = "CANCEL"
 
-	APIErrorMessageInvalidRequest     = "request is invalid"
-	APIErrorMessageUnauthorized       = "local session token is missing or invalid"
-	APIErrorMessageResourceNotFound   = "resource was not found"
-	APIErrorMessagePayloadTooLarge    = "request payload is too large"
-	APIErrorMessageInternal           = "internal server error"
-	APIErrorMessageADBUnavailable     = "unable to refresh Android devices"
-	APIErrorMessageSnapshotReadFailed = "unable to read execution snapshot"
-	APIErrorMessageArtifactReadFailed = "unable to read screenshot artifact"
+	APIErrorCodeInvalidRequest        = "INVALID_REQUEST"
+	APIErrorCodeUnauthorized          = "UNAUTHORIZED"
+	APIErrorCodeResourceNotFound      = "RESOURCE_NOT_FOUND"
+	APIErrorCodePayloadTooLarge       = "PAYLOAD_TOO_LARGE"
+	APIErrorCodeInternal              = InternalError
+	APIErrorCodeADBUnavailable        = ADBUnavailable
+	APIErrorCodeRuntimeBusy           = "RUNTIME_BUSY"
+	APIErrorCodeInvalidExecutionState = "INVALID_EXECUTION_STATE"
+
+	APIErrorMessageInvalidRequest        = "request is invalid"
+	APIErrorMessageUnauthorized          = "local session token is missing or invalid"
+	APIErrorMessageResourceNotFound      = "resource was not found"
+	APIErrorMessagePayloadTooLarge       = "request payload is too large"
+	APIErrorMessageInternal              = "internal server error"
+	APIErrorMessageADBUnavailable        = "unable to refresh Android devices"
+	APIErrorMessageSnapshotReadFailed    = "unable to read execution snapshot"
+	APIErrorMessageArtifactReadFailed    = "unable to read screenshot artifact"
+	APIErrorMessageInvalidExecutionState = "action is not valid for the current execution state"
+	APIErrorMessageActionFailed          = "unable to process workflow action"
 
 	APIDeviceStatusReady       = "READY"
 	APIDeviceStatusUnavailable = "UNAVAILABLE"

@@ -20,12 +20,13 @@ type SnapshotReader interface {
 }
 
 type Handler struct {
-	reader  SnapshotReader
-	starter Starter
+	reader     SnapshotReader
+	starter    Starter
+	controller Controller
 }
 
-func NewHandler(reader SnapshotReader, starter Starter) *Handler {
-	return &Handler{reader: reader, starter: starter}
+func NewHandler(reader SnapshotReader, starter Starter, controller Controller) *Handler {
+	return &Handler{reader: reader, starter: starter, controller: controller}
 }
 
 func (h *Handler) Active(ctx *gin.Context) {
@@ -67,16 +68,21 @@ func respond(ctx *gin.Context, snapshot SnapshotResponse, err error, operation s
 		ctx.JSON(http.StatusOK, snapshot)
 		return
 	}
+	status, failure := snapshotFailure(err)
+	apiresponse.AbortWithCause(ctx, status, failure, xerror.WithOperation(operation, err))
+}
+
+func snapshotFailure(err error) (int, apiresponse.Error) {
 	status := http.StatusInternalServerError
 	failure := apiresponse.Error{Code: constants.APIErrorCodeInternal, Message: constants.APIErrorMessageInternal}
 	switch {
 	case errors.Is(err, xerror.ErrExecutionNotFound):
 		status = http.StatusNotFound
 		failure.Code, failure.Message = constants.APIErrorCodeResourceNotFound, constants.APIErrorMessageResourceNotFound
-	case errors.Is(err, xerror.ErrExecutionPersistence), errors.Is(err, xerror.ErrRecoveryIntegrity):
+	case errors.Is(err, xerror.ErrExecutionPersistence), errors.Is(err, xerror.ErrExecutionCommitUnknown), errors.Is(err, xerror.ErrRecoveryIntegrity):
 		failure.Code, failure.Message = constants.PersistenceFailed, constants.APIErrorMessageSnapshotReadFailed
 	}
-	apiresponse.AbortWithCause(ctx, status, failure, xerror.WithOperation(operation, err))
+	return status, failure
 }
 
 func validRequest(ctx *gin.Context) bool {

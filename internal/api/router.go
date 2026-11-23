@@ -64,6 +64,7 @@ func newRouter(
 		v1.POST("/runs", runSnapshots.Start)
 		v1.GET("/runs/active", runSnapshots.Active)
 		v1.GET("/runs/:runGroupId", runSnapshots.ByID)
+		v1.POST("/runs/:runGroupId/actions", runSnapshots.Action)
 		v1.GET("/artifacts/:artifactId", artifactDownloads.ByID)
 		router.NoRoute(foundation.NotFound)
 	}

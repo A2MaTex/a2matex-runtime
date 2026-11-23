@@ -32,7 +32,7 @@ func startRouter(starter runs.Starter) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(middleware.CacheControl())
-	router.POST("/api/v1/runs", runs.NewHandler(nil, starter).Start)
+	router.POST("/api/v1/runs", runs.NewHandler(nil, starter, nil).Start)
 	return router
 }
 

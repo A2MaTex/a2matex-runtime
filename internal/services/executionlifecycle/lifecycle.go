@@ -90,7 +90,7 @@ func (l *Service) beginRun(ctx context.Context, worker *runner.Runner, request r
 	if err := executionContextError(ctx); err != nil {
 		return nil, nil, lifecycleError(operation, err)
 	}
-	if worker == nil || request.Control != nil || !execution.ValidID(request.RunGroupID) ||
+	if worker == nil || request.Control != nil || request.BeforeAttempt != nil || !execution.ValidID(request.RunGroupID) ||
 		!execution.ValidID(request.DeviceExecutionID) || strings.TrimSpace(request.ADBSerial) == "" || request.WorkflowInputs == nil {
 		return nil, nil, lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
 	}
@@ -111,19 +111,25 @@ func (l *Service) beginRun(ctx context.Context, worker *runner.Runner, request r
 
 func (l *Service) runRegistered(workerCtx context.Context, worker *runner.Runner, request runner.Request, onExit func(context.Context) error) (runner.Result, error) {
 	const operation = "run_managed_execution"
-	request.Control = l.control
+	request.Control = func() attempts.Control { return l.groupControl(request.RunGroupID) }
 	result, err := worker.Run(workerCtx, request)
 	// No execution body or synchronous checkpoint callback may outlive its RAM.
 	cleanupErr := l.cleanupRun(workerCtx, onExit)
 	l.mu.Lock()
 	delete(l.workers, request.DeviceExecutionID)
+	if l.group != nil && l.group.id == request.RunGroupID {
+		l.group.live--
+		delete(l.group.boundaries, request.DeviceExecutionID)
+		l.group.notifyBoundary()
+	}
 	rootStopped := false
 	select {
 	case <-l.rootDone:
 		rootStopped = true
 	default:
 	}
-	expected := (l.prepared || rootStopped) && xerror.ExecutionFailureCode(err) == "" &&
+	groupCancelled := l.group != nil && l.group.id == request.RunGroupID && l.group.cancellation != nil
+	expected := (l.prepared || rootStopped || groupCancelled) && xerror.ExecutionFailureCode(err) == "" &&
 		(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
 	if cleanupErr != nil {
 		err, expected = errors.Join(err, cleanupErr), false
@@ -161,6 +167,9 @@ func (l *Service) PrepareStop(reason constants.ExecutionStopReason, deadline tim
 	}
 	if !deadline.IsZero() && (l.deadline.IsZero() || deadline.Before(l.deadline)) {
 		l.deadline = deadline
+	}
+	if l.group != nil && l.group.cancellation != nil && !deadline.IsZero() {
+		l.group.cancellation.shorten(deadline)
 	}
 	cancels := l.cancellations()
 	l.signalDrained()
@@ -232,9 +241,21 @@ func (l *Service) Shutdown(ctx context.Context) (err error) {
 }
 
 func (l *Service) control() attempts.Control {
+	return l.groupControl("")
+}
+
+func (l *Service) groupControl(id string) attempts.Control {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return attempts.Control{GroupCancellation: l.accepted, ShutdownDeadline: l.deadline}
+	control := attempts.Control{GroupCancellation: l.accepted, ShutdownDeadline: l.deadline}
+	if g := l.group; g != nil && g.id == id && g.cancellation != nil {
+		control.GroupCancellation = true
+		deadline := g.cancellation.deadline
+		if control.ShutdownDeadline.IsZero() || deadline.Before(control.ShutdownDeadline) {
+			control.ShutdownDeadline = deadline
+		}
+	}
+	return control
 }
 
 // The following helpers require mu. They never perform I/O or invoke cancellation callbacks.
