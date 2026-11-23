@@ -18,11 +18,20 @@ import (
 )
 
 func TestI1AttemptHistoryAgentAcceptance(t *testing.T) {
+	retainedAgentReadAcceptance(t, "testdata/i1_acceptance.py")
+}
+
+func TestI4EventStreamAgentAcceptance(t *testing.T) {
+	retainedAgentReadAcceptance(t, "testdata/i4_acceptance.py")
+}
+
+func retainedAgentReadAcceptance(t *testing.T, script string) {
+	t.Helper()
 	python, err := exec.LookPath("python3")
 	if err != nil {
-		t.Skip("I1 Linux managed-process acceptance requires Python 3")
+		t.Skip("retained-read Linux managed-process acceptance requires Python 3")
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
 	root := t.TempDir()
 	for _, key := range []string{"XDG_STATE_HOME", "XDG_RUNTIME_DIR", "LOCALAPPDATA"} {
@@ -78,6 +87,17 @@ func TestI1AttemptHistoryAgentAcceptance(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "expected.json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
+	events, err := repo.ReplayEvents(ctx, 0, constants.MaxEventPageSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventData, err := json.Marshal(events.Events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "expected-events.json"), eventData, 0600); err != nil {
+		t.Fatal(err)
+	}
 	if err := checkpoints.Shutdown(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -86,11 +106,11 @@ func TestI1AttemptHistoryAgentAcceptance(t *testing.T) {
 	}
 	binary := filepath.Join(t.TempDir(), "a2matex-runtime")
 	if output, err := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-o", binary, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build I1 agent: %v\n%s", err, output)
+		t.Fatalf("build retained-read agent: %v\n%s", err, output)
 	}
-	check := exec.CommandContext(ctx, python, "testdata/i1_acceptance.py", binary, root, device)
+	check := exec.CommandContext(ctx, python, script, binary, root, device)
 	if output, err := check.CombinedOutput(); err != nil {
-		t.Fatalf("I1 agent acceptance: %v\n%s", err, output)
+		t.Fatalf("retained-agent acceptance (%s): %v\n%s", script, err, output)
 	} else {
 		t.Logf("%s", output)
 	}

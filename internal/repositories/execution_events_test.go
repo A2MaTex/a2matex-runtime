@@ -15,6 +15,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/execution"
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/eventobservation"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
@@ -77,10 +78,14 @@ func TestEventReplayPagesAndWireEnvelope(t *testing.T) {
 
 func TestEventRollbackPublishesNothing(t *testing.T) {
 	s, admission := admittedEventStore(t)
-	wakeup := s.EventWakeup()
+	observer := eventobservation.New(s)
+	wakeup, err := observer.Register(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
 	<-s.EventMaintenance() // Consume the already committed admission signal.
 	abort := errors.New("abort checkpoint")
-	err := s.WithWriteTx(t.Context(), func(tx Tx) error {
+	err = s.WithWriteTx(t.Context(), func(tx Tx) error {
 		if err := tx.UpdateExpected(t.Context(), "UPDATE run_groups SET status = 'PAUSED' WHERE id = ?", admission.RunGroupID); err != nil {
 			return err
 		}
@@ -92,6 +97,12 @@ func TestEventRollbackPublishesNothing(t *testing.T) {
 		return abort
 	})
 	if !errors.Is(err, abort) {
+		t.Fatal(err)
+	}
+	// A committed write without an appended event must not notify either.
+	if err := s.WithWriteTx(t.Context(), func(tx Tx) error {
+		return tx.UpdateExpected(t.Context(), "UPDATE run_groups SET status = status WHERE id = ?", admission.RunGroupID)
+	}); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -112,11 +123,24 @@ func TestEventRollbackPublishesNothing(t *testing.T) {
 	if err != nil || len(page.Events) != 0 {
 		t.Fatalf("rollback events: %+v, %v", page, err)
 	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := observer.Wait(ctx, wakeup); err != context.Canceled {
+		t.Fatalf("cancelled rollback observer: %v", err)
+	}
 }
 
 func TestConcurrentEventAppendsAndSlowSubscriber(t *testing.T) {
 	s, admission := admittedEventStore(t)
-	first, second := s.EventWakeup(), s.EventWakeup()
+	observer := eventobservation.New(s)
+	first, err := observer.Register(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := observer.Register(t.Context())
+	if err != nil || first != second {
+		t.Fatalf("shared registration: %v", err)
+	}
 	const count = 20
 	var wg sync.WaitGroup
 	errorsCh := make(chan error, count)
@@ -140,6 +164,9 @@ func TestConcurrentEventAppendsAndSlowSubscriber(t *testing.T) {
 		default:
 			t.Fatal("commits did not wake both subscribers")
 		}
+		if err := observer.Wait(t.Context(), wakeup); err != nil {
+			t.Fatal(err)
+		}
 	}
 	page, err := s.ReplayEvents(t.Context(), 3, 0)
 	if err != nil || len(page.Events) != count {
@@ -154,10 +181,16 @@ func TestConcurrentEventAppendsAndSlowSubscriber(t *testing.T) {
 
 func TestEventSnapshotAndEmptyReplayHandoff(t *testing.T) {
 	s, admission := admittedEventStore(t)
+	observer := eventobservation.New(s)
 	snapshot, err := s.ActiveSnapshot(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
+	wakeup, err := observer.Register(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Commit between registration and the subsequent read.
 	if err := appendGroupEvent(t.Context(), s, admission); err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +199,19 @@ func TestEventSnapshotAndEmptyReplayHandoff(t *testing.T) {
 	if err != nil || len(page.Events) != 1 || page.Events[0].Cursor != "4" {
 		t.Fatalf("snapshot handoff lost commit: %+v, %v", page, err)
 	}
-	wakeup := s.EventWakeup() // Register before the empty query.
+	if err := observer.Wait(t.Context(), wakeup); err != nil {
+		t.Fatal(err)
+	}
+	previous := wakeup
+	wakeup, err = observer.Register(t.Context()) // Register before the empty query.
+	if err != nil || wakeup == previous {
+		t.Fatalf("replacement registration: %v", err)
+	}
+	select {
+	case <-wakeup:
+		t.Fatal("replacement channel is already closed")
+	default:
+	}
 	page, err = s.ReplayEvents(t.Context(), 4, 0)
 	if err != nil || len(page.Events) != 0 {
 		t.Fatalf("expected empty replay: %+v, %v", page, err)
@@ -178,6 +223,9 @@ func TestEventSnapshotAndEmptyReplayHandoff(t *testing.T) {
 	case <-wakeup:
 	default:
 		t.Fatal("commit between query and wait was lost")
+	}
+	if err := observer.Wait(t.Context(), wakeup); err != nil {
+		t.Fatal(err)
 	}
 	// A missed/coalesced signal is harmless to the periodic durable recheck.
 	page, err = s.ReplayEvents(t.Context(), 4, 0)

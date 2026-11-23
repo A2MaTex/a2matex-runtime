@@ -19,6 +19,7 @@ type Observer struct {
 	source Source
 }
 
+// New creates an observer without subscribing or starting background work.
 func New(source Source) *Observer {
 	return &Observer{source: source}
 }
@@ -45,17 +46,13 @@ func (o *Observer) Register(ctx context.Context) (<-chan struct{}, error) {
 // Wait returns nil when a commit notification or fallback permits another read.
 // It does not acknowledge an event or guarantee that new events are available.
 func (o *Observer) Wait(ctx context.Context, wakeup <-chan struct{}) error {
-	return o.wait(ctx, wakeup, constants.EventObservationRecheckInterval)
-}
-
-func (o *Observer) wait(ctx context.Context, wakeup <-chan struct{}, interval time.Duration) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if o == nil || o.source == nil || wakeup == nil {
 		return xerror.WithOperation("wait_event_observation", xerror.ErrExecutionPersistence)
 	}
-	timer := time.NewTimer(interval)
+	timer := time.NewTimer(constants.EventObservationRecheckInterval)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
