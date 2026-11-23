@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	attemptapi "github.com/A2MaTex/a2matex-runtime/internal/api/attempts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
@@ -146,7 +147,7 @@ func startStore(t *testing.T) *startFixture {
 	}
 	f.token = session.ConnectionToken()
 	f.router = newRouter(buildinfo.Info{}, session, workflowvalidation.NewHandler(validationservice.New(catalog)), nil,
-		runs.NewHandler(f.repo, starter, f.lifetime), nil, handlers.SupportedNodes(), slog.New(slog.NewJSONHandler(&f.logs, nil)))
+		runs.NewHandler(f.repo, starter, f.lifetime), attemptapi.NewHandler(f.repo), nil, handlers.SupportedNodes(), slog.New(slog.NewJSONHandler(&f.logs, nil)))
 	raw, err := os.ReadFile("../execution/runner/testdata/workflow.json")
 	if err != nil {
 		t.Fatal(err)

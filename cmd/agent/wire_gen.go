@@ -9,6 +9,7 @@ package main
 import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/artifacts"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/attempts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
@@ -70,8 +71,9 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		return nil, err
 	}
 	runsHandler := runs.NewHandler(executionRepository, startService, executionlifecycleService)
+	attemptsHandler := attempts.NewHandler(executionRepository)
 	artifactsHandler := artifacts.NewHandler(artifactService, logger)
-	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, artifactsHandler, registryRegistry, logger)
+	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, attemptsHandler, artifactsHandler, registryRegistry, logger)
 	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewOwnerPublisher(cfg, session, owner)
 	executionRecovery := services.NewExecutionRecovery(executionRepository, logger)

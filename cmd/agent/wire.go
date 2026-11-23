@@ -7,6 +7,7 @@ import (
 
 	"github.com/A2MaTex/a2matex-runtime/internal/api"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/artifacts"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/attempts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
@@ -54,6 +55,8 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		sqlitestore.New,
 		repositories.NewExecutionRepository,
 		wire.Bind(new(runs.SnapshotReader), new(*repositories.ExecutionRepository)),
+		wire.Bind(new(attempts.Reader), new(*repositories.ExecutionRepository)),
+		attempts.NewHandler,
 		wire.Bind(new(runs.Controller), new(*executionlifecycle.Service)),
 		runs.NewHandler,
 		newRunAdmission,

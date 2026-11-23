@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	attemptapi "github.com/A2MaTex/a2matex-runtime/internal/api/attempts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
@@ -42,7 +43,7 @@ func (s *snapshotSpy) SnapshotByID(context.Context, string) (execution.Snapshot,
 }
 func snapshotRouter(reader runs.SnapshotReader, session *auth.Session, output io.Writer) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
-	return newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(reader, nil, nil), nil, nil, slog.New(slog.NewJSONHandler(output, nil)))
+	return newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(reader, nil, nil), nil, nil, nil, slog.New(slog.NewJSONHandler(output, nil)))
 }
 func snapshotRequest(t *testing.T, router http.Handler, token, path string, status int) *httptest.ResponseRecorder {
 	t.Helper()
@@ -142,7 +143,8 @@ func snapshotStore(t *testing.T, count int) *snapshotFixture {
 		t.Fatal(err)
 	}
 	f.token = session.ConnectionToken()
-	f.router = snapshotRouter(f.repo, session, io.Discard)
+	gin.SetMode(gin.ReleaseMode)
+	f.router = newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(f.repo, nil, nil), attemptapi.NewHandler(f.repo), nil, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	f.admission = execution.Admission{RequestID: uuid.NewString(), RunGroupID: uuid.NewString(), Now: time.Now().UTC().Add(-time.Second), Devices: make([]execution.AdmissionDevice, count)}
 	for i := range f.admission.Devices {
 		f.admission.Devices[i] = execution.AdmissionDevice{DeviceExecutionID: uuid.NewString(), ADBSerial: []string{"z-device", "a-device"}[i], EntryNodeID: "start"}

@@ -23,19 +23,20 @@ const (
 )
 
 const (
-	DeviceInsertBatchSize       = 100
-	MaxAttemptPageSize          = 100
-	MaxEventPageSize            = 100
-	MaxEventBatchSize           = 100
-	MaxEventBytes               = 16 * 1024
-	EventRetention              = 10_000
-	EventPruneBatchSize         = 512
-	ExecutionTimestampLayout    = "2006-01-02T15:04:05.000Z"
-	MaxNodeAttemptNumber        = 3
-	MaxFlowDelayMS              = 300_000
-	MaxRetryDelayMS             = 60_000
-	MaxRuntimeErrorMessageChars = 500
-	CheckpointTimeout           = 5 * time.Second
+	DeviceInsertBatchSize           = 100
+	MaxAttemptPageSize              = 100
+	MaxEventPageSize                = 100
+	MaxEventBatchSize               = 100
+	MaxEventBytes                   = 16 * 1024
+	EventRetention                  = 10_000
+	EventPruneBatchSize             = 512
+	EventObservationRecheckInterval = time.Second
+	ExecutionTimestampLayout        = "2006-01-02T15:04:05.000Z"
+	MaxNodeAttemptNumber            = 3
+	MaxFlowDelayMS                  = 300_000
+	MaxRetryDelayMS                 = 60_000
+	MaxRuntimeErrorMessageChars     = 500
+	CheckpointTimeout               = 5 * time.Second
 )
 
 const (

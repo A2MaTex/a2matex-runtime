@@ -277,6 +277,12 @@ func assertFinalResult(t *testing.T, f *snapshotFixture, status, errorCode strin
 	if err != nil || len(page.Attempts) != len(expected) {
 		t.Fatalf("attempt history: %+v %v", page, err)
 	}
+	observed := historyPage(t, f, device.ID, "", 200)
+	wantPage, _ := json.Marshal(page)
+	gotPage, _ := json.Marshal(observed)
+	if string(gotPage) != string(wantPage) {
+		t.Fatal("attempt API changed retries or terminal history", string(gotPage), string(wantPage))
+	}
 	for i, attempt := range page.Attempts {
 		if attempt.Status != expected[i] || attempt.Sequence != int64(i+1) || attempt.FinishedAt == nil || *attempt.FinishedAt < attempt.StartedAt {
 			t.Fatalf("attempt %d: %+v", i, attempt)

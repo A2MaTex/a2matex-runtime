@@ -72,7 +72,7 @@ func testRouter(t *testing.T, reader artifacts.Reader, logs io.Writer) (http.Han
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewJSONHandler(logs, nil))
-	return api.NewHandler(buildinfo.Info{}, session, nil, nil, nil, artifacts.NewHandler(reader, logger), handlers, logger), session.ConnectionToken()
+	return api.NewHandler(buildinfo.Info{}, session, nil, nil, nil, nil, artifacts.NewHandler(reader, logger), handlers, logger), session.ConnectionToken()
 }
 
 func fixtureFile(t *testing.T, data []byte) string {

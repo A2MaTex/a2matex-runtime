@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/api/artifacts"
+	attemptapi "github.com/A2MaTex/a2matex-runtime/internal/api/attempts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
@@ -67,7 +68,7 @@ func TestArtifactDownloadOfG19CommittedPNG(t *testing.T) {
 				t.Fatal(err)
 			}
 			f.token = session.ConnectionToken()
-			f.router = newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(f.repo, nil, nil), artifacts.NewHandler(storage, logger), nil, logger)
+			f.router = newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(f.repo, nil, nil), attemptapi.NewHandler(f.repo), artifacts.NewHandler(storage, logger), nil, logger)
 			get := func(id string) *httptest.ResponseRecorder {
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+id, nil)
 				req.Header.Set("Authorization", "Bearer "+f.token)
@@ -159,9 +160,9 @@ func TestArtifactDownloadOfG19CommittedPNG(t *testing.T) {
 			if err != nil || result.DeviceStatus != constants.ExecutionSucceeded {
 				t.Fatal(result, err)
 			}
-			page, err := f.repo.Attempts(t.Context(), device.DeviceExecutionID, 0, constants.MaxAttemptPageSize)
-			if err != nil || len(page.Attempts) != 4 {
-				t.Fatal(page, err)
+			page := historyPage(t, f, device.DeviceExecutionID, "", 200)
+			if len(page.Attempts) != 4 {
+				t.Fatal(page)
 			}
 			var outputID struct {
 				ArtifactID string `json:"artifactId"`

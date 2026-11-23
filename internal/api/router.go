@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/api/artifacts"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/attempts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/foundation"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
@@ -24,13 +25,14 @@ func NewHandler(
 	workflowValidation *workflowvalidation.Handler,
 	deviceInventory *devices.Handler,
 	runSnapshots *runs.Handler,
+	attemptHistory *attempts.Handler,
 	artifactDownloads *artifacts.Handler,
 	handlers *registry.Registry,
 	logger *slog.Logger,
 ) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 
-	return newRouter(info, verifier, workflowValidation, deviceInventory, runSnapshots, artifactDownloads, handlers.SupportedNodes(), logger)
+	return newRouter(info, verifier, workflowValidation, deviceInventory, runSnapshots, attemptHistory, artifactDownloads, handlers.SupportedNodes(), logger)
 }
 
 func newRouter(
@@ -39,6 +41,7 @@ func newRouter(
 	workflowValidation *workflowvalidation.Handler,
 	deviceInventory *devices.Handler,
 	runSnapshots *runs.Handler,
+	attemptHistory *attempts.Handler,
 	artifactDownloads *artifacts.Handler,
 	supported []registry.SupportedNode,
 	logger *slog.Logger,
@@ -65,6 +68,7 @@ func newRouter(
 		v1.GET("/runs/active", runSnapshots.Active)
 		v1.GET("/runs/:runGroupId", runSnapshots.ByID)
 		v1.POST("/runs/:runGroupId/actions", runSnapshots.Action)
+		v1.GET("/device-executions/:deviceExecutionId/attempts", attemptHistory.ByDeviceExecution)
 		v1.GET("/artifacts/:artifactId", artifactDownloads.ByID)
 		router.NoRoute(foundation.NotFound)
 	}

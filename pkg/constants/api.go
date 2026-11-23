@@ -31,6 +31,7 @@ const (
 	APIErrorMessageInternal              = "internal server error"
 	APIErrorMessageADBUnavailable        = "unable to refresh Android devices"
 	APIErrorMessageSnapshotReadFailed    = "unable to read execution snapshot"
+	APIErrorMessageAttemptReadFailed     = "unable to read node attempt history"
 	APIErrorMessageArtifactReadFailed    = "unable to read screenshot artifact"
 	APIErrorMessageInvalidExecutionState = "action is not valid for the current execution state"
 	APIErrorMessageActionFailed          = "unable to process workflow action"
