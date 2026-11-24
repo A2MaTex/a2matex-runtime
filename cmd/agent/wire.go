@@ -9,6 +9,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/artifacts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/attempts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/events"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
@@ -23,6 +24,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
 	"github.com/A2MaTex/a2matex-runtime/internal/repositories"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/eventdelivery"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/executionlifecycle"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/runadmission"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
@@ -71,6 +73,9 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		services.NewArtifactService,
 		wire.Bind(new(artifacts.Reader), new(*services.ArtifactService)),
 		artifacts.NewHandler,
+		wire.Bind(new(execution.EventReader), new(*repositories.ExecutionRepository)),
+		eventdelivery.New,
+		events.NewHandler,
 		wire.Bind(new(services.ArtifactDiscarder), new(*services.ArtifactService)),
 		wire.Bind(new(execution.EventRetentionRepository), new(*repositories.ExecutionRepository)),
 		services.NewEventRetention,

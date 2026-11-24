@@ -1,5 +1,12 @@
 package constants
 
+import "time"
+
+const (
+	SSEHeartbeatInterval = 15 * time.Second
+	SSEWriteTimeout      = 5 * time.Second
+)
+
 const (
 	EditorGraphMaxContentBytes                  = 1_048_576
 	LocalAPIWorkflowValidationEnvelopeAllowance = 4 * 1024
@@ -23,6 +30,7 @@ const (
 	APIErrorCodeADBUnavailable        = ADBUnavailable
 	APIErrorCodeRuntimeBusy           = "RUNTIME_BUSY"
 	APIErrorCodeInvalidExecutionState = "INVALID_EXECUTION_STATE"
+	APIErrorCodeEventCursorExpired    = "EVENT_CURSOR_EXPIRED"
 
 	APIErrorMessageInvalidRequest        = "request is invalid"
 	APIErrorMessageUnauthorized          = "local session token is missing or invalid"
@@ -33,6 +41,8 @@ const (
 	APIErrorMessageSnapshotReadFailed    = "unable to read execution snapshot"
 	APIErrorMessageAttemptReadFailed     = "unable to read node attempt history"
 	APIErrorMessageArtifactReadFailed    = "unable to read screenshot artifact"
+	APIErrorMessageEventReadFailed       = "unable to read execution events"
+	APIErrorMessageEventCursorExpired    = "event history has expired; refresh the execution snapshot"
 	APIErrorMessageInvalidExecutionState = "action is not valid for the current execution state"
 	APIErrorMessageActionFailed          = "unable to process workflow action"
 

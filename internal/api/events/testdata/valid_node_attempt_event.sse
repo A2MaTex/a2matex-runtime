@@ -1,0 +1,4 @@
+id: 3
+event: NODE_ATTEMPT_STATE_CHANGED
+data: {"cursor":"3","type":"NODE_ATTEMPT_STATE_CHANGED","occurredAt":"2026-10-22T08:00:00.002Z","runGroupId":"10000000-0000-4000-8000-000000000001","deviceExecutionId":"10000000-0000-4000-8000-000000000002","nodeAttemptId":"10000000-0000-4000-8000-000000000003","nodeId":"start_01","payload":{"status":"SUCCEEDED","attemptNumber":1,"output":{}}}
+

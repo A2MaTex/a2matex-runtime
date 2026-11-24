@@ -17,6 +17,7 @@ var ErrAddressInUse = errors.New("local HTTP address already in use")
 type Server struct {
 	httpServer  *http.Server
 	serveResult chan error
+	cancel      context.CancelFunc
 }
 
 // New creates the lifecycle wrapper around the already-assembled API handler.
@@ -35,10 +36,14 @@ func New(cfg config.Config, handler http.Handler) *Server {
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	baseCtx, cancel := context.WithCancel(ctx)
+	s.cancel = cancel
+	s.httpServer.BaseContext = func(net.Listener) context.Context { return baseCtx }
 	var listenConfig net.ListenConfig
 
 	listener, err := listenConfig.Listen(ctx, "tcp", s.httpServer.Addr)
 	if err != nil {
+		cancel()
 		if errors.Is(err, addressInUse) {
 			err = errors.Join(ErrAddressInUse, err)
 		}
@@ -46,6 +51,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	go func() {
+		defer cancel()
 		err := s.httpServer.Serve(listener)
 		if errors.Is(err, http.ErrServerClosed) {
 			err = nil
@@ -61,6 +67,9 @@ func (s *Server) Wait() error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	if s.cancel != nil {
+		s.cancel()
+	}
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		shutdownErr := xerror.WithOperation("shutdown_local_http", fmt.Errorf("graceful shutdown: %w", err))
 		if closeErr := s.httpServer.Close(); closeErr != nil {
