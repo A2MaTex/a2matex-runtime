@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"context"
 	"regexp"
 	"strings"
 
@@ -24,9 +25,74 @@ func (c LaunchAppCommand) Valid() bool {
 		len(c.PackageName) <= constants.MaxAndroidPackageNameLength && packageNamePattern.MatchString(c.PackageName)
 }
 
-func launchArgs(packageName string) []string {
+func resolveLauncherArgs(packageName string) []string {
+	return []string{"shell", "-T", "cmd", "package", "resolve-activity", "--brief", "--user", "current",
+		"-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER", "-p", packageName}
+}
+
+func launchArgs(component string) []string {
+	// ADB joins shell arguments; quote valid Java class names containing '$' too.
 	return []string{"shell", "-T", "am", "start", "-W", "--user", "current", "-a", "android.intent.action.MAIN",
-		"-c", "android.intent.category.LAUNCHER", "-p", packageName}
+		"-c", "android.intent.category.LAUNCHER", "-n", "'" + component + "'"}
+}
+
+func (d *Dispatcher) launchApp(ctx context.Context, serial string, command LaunchAppCommand) error {
+	if !command.Valid() {
+		return xerror.WithOperation("validate_command",
+			xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "invalid Android package name"})
+	}
+	result, err := d.runDevice(ctx, serial, "resolve_launcher_activity",
+		resolveLauncherArgs(command.PackageName), constants.ProcessOutputLimitBytes, 0)
+	if err != nil {
+		return err
+	}
+	component, err := parseLauncherActivity(command.PackageName, result)
+	if err != nil {
+		return err
+	}
+	// Reuse the attempt context: resolution does not give the launch a fresh timeout.
+	result, err = d.runDevice(ctx, serial, "launch_app", launchArgs(component), constants.ProcessOutputLimitBytes, 0)
+	if err != nil {
+		return err
+	}
+	err = parseLaunchResult(command.PackageName, result)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return xerror.WithOperation("parse_launch_result", ctxErr)
+	}
+	return err
+}
+
+func parseLauncherActivity(packageName string, result processrunner.Result) (string, error) {
+	if result.StdoutTruncated || result.StderrTruncated {
+		return "", launcherResolutionFailure("resolution_output_truncated", "Android launcher resolution output exceeded the capture limit")
+	}
+	if strings.TrimSpace(string(result.Stderr)) != "" {
+		return "", launcherResolutionFailure("resolution_rejected", "Android could not resolve the app's launcher activity")
+	}
+	var component string
+	for line := range strings.Lines(string(result.Stdout)) {
+		line = strings.TrimSpace(line)
+		if line == "" || (component == "" && strings.HasPrefix(line, "priority=")) {
+			continue
+		}
+		if line == "No activity found" {
+			return "", launcherResolutionFailure("activity_unresolved", "Android couldn't find a launcher activity for this package. Check that the app is installed and enabled for the current Android user.")
+		}
+		activityPackage, class, found := strings.Cut(line, "/")
+		if component != "" || !found || activityPackage != packageName || !activityClassPattern.MatchString(class) {
+			return "", launcherResolutionFailure("invalid_resolved_activity", "Android returned an invalid launcher activity for the requested app")
+		}
+		component = line
+	}
+	if component == "" {
+		return "", launcherResolutionFailure("activity_unresolved", "Android couldn't find a launcher activity for this package. Check that the app is installed and enabled for the current Android user.")
+	}
+	return component, nil
+}
+
+func launcherResolutionFailure(reason, message string) error {
+	return &xerror.OperationError{Operation: "resolve_launcher_activity", Detail: reason,
+		Err: xerror.CommandError{Code: constants.CommandFailed, Message: message}}
 }
 
 // parseLaunchResult interprets a successful host process using the Android wait-result markers.
@@ -39,8 +105,6 @@ func parseLaunchResult(packageName string, result processrunner.Result) error {
 			return err
 		}
 	}
-
-	// fmt.Printf("result: %s\n", result.Stdout)
 
 	var status string
 	var hasActivity, complete bool

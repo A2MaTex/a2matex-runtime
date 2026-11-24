@@ -19,10 +19,16 @@ if [ "$#" -eq 1 ] && [ "$1" = version ]; then
     exit 0
 fi
 [ "$1" = -s ] && [ "$2" = '192.0.2.5:5555' ] && [ "$3" = shell ] && [ "$4" = -T ] || exit 1
+if [ "$5" = cmd ]; then
+    shift 4
+    [ "$*" = 'cmd package resolve-activity --brief --user current -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.example.app' ] || exit 1
+    printf 'priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false\ncom.example.app/.MainActivity\n'
+    exit 0
+fi
 if [ "$5" = am ]; then
     shift 4
     [ "$#" -eq 11 ] &&
-        [ "$*" = 'am start -W --user current -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.example.app' ] || exit 1
+        [ "$*" = "am start -W --user current -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n 'com.example.app/.MainActivity'" ] || exit 1
     printf 'Status: ok\nActivity: com.example.app/.MainActivity\nComplete\n'
     exit 0
 fi

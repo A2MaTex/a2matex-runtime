@@ -29,25 +29,15 @@ func (d *Dispatcher) Dispatch(ctx context.Context, serial string, command Device
 		_, err := checkDispatchContext(ctx, serial)
 		return err
 	}
+	if launch, ok := command.(LaunchAppCommand); ok {
+		return d.launchApp(ctx, serial, launch)
+	}
 	args, minimumDuration, err := commandArgs(command)
 	if err != nil {
 		return xerror.WithOperation("validate_command", err)
 	}
-	result, err := d.runDevice(ctx, serial, "dispatch_command", args, constants.ProcessOutputLimitBytes, minimumDuration)
-	if err != nil {
-		return err
-	}
-	// fmt.Printf("stdout: %s\n", result.Stdout)
-	// fmt.Printf("stderr: %s\n", result.Stderr)
-	// fmt.Printf("outcome: %d\n", result.Outcome)
-	if launch, ok := command.(LaunchAppCommand); ok {
-		err := parseLaunchResult(launch.PackageName, result)
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return xerror.WithOperation("parse_launch_result", ctxErr)
-		}
-		return err
-	}
-	return nil
+	_, err = d.runDevice(ctx, serial, "dispatch_command", args, constants.ProcessOutputLimitBytes, minimumDuration)
+	return err
 }
 
 // runDevice takes only adapter-built arguments and binds them to the selected device.
@@ -131,11 +121,6 @@ func commandArgs(command DeviceCommand) ([]string, time.Duration, error) {
 		return []string{"shell", "-T", "input", "keyevent", "KEYCODE_BACK"}, 0, nil
 	case PressHomeCommand:
 		return []string{"shell", "-T", "input", "keyevent", "KEYCODE_HOME"}, 0, nil
-	case LaunchAppCommand:
-		if !command.Valid() {
-			return nil, 0, xerror.CommandError{Code: constants.CommandInputUnsupported, Message: "invalid Android package name"}
-		}
-		return launchArgs(command.PackageName), 0, nil
 	case InputTextCommand:
 		if err := command.Validate(); err != nil {
 			return nil, 0, err
