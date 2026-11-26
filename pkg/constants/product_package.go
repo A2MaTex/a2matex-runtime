@@ -15,4 +15,9 @@ const (
 	ProductPackageManifestEntry           = "manifest.json"
 	ProductPackageWorkflowEntry           = "workflow.enc"
 	ProductPackageSchemaEntry             = "input-schema.json"
+	ProductPackageSchemaRequestMaxBytes   = 4 * 1024
+
+	APIErrorMessageProductPackageInvalid      = "product package is invalid"
+	APIErrorMessageProductPackageIncompatible = "product package requirements are unsupported"
+	APIErrorMessageProductPackageUnavailable  = "unable to inspect product package"
 )

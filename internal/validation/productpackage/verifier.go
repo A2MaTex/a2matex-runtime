@@ -29,6 +29,20 @@ type Request struct {
 	LauncherVersion string
 }
 
+// InspectionRequest identifies the installed package without a download digest.
+type InspectionRequest struct {
+	DirectoryHeaderValues []string
+	PackageRef            string
+	LauncherVersion       string
+}
+
+// Inspection exposes only form data and the identity of the captured bytes.
+// It does not establish that those bytes match an authenticated Backend download.
+type Inspection struct {
+	Package     PublicPackage   `json:"-"`
+	InputSchema json.RawMessage `json:"-"`
+}
+
 type PublicPackage struct {
 	ProductID   string `json:"productId"`
 	ReleaseID   string `json:"releaseId"`
@@ -116,6 +130,38 @@ func (v *Verifier) Verify(ctx context.Context, request Request) (*VerifiedPackag
 	return v.verifySnapshot(ctx, request, snapshot)
 }
 
+// Inspect derives IDs from the reference and checks package-internal consistency.
+// Verify remains the separate operation requiring an expected download hash.
+func (v *Verifier) Inspect(ctx context.Context, request InspectionRequest) (*Inspection, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, xerror.WithOperation("decode_package_selection", err)
+	}
+	if !ir.ValidVersion(request.LauncherVersion) {
+		return nil, failure("decode_package_selection", "launcher_version_invalid", xerror.ErrProductPackageSelection)
+	}
+	parts := strings.SplitN(request.PackageRef, "/", 3)
+	if len(parts) != 3 {
+		return nil, failure("decode_package_location", "reference_invalid", xerror.ErrProductPackageLocation)
+	}
+	readRequest := reader.ReadRequest{
+		DirectoryHeaderValues: request.DirectoryHeaderValues, PackageRef: request.PackageRef,
+		ProductID: parts[0], ReleaseID: parts[1],
+	}
+	snapshot, err := reader.Read(ctx, readRequest)
+	if err != nil {
+		return nil, err
+	}
+	hash, err := hashBytes(ctx, snapshot.ZIPBytes)
+	if err != nil {
+		return nil, xerror.WithOperation("inspect_package_hash", err)
+	}
+	checked, err := v.checkSnapshot(ctx, readRequest, request.LauncherVersion, snapshot, hash)
+	if err != nil {
+		return nil, err
+	}
+	return &Inspection{Package: checked.Package, InputSchema: checked.InputSchema}, nil
+}
+
 func (v *Verifier) verifySnapshot(ctx context.Context, request Request, snapshot *reader.Snapshot) (*VerifiedPackage, error) {
 	hash, err := hashBytes(ctx, snapshot.ZIPBytes)
 	if err != nil {
@@ -124,11 +170,15 @@ func (v *Verifier) verifySnapshot(ctx context.Context, request Request, snapshot
 	if hash != request.PackageHash {
 		return nil, failure("verify_package_hash", "package_hash_mismatch", xerror.ErrProductPackageInvalid)
 	}
+	return v.checkSnapshot(ctx, request.ReadRequest, request.LauncherVersion, snapshot, hash)
+}
+
+func (v *Verifier) checkSnapshot(ctx context.Context, request reader.ReadRequest, launcherVersion string, snapshot *reader.Snapshot, hash string) (*VerifiedPackage, error) {
 	manifest, nonce, err := decodeManifest(ctx, snapshot.ManifestBytes)
 	if err != nil {
 		return nil, err
 	}
-	if manifest.ProductID != request.ReadRequest.ProductID || manifest.ReleaseID != request.ReadRequest.ReleaseID {
+	if manifest.ProductID != request.ProductID || manifest.ReleaseID != request.ReleaseID {
 		return nil, failure("verify_package_identity", "identity_mismatch", xerror.ErrProductPackageInvalid)
 	}
 	for _, entry := range []struct {
@@ -152,7 +202,7 @@ func (v *Verifier) verifySnapshot(ctx context.Context, request Request, snapshot
 	if err := validateSchema(ctx, snapshot.InputSchemaBytes); err != nil {
 		return nil, err
 	}
-	if err := v.compatibility(ctx, manifest, request.LauncherVersion); err != nil {
+	if err := v.compatibility(ctx, manifest, launcherVersion); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {

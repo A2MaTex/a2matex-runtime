@@ -78,6 +78,78 @@ func TestVerifyProtocolVector(t *testing.T) {
 	}
 }
 
+func TestInspectPackageWithoutExpectedHash(t *testing.T) {
+	raw, entries := fixture(t)
+	strict, path := install(t, raw)
+	v := verifier(t, "0.1.0", "android.tap", "android.screenshot")
+	request := InspectionRequest{DirectoryHeaderValues: strict.ReadRequest.DirectoryHeaderValues, PackageRef: reference, LauncherVersion: "0.1.0"}
+	result, err := v.Inspect(context.Background(), request)
+	if err != nil || result.Package.PackageHash != fixtureHash || result.Package.ProductID != productID || result.Package.ReleaseID != releaseID || !bytes.Equal(result.InputSchema, entries[constants.ProductPackageSchemaEntry]) {
+		t.Fatalf("inspection: %v", err)
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil || string(encoded) != "{}" {
+		t.Fatal("inspection must use an explicit transport projection")
+	}
+	// Repacking valid members changes the ZIP hash, not its internal consistency.
+	repacked := pack(t, entries)
+	if err := os.WriteFile(path, repacked, 0600); err != nil {
+		t.Fatal(err)
+	}
+	result, err = v.Inspect(context.Background(), request)
+	if err != nil || result.Package.PackageHash != digest(repacked) || result.Package.PackageHash == fixtureHash {
+		t.Fatalf("inspection must report the actual snapshot hash: %v", err)
+	}
+	assertFailure(t, v, strict, xerror.ErrProductPackageInvalid, "verify_package_hash", "package_hash_mismatch")
+	strict.PackageHash = ""
+	assertFailure(t, v, strict, xerror.ErrProductPackageSelection, "decode_package_selection", "selection_invalid")
+	entries[constants.ProductPackageSchemaEntry] = append(entries[constants.ProductPackageSchemaEntry], ' ')
+	if err := os.WriteFile(path, pack(t, entries), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := v.Inspect(context.Background(), request); result != nil || !errors.Is(err, xerror.ErrProductPackageInvalid) {
+		t.Fatalf("inspection skipped internal member hashes: %v", err)
+	}
+}
+
+func TestInspectSelectionAndCompatibility(t *testing.T) {
+	raw, _ := fixture(t)
+	strict, _ := install(t, raw)
+	request := InspectionRequest{DirectoryHeaderValues: strict.ReadRequest.DirectoryHeaderValues, PackageRef: reference, LauncherVersion: "0.1.0"}
+	v := verifier(t, "0.1.0", "android.tap", "android.screenshot")
+	for _, tc := range []struct {
+		name   string
+		change func(*InspectionRequest)
+		want   error
+	}{
+		{"invalid reference", func(r *InspectionRequest) { r.PackageRef = "missing.a2m" }, xerror.ErrProductPackageLocation},
+		{"traversal", func(r *InspectionRequest) { r.PackageRef = productID + "/" + releaseID + "/../secret.a2m" }, xerror.ErrProductPackageLocation},
+		{"duplicate root", func(r *InspectionRequest) {
+			r.DirectoryHeaderValues = append(r.DirectoryHeaderValues, r.DirectoryHeaderValues[0])
+		}, xerror.ErrProductPackageLocation},
+		{"invalid version", func(r *InspectionRequest) { r.LauncherVersion = "0.0.0-dev" }, xerror.ErrProductPackageSelection},
+		{"old launcher", func(r *InspectionRequest) { r.LauncherVersion = "0.0.1" }, xerror.ErrProductPackageIncompatible},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := request
+			tc.change(&input)
+			if result, err := v.Inspect(context.Background(), input); result != nil || !errors.Is(err, tc.want) {
+				t.Fatalf("inspection: %v", err)
+			}
+		})
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if result, err := v.Inspect(ctx, request); result != nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancellation: %v", err)
+	}
+	for _, limited := range []*Verifier{verifier(t, "0.0.0-dev", "android.tap", "android.screenshot"), verifier(t, "0.1.0", "android.tap")} {
+		if result, err := limited.Inspect(context.Background(), request); result != nil || !errors.Is(err, xerror.ErrProductPackageIncompatible) {
+			t.Fatalf("compatibility: %v", err)
+		}
+	}
+}
+
 func TestVerifySelectionAndReaderFailures(t *testing.T) {
 	raw, _ := fixture(t)
 	v := verifier(t, "0.1.0", "android.tap", "android.screenshot")

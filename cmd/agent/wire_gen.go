@@ -12,6 +12,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/attempts"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/events"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/productpackages"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
@@ -29,6 +30,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/services/runadmission"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/productpackage"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/service"
 )
 
@@ -77,7 +79,13 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 	artifactsHandler := artifacts.NewHandler(artifactService, logger)
 	eventdeliveryService := eventdelivery.New(executionRepository)
 	eventsHandler := events.NewHandler(eventdeliveryService, logger)
-	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, attemptsHandler, artifactsHandler, eventsHandler, registryRegistry, logger)
+	string2 := info.Version
+	verifier, err := productpackage.New(registry, registryRegistry, string2)
+	if err != nil {
+		return nil, err
+	}
+	productpackagesHandler := productpackages.NewHandler(verifier)
+	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, attemptsHandler, artifactsHandler, eventsHandler, registryRegistry, logger, productpackagesHandler)
 	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewOwnerPublisher(cfg, session, owner)
 	executionRecovery := services.NewExecutionRecovery(executionRepository, logger)

@@ -12,6 +12,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/events"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/foundation"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/productpackages"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
@@ -31,10 +32,11 @@ func NewHandler(
 	eventStream *events.Handler,
 	handlers *registry.Registry,
 	logger *slog.Logger,
+	productPackages *productpackages.Handler,
 ) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 
-	return newRouter(info, verifier, workflowValidation, deviceInventory, runSnapshots, attemptHistory, artifactDownloads, eventStream, handlers.SupportedNodes(), logger)
+	return newRouter(info, verifier, workflowValidation, deviceInventory, runSnapshots, attemptHistory, artifactDownloads, eventStream, handlers.SupportedNodes(), logger, productPackages)
 }
 
 func newRouter(
@@ -48,6 +50,7 @@ func newRouter(
 	eventStream *events.Handler,
 	supported []registry.SupportedNode,
 	logger *slog.Logger,
+	productPackages *productpackages.Handler,
 ) *gin.Engine {
 	router := gin.New()
 	router.RedirectTrailingSlash = false
@@ -74,6 +77,7 @@ func newRouter(
 		v1.GET("/device-executions/:deviceExecutionId/attempts", attemptHistory.ByDeviceExecution)
 		v1.GET("/artifacts/:artifactId", artifactDownloads.ByID)
 		v1.GET("/events", eventStream.Stream)
+		v1.POST("/product-packages/input-schema", productPackages.InputSchema)
 		router.NoRoute(foundation.NotFound)
 	}
 

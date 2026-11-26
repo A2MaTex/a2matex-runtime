@@ -11,6 +11,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/events"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/productpackages"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
@@ -29,6 +30,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/services/runadmission"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
+	packagevalidation "github.com/A2MaTex/a2matex-runtime/internal/validation/productpackage"
 	validationservice "github.com/A2MaTex/a2matex-runtime/internal/validation/service"
 )
 
@@ -43,6 +45,10 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		newHandlerRegistry,
 		validationservice.New,
 		workflowvalidation.NewHandler,
+		wire.FieldsOf(new(buildinfo.Info), "Version"),
+		packagevalidation.New,
+		wire.Bind(new(productpackages.Inspector), new(*packagevalidation.Verifier)),
+		productpackages.NewHandler,
 		wire.FieldsOf(new(config.Config), "ADB"),
 		adb.NewResolver,
 		adb.NewDispatcher,

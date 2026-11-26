@@ -147,7 +147,7 @@ func startStore(t *testing.T) *startFixture {
 	}
 	f.token = session.ConnectionToken()
 	f.router = newRouter(buildinfo.Info{}, session, workflowvalidation.NewHandler(validationservice.New(catalog)), nil,
-		runs.NewHandler(f.repo, starter, f.lifetime), attemptapi.NewHandler(f.repo), nil, nil, handlers.SupportedNodes(), slog.New(slog.NewJSONHandler(&f.logs, nil)))
+		runs.NewHandler(f.repo, starter, f.lifetime), attemptapi.NewHandler(f.repo), nil, nil, handlers.SupportedNodes(), slog.New(slog.NewJSONHandler(&f.logs, nil)), nil)
 	raw, err := os.ReadFile("../execution/runner/testdata/workflow.json")
 	if err != nil {
 		t.Fatal(err)
