@@ -152,14 +152,14 @@ func TestLocationDecodesOnceAndPreservesFilename(t *testing.T) {
 		t.Run(filename, func(t *testing.T) {
 			r := request
 			r.PackageRef = testProductID + "/" + testReleaseID + "/" + filename
-			location, err := resolveLocation(r)
+			location, err := ResolveLocation(r)
 			if err != nil || location.Directory != root || location.PackageRef != r.PackageRef {
 				t.Fatalf("location changed: %v %v", location, err)
 			}
 		})
 	}
 	request.DirectoryHeaderValues[0] = encodeDirectory(root + string(filepath.Separator) + "." + string(filepath.Separator))
-	location, err := resolveLocation(request)
+	location, err := ResolveLocation(request)
 	if err != nil || location.Directory != root {
 		t.Fatalf("normalization: %v", err)
 	}
@@ -467,5 +467,21 @@ func TestNativeRootSyntax(t *testing.T) {
 	for _, root := range []string{`C:\packages`, `C:relative`, `\\server\share`, `\relative`} {
 		r := requestAt(root)
 		assertReadError(t, r, xerror.ErrProductPackageLocation, "decode_package_location")
+	}
+}
+
+func TestResolveLocationDoesNotAccessFilesystem(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "not-created")
+	request := requestAt(root)
+	got, err := ResolveLocation(request)
+	if err != nil || got.Directory != root || got.PackageRef != testReference {
+		t.Fatalf("resolve: %+v %v", got, err)
+	}
+	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("resolver accessed/created missing directory")
+	}
+	request.DirectoryHeaderValues = append(request.DirectoryHeaderValues, request.DirectoryHeaderValues[0])
+	if _, err := ResolveLocation(request); !errors.Is(err, xerror.ErrProductPackageLocation) {
+		t.Fatalf("duplicate root: %v", err)
 	}
 }

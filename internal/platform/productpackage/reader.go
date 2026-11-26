@@ -49,7 +49,7 @@ func Read(ctx context.Context, request ReadRequest) (*Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, xerror.WithOperation("decode_package_location", err)
 	}
-	location, err := resolveLocation(request)
+	location, err := ResolveLocation(request)
 	if err != nil {
 		return nil, xerror.WithOperation("decode_package_location", err)
 	}
@@ -73,7 +73,9 @@ func Read(ctx context.Context, request ReadRequest) (*Snapshot, error) {
 	}, nil
 }
 
-func resolveLocation(request ReadRequest) (Location, error) {
+// ResolveLocation validates and normalizes selection without accessing the filesystem.
+// Actual containment and regular-file checks still happen when Read opens it.
+func ResolveLocation(request ReadRequest) (Location, error) {
 	invalid := xerror.ErrProductPackageLocation
 	if len(request.DirectoryHeaderValues) != 1 {
 		return Location{}, invalid

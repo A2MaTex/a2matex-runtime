@@ -27,7 +27,7 @@ func TestReadLinks(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			request, path := installPackage(t, raw)
-			root, err := resolveLocation(request)
+			root, err := ResolveLocation(request)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -128,7 +128,7 @@ func TestReadFIFO(t *testing.T) {
 	if err := unix.Mkfifo(path, 0600); err != nil {
 		t.Fatal(err)
 	}
-	location, err := resolveLocation(request)
+	location, err := ResolveLocation(request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestReadPermissionAndParentEscape(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	location, err := resolveLocation(request)
+	location, err := ResolveLocation(request)
 	if err != nil {
 		t.Fatal(err)
 	}
