@@ -13,6 +13,7 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/platform/sqlitestore"
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/executionlifecycle"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/productsession"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
@@ -62,6 +63,7 @@ func New(
 	retention *services.EventRetention,
 	checkpoint *services.CheckpointService,
 	execution *executionlifecycle.Service,
+	sessions *productsession.Service,
 	cfg config.Config,
 	logger *slog.Logger,
 ) *App {
@@ -69,7 +71,7 @@ func New(
 	if publisher.IsManaged() {
 		publisherName = "managed_readiness_publisher"
 	}
-	return &App{
+	app := &App{
 		execution: execution, managed: publisher.IsManaged(),
 		// Components start in this order and stop in reverse. This guarantees the
 		// handoff occurs after binding and standalone discovery stops before HTTP.
@@ -95,21 +97,19 @@ func New(
 				lifecycle: checkpoint,
 			},
 			{name: "execution_lifecycle", lifecycle: execution},
-			{
-				name:      "local_http_server",
-				lifecycle: server,
-				readyAttributes: []slog.Attr{
-					slog.String("listen_address", cfg.HTTP.ListenAddress),
-				},
-			},
-			{
-				name:      publisherName,
-				lifecycle: publisher,
-			},
 		},
 		shutdownTimeout: cfg.ShutdownTimeout,
 		logger:          logger,
 	}
+	if cfg.Production.AuthorizationEnabled {
+		app.components = append(app.components, component{name: "product_sessions", lifecycle: sessions})
+	}
+	app.components = append(app.components,
+		component{name: "local_http_server", lifecycle: server,
+			readyAttributes: []slog.Attr{slog.String("listen_address", cfg.HTTP.ListenAddress)}},
+		component{name: publisherName, lifecycle: publisher},
+	)
+	return app
 }
 
 func (a *App) Run(ctx context.Context) error {

@@ -16,6 +16,7 @@ const (
 
 const (
 	ProductSessionPendingLimit     = 4
+	ProductSessionRequestMaxBytes  = 4 * 1024
 	ProductSessionReceiptLimit     = 256
 	ProductSessionPreparationLimit = 1
 	ProductSessionPendingLifetime  = 300 * time.Second

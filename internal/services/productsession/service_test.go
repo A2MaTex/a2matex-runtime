@@ -226,6 +226,10 @@ func TestPrepareBindingReplayAndPrivateOwnership(t *testing.T) {
 	equivalent := r
 	equivalent.DirectoryHeaderValues = []string{strings.ReplaceAll(r.DirectoryHeaderValues[0], "%2F", "%2f") + "%2F.%2F"}
 	replay := prepare(t, s, equivalent)
+	if !replay.Replayed || p.Replayed {
+		t.Fatal("new/replay metadata")
+	}
+	replay.Replayed = false
 	if !reflect.DeepEqual(replay, p) || reads.Load() != 1 || keys.Load() != 1 {
 		t.Fatal("replay did work or changed identity")
 	}

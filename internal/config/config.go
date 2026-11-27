@@ -35,10 +35,11 @@ const (
 )
 
 type Config struct {
-	ADB             ADBConfig     `mapstructure:"adb"`
-	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
-	HTTP            HTTPConfig    `mapstructure:"http"`
-	Logging         LoggingConfig `mapstructure:"logging"`
+	Production      ProductionConfig `mapstructure:"production"`
+	ADB             ADBConfig        `mapstructure:"adb"`
+	ShutdownTimeout time.Duration    `mapstructure:"shutdown_timeout"`
+	HTTP            HTTPConfig       `mapstructure:"http"`
+	Logging         LoggingConfig    `mapstructure:"logging"`
 }
 
 type HTTPConfig struct {
@@ -79,6 +80,10 @@ func Load(overrides Overrides) (Config, error) {
 		return Config{}, invalidSetting("adb.allow_path_fallback", fmt.Errorf("adb.allow_path_fallback must be a boolean"))
 	}
 	configureEnvironment(loader)
+	production, err := loadProduction(loader, overrides.ConfigFile)
+	if err != nil {
+		return Config{}, err
+	}
 
 	if overrides.ListenAddress != "" {
 		loader.Set("http.listen_address", overrides.ListenAddress)
@@ -91,6 +96,7 @@ func Load(overrides Overrides) (Config, error) {
 	if err := loader.UnmarshalExact(&cfg); err != nil {
 		return Config{}, xerror.WithOperation("decode_config", fmt.Errorf("decode configuration: %w", err))
 	}
+	cfg.Production = production
 	cfg.normalize()
 
 	if err := cfg.Validate(); err != nil {
@@ -138,6 +144,9 @@ func (c *Config) normalize() {
 }
 
 func (c Config) Validate() error {
+	if err := c.Production.Validate(); err != nil {
+		return err
+	}
 	if err := c.ADB.Validate(); err != nil {
 		return invalidSetting("adb.executable_path", err)
 	}
