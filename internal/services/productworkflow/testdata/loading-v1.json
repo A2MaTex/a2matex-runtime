@@ -1,0 +1,383 @@
+{
+  "version": 1,
+  "testOnly": true,
+  "notice": "Public synthetic test keys and payloads. Never use as production secrets.",
+  "generator": "Backend toCanonicalBytes + Node AES-256-GCM empty AAD + yazl three-member package; test-only fixed nonces/K; no DB/configuration",
+  "contentKeyBase64": "JSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSU=",
+  "cases": [
+    {
+      "name": "empty-inputs",
+      "runtimeIr": {
+        "formatVersion": 1,
+        "minimumRuntimeVersion": "0.1.0",
+        "metadata": {
+          "sourceGraphSchemaVersion": 1
+        },
+        "entryNodeId": "start",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "nodes": [
+          {
+            "id": "start",
+            "type": "flow.start",
+            "runtimeHandler": "flow.start",
+            "config": {},
+            "inputs": {},
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          },
+          {
+            "id": "wait",
+            "type": "flow.delay",
+            "runtimeHandler": "flow.delay",
+            "config": {},
+            "inputs": {
+              "durationMs": {
+                "source": "LITERAL",
+                "value": 10
+              }
+            },
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          },
+          {
+            "id": "end",
+            "type": "flow.end",
+            "runtimeHandler": "flow.end",
+            "config": {},
+            "inputs": {},
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "sourceNodeId": "start",
+            "sourcePort": "success",
+            "targetNodeId": "wait"
+          },
+          {
+            "id": "e2",
+            "sourceNodeId": "wait",
+            "sourcePort": "success",
+            "targetNodeId": "end"
+          }
+        ],
+        "requiredCapabilities": []
+      },
+      "canonicalRuntimeIrBase64": "eyJlZGdlcyI6W3siaWQiOiJlMSIsInNvdXJjZU5vZGVJZCI6InN0YXJ0Iiwic291cmNlUG9ydCI6InN1Y2Nlc3MiLCJ0YXJnZXROb2RlSWQiOiJ3YWl0In0seyJpZCI6ImUyIiwic291cmNlTm9kZUlkIjoid2FpdCIsInNvdXJjZVBvcnQiOiJzdWNjZXNzIiwidGFyZ2V0Tm9kZUlkIjoiZW5kIn1dLCJlbnRyeU5vZGVJZCI6InN0YXJ0IiwiZm9ybWF0VmVyc2lvbiI6MSwiaW5wdXRTY2hlbWEiOnsiYWRkaXRpb25hbFByb3BlcnRpZXMiOmZhbHNlLCJwcm9wZXJ0aWVzIjp7fSwicmVxdWlyZWQiOltdLCJ0eXBlIjoib2JqZWN0In0sIm1ldGFkYXRhIjp7InNvdXJjZUdyYXBoU2NoZW1hVmVyc2lvbiI6MX0sIm1pbmltdW1SdW50aW1lVmVyc2lvbiI6IjAuMS4wIiwibm9kZXMiOlt7ImNvbmZpZyI6e30sImVycm9yUG9saWN5IjoiU1RPUCIsImlkIjoic3RhcnQiLCJpbnB1dHMiOnt9LCJyZXRyeVBvbGljeSI6eyJkZWxheU1zIjowLCJtYXhBdHRlbXB0cyI6MX0sInJ1bnRpbWVIYW5kbGVyIjoiZmxvdy5zdGFydCIsInRpbWVvdXRNcyI6MTAwMCwidHlwZSI6ImZsb3cuc3RhcnQifSx7ImNvbmZpZyI6e30sImVycm9yUG9saWN5IjoiU1RPUCIsImlkIjoid2FpdCIsImlucHV0cyI6eyJkdXJhdGlvbk1zIjp7InNvdXJjZSI6IkxJVEVSQUwiLCJ2YWx1ZSI6MTB9fSwicmV0cnlQb2xpY3kiOnsiZGVsYXlNcyI6MCwibWF4QXR0ZW1wdHMiOjF9LCJydW50aW1lSGFuZGxlciI6ImZsb3cuZGVsYXkiLCJ0aW1lb3V0TXMiOjEwMDAsInR5cGUiOiJmbG93LmRlbGF5In0seyJjb25maWciOnt9LCJlcnJvclBvbGljeSI6IlNUT1AiLCJpZCI6ImVuZCIsImlucHV0cyI6e30sInJldHJ5UG9saWN5Ijp7ImRlbGF5TXMiOjAsIm1heEF0dGVtcHRzIjoxfSwicnVudGltZUhhbmRsZXIiOiJmbG93LmVuZCIsInRpbWVvdXRNcyI6MTAwMCwidHlwZSI6ImZsb3cuZW5kIn1dLCJyZXF1aXJlZENhcGFiaWxpdGllcyI6W119",
+      "inputSchemaBase64": "eyJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2UsInByb3BlcnRpZXMiOnt9LCJyZXF1aXJlZCI6W10sInR5cGUiOiJvYmplY3QifQ==",
+      "nonceBase64": "AQEBAQEBAQEBAQEB",
+      "workflowEncBase64": "D15jqU/7vBEC0EQ/Y9unisqbtNTvoRCpkrB2YkzGc/cXrj5dKSpjmgVx31B9mZ81UlwX+WJ/IizzzgoP4cfna4ijmTPAbHgYYL19CTf8itCDfTuScaD71G0apUNt+DFSH8KXm4cHt0temZzfnjbuOrYfs/4Y3o8aQdNUw/vulOho2e/bwyN4NPyvge+uABTMLIasJW2B34klFAeDoPZYjajTQnd/4N7kx1LZK+XiqLzgYeHy6myDcJv3ZMArmzFkeQrM2TW8K70tbOu+Wxn66/bVjhkW6UGDt4lwzoVjxnkkRKXPLX5R/VSIOENvv/MdRA8YbnNV+NGhxye+57DXrnXICe/E/JCTtf8gYqod67GYq7XobgkUYkEHy+Zfd/oaRP3HICfv8ky4iJcqwKE5gpA19exT0jxwcByA7Sz+MbjCB2lsA7rH8xaHaYSn3Wo2KfqNWjwGIMWPzgxxu7vWuVt1/oeeESHONVZI76nvoxdw0LHpaV9S4zeqdawax1pyZjLmWY6H9OSXVYSBw1irBuWdtetls6/08S5UCZ9ZiXhwwE79ZjeLGOYPvjWuJkbVsuE8pb1TRQgI4/jFv16ce/6owHPEAozNxYz+Fbb+Tga0Sp/HckAkOah4M4hShlEy/NEoZFFLcxYHzgZBui3hoPIQPtqkRhaMzjzXIVTyceiIup1nPfNI1f1I11caiGWYiOm/sfFGe/KZe9V6pEQNd8CTSvd9SOlw0IihvBgE+j8G5YIqlBpZE4oZNB+u32JAm4/by0GSzeGDy7BL7wt/l/siTjbWS0rZd3HlpWW5unr/3Io2JQbLyuhAxBJsI6xff4RsnKp2yaR7+wXPUjAY/bndfF56NDBTLrPP9ptOBw6KVx7MvI3H3X4PGryDh2lJlUyBV09EVgUA03Y5K4hfRtwgS4FGYoM65FpNwg9ptyeS3bxgVSUJb1hOYXljn/5W52CInQoH1XEpgn7PSbvB6q+Mj+3CzeWrbKWpCy4ys10NwlEDXdJV2Di9bI1tQOPuasxJit6v/5QlqCC4J0JjQy0EvQXtk9gqcSGBxBpdIaiPgy5/AyZhhQq+vPYE4zOjZkqhgyqeIOa9nvpdFKfqcrwIWR/cj/LNzkJ5rbV4avdKFV54ghxG042s+xes3TNODyTfxf1mr3sYKh8xm2L6fFpCpVPqG1TnZkmXCtJDT3Fjc3TN9Ac2Qayx0oEJ1g5fN2FVTSeztRc2vGmsr3WIF6IgLcL7nSFX9rCxgfzWnm/rVYSCNL8jSg2zid4a2pHUfo8ySDqpgVzlpmJ0n28T0A==",
+      "runtimeIrHash": "00959f5faf9acbcad7f830f0635a2af3b58920e70ac7f733b777626da90c3651",
+      "packageZipBase64": "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",
+      "packageHash": "01d75d1b7d45d21ad7a4cd46a5fb0bfdf0feb07cf8a6d71126dfdebdbe4f83d1",
+      "inputs": [
+        {}
+      ]
+    },
+    {
+      "name": "required-inputs",
+      "runtimeIr": {
+        "formatVersion": 1,
+        "minimumRuntimeVersion": "0.1.0",
+        "metadata": {
+          "sourceGraphSchemaVersion": 1
+        },
+        "entryNodeId": "start",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "durationMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "required": [
+            "durationMs"
+          ],
+          "additionalProperties": false
+        },
+        "nodes": [
+          {
+            "id": "start",
+            "type": "flow.start",
+            "runtimeHandler": "flow.start",
+            "config": {},
+            "inputs": {},
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          },
+          {
+            "id": "wait",
+            "type": "flow.delay",
+            "runtimeHandler": "flow.delay",
+            "config": {},
+            "inputs": {
+              "durationMs": {
+                "source": "WORKFLOW_INPUT",
+                "inputName": "durationMs"
+              }
+            },
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          },
+          {
+            "id": "end",
+            "type": "flow.end",
+            "runtimeHandler": "flow.end",
+            "config": {},
+            "inputs": {},
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "sourceNodeId": "start",
+            "sourcePort": "success",
+            "targetNodeId": "wait"
+          },
+          {
+            "id": "e2",
+            "sourceNodeId": "wait",
+            "sourcePort": "success",
+            "targetNodeId": "end"
+          }
+        ],
+        "requiredCapabilities": []
+      },
+      "canonicalRuntimeIrBase64": "eyJlZGdlcyI6W3siaWQiOiJlMSIsInNvdXJjZU5vZGVJZCI6InN0YXJ0Iiwic291cmNlUG9ydCI6InN1Y2Nlc3MiLCJ0YXJnZXROb2RlSWQiOiJ3YWl0In0seyJpZCI6ImUyIiwic291cmNlTm9kZUlkIjoid2FpdCIsInNvdXJjZVBvcnQiOiJzdWNjZXNzIiwidGFyZ2V0Tm9kZUlkIjoiZW5kIn1dLCJlbnRyeU5vZGVJZCI6InN0YXJ0IiwiZm9ybWF0VmVyc2lvbiI6MSwiaW5wdXRTY2hlbWEiOnsiYWRkaXRpb25hbFByb3BlcnRpZXMiOmZhbHNlLCJwcm9wZXJ0aWVzIjp7ImR1cmF0aW9uTXMiOnsibWF4aW11bSI6MTAwMCwibWluaW11bSI6MCwidHlwZSI6ImludGVnZXIifX0sInJlcXVpcmVkIjpbImR1cmF0aW9uTXMiXSwidHlwZSI6Im9iamVjdCJ9LCJtZXRhZGF0YSI6eyJzb3VyY2VHcmFwaFNjaGVtYVZlcnNpb24iOjF9LCJtaW5pbXVtUnVudGltZVZlcnNpb24iOiIwLjEuMCIsIm5vZGVzIjpbeyJjb25maWciOnt9LCJlcnJvclBvbGljeSI6IlNUT1AiLCJpZCI6InN0YXJ0IiwiaW5wdXRzIjp7fSwicmV0cnlQb2xpY3kiOnsiZGVsYXlNcyI6MCwibWF4QXR0ZW1wdHMiOjF9LCJydW50aW1lSGFuZGxlciI6ImZsb3cuc3RhcnQiLCJ0aW1lb3V0TXMiOjEwMDAsInR5cGUiOiJmbG93LnN0YXJ0In0seyJjb25maWciOnt9LCJlcnJvclBvbGljeSI6IlNUT1AiLCJpZCI6IndhaXQiLCJpbnB1dHMiOnsiZHVyYXRpb25NcyI6eyJpbnB1dE5hbWUiOiJkdXJhdGlvbk1zIiwic291cmNlIjoiV09SS0ZMT1dfSU5QVVQifX0sInJldHJ5UG9saWN5Ijp7ImRlbGF5TXMiOjAsIm1heEF0dGVtcHRzIjoxfSwicnVudGltZUhhbmRsZXIiOiJmbG93LmRlbGF5IiwidGltZW91dE1zIjoxMDAwLCJ0eXBlIjoiZmxvdy5kZWxheSJ9LHsiY29uZmlnIjp7fSwiZXJyb3JQb2xpY3kiOiJTVE9QIiwiaWQiOiJlbmQiLCJpbnB1dHMiOnt9LCJyZXRyeVBvbGljeSI6eyJkZWxheU1zIjowLCJtYXhBdHRlbXB0cyI6MX0sInJ1bnRpbWVIYW5kbGVyIjoiZmxvdy5lbmQiLCJ0aW1lb3V0TXMiOjEwMDAsInR5cGUiOiJmbG93LmVuZCJ9XSwicmVxdWlyZWRDYXBhYmlsaXRpZXMiOltdfQ==",
+      "inputSchemaBase64": "eyJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2UsInByb3BlcnRpZXMiOnsiZHVyYXRpb25NcyI6eyJtYXhpbXVtIjoxMDAwLCJtaW5pbXVtIjowLCJ0eXBlIjoiaW50ZWdlciJ9fSwicmVxdWlyZWQiOlsiZHVyYXRpb25NcyJdLCJ0eXBlIjoib2JqZWN0In0=",
+      "nonceBase64": "AgICAgICAgICAgIC",
+      "workflowEncBase64": "ta2nv9gWwx6/Vjb5Y4MjvNpDE5u3ZzRevWTtndlMz91Y/3BWY/Vom8CDgLCrr4890DisWcnWI3PLU3ulrbcB2jM8VWhCOiHrE151rUDkYZfH0AmZIfzm4xLO8mD7x4LJjhp9AXPTjwbZDNDZmo6NCZNir0aklMsrOB7jMhdC28uhPqJ6Mo0cEr1vSv0fgsBhWgIEYKkLXgRz6FMGHNSD//bq5liPPjy0DEnf7RshxK+xfx/d3rxX1s7QLZ2uNeDvJ9k3dwhHYXze3p11GROxT6mthxYVZBHMJEzd8DTSNfsu1NrqIFtBEEmKe9ISFn0biM8+V9Y7TwaFg8nZn8+P8Kp2ft9XoSKBOFa5kSVTVfRi03edSTpjk2Ggdx9JGQtbpJsfOQwQcHC63eLnlOm99YANNtA8DGSxeseqsIS7zz5a8cId1fpk26uyN4sCiKWMuj1Ur6JypJ5cgSDPIlUN8tDEZ95zygquikCA/YdrMIqpuAVpOY8lMcNxz/eabrOY2bg7yhf/T3bCYZYIIYQdCrfn2f6Sw3nfnlBHiJEIZcHR2CvMBofaocHKvRKgqwSArJyN+Vp6KykdOWD5vLji3oUZIpmqVIlrsZZuMW7gELx1cpGcOz7ZCucS/glnZHkPeWDxjdVimZ9F/tdaU9uhq7SIAvD4O61yuTfjrqtHJL1sb0Fl6SMl/18tvOO0LGu6xeby+rvA+vMvVIypEkaYcc+gew956QMHu1MdaP4WQ5dcXdSGKJmhBG4hfY5ZnaO5a+YiCqNzRL1pgQ1tUOiKIcQvGKumbvQkItFweliRnB1ggqO2d7JZCIFlL+nZ4HUvmt5du0WHoP1MFtQBfYmiXgmhDsdwcYa/2hAO3eBEAh82olEYTUE3evRAx5YB0z7dGetXdz6ODVflZidyt2iNVaSz6e1PHvkawTeumeS5HzCjVyeyzDf5PJMqNveLjzGjiRvP1Hvu/nmElcZ2S44qNiNfbgZQf57xPb/jFS2k/xEkf8pknJBWZ7kXDZL6SZtfdqIc+35SiAyxoIjUbQ2JdNh9pqL7IHIWwztBQCUh4N1ay7GJRDNrReYEaxN8GwgIsoW/PKsD9zTbfRXQplXm6fL+4Z2SE4Zt+SctClAw54Zme+GCHeDf5IVv2OkiLW9AP70q3MJudnZhuPKPPZGs06o3gpVgwly0Oy6iOrkRZat7knllMGCIrJMY6mZEXIb+HWnmVR6wRAi79YI87w+SJonueXE4h8ymXY4ubK1aKVNiA3QpHJ1T8qxmIvB24noVI0/HHQxx+V2SgazbkTbklaMmKlEAJ6sZ0HDpDW1blCPleLHrGhkJIKsd5nr6+BKZqkjFHVvRFq6abpKoBhz2Xfsz/wcNJ3oKUCjR6bWkMRmyZiAJCy7cOku6tc0HzFoOflx/eAIuYcjVGgs=",
+      "runtimeIrHash": "9533cbd5e33e5bee154b99559e35b91de44b02f03586a2f3b804a377cff82876",
+      "packageZipBase64": "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",
+      "packageHash": "71b5bb4fab159f8872a0e55c68c4074cd8e65b38ec9c4401c48591b6c4c830bc",
+      "inputs": [
+        {
+          "durationMs": 10
+        },
+        {
+          "durationMs": 20
+        }
+      ]
+    },
+    {
+      "name": "unicode",
+      "runtimeIr": {
+        "formatVersion": 1,
+        "minimumRuntimeVersion": "0.1.0",
+        "metadata": {
+          "sourceGraphSchemaVersion": 1
+        },
+        "entryNodeId": "start",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "nodes": [
+          {
+            "id": "start",
+            "type": "flow.start",
+            "runtimeHandler": "flow.start",
+            "config": {},
+            "inputs": {},
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          },
+          {
+            "id": "wait",
+            "type": "flow.set_variable",
+            "runtimeHandler": "flow.set_variable",
+            "config": {
+              "name": "label",
+              "scope": "FLOW"
+            },
+            "inputs": {
+              "value": {
+                "source": "LITERAL",
+                "value": "price <😀 & café"
+              }
+            },
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          },
+          {
+            "id": "end",
+            "type": "flow.end",
+            "runtimeHandler": "flow.end",
+            "config": {},
+            "inputs": {},
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "sourceNodeId": "start",
+            "sourcePort": "success",
+            "targetNodeId": "wait"
+          },
+          {
+            "id": "e2",
+            "sourceNodeId": "wait",
+            "sourcePort": "success",
+            "targetNodeId": "end"
+          }
+        ],
+        "requiredCapabilities": []
+      },
+      "canonicalRuntimeIrBase64": "eyJlZGdlcyI6W3siaWQiOiJlMSIsInNvdXJjZU5vZGVJZCI6InN0YXJ0Iiwic291cmNlUG9ydCI6InN1Y2Nlc3MiLCJ0YXJnZXROb2RlSWQiOiJ3YWl0In0seyJpZCI6ImUyIiwic291cmNlTm9kZUlkIjoid2FpdCIsInNvdXJjZVBvcnQiOiJzdWNjZXNzIiwidGFyZ2V0Tm9kZUlkIjoiZW5kIn1dLCJlbnRyeU5vZGVJZCI6InN0YXJ0IiwiZm9ybWF0VmVyc2lvbiI6MSwiaW5wdXRTY2hlbWEiOnsiYWRkaXRpb25hbFByb3BlcnRpZXMiOmZhbHNlLCJwcm9wZXJ0aWVzIjp7fSwicmVxdWlyZWQiOltdLCJ0eXBlIjoib2JqZWN0In0sIm1ldGFkYXRhIjp7InNvdXJjZUdyYXBoU2NoZW1hVmVyc2lvbiI6MX0sIm1pbmltdW1SdW50aW1lVmVyc2lvbiI6IjAuMS4wIiwibm9kZXMiOlt7ImNvbmZpZyI6e30sImVycm9yUG9saWN5IjoiU1RPUCIsImlkIjoic3RhcnQiLCJpbnB1dHMiOnt9LCJyZXRyeVBvbGljeSI6eyJkZWxheU1zIjowLCJtYXhBdHRlbXB0cyI6MX0sInJ1bnRpbWVIYW5kbGVyIjoiZmxvdy5zdGFydCIsInRpbWVvdXRNcyI6MTAwMCwidHlwZSI6ImZsb3cuc3RhcnQifSx7ImNvbmZpZyI6eyJuYW1lIjoibGFiZWwiLCJzY29wZSI6IkZMT1cifSwiZXJyb3JQb2xpY3kiOiJTVE9QIiwiaWQiOiJ3YWl0IiwiaW5wdXRzIjp7InZhbHVlIjp7InNvdXJjZSI6IkxJVEVSQUwiLCJ2YWx1ZSI6InByaWNlIDzwn5iAICYgY2Fmw6kifX0sInJldHJ5UG9saWN5Ijp7ImRlbGF5TXMiOjAsIm1heEF0dGVtcHRzIjoxfSwicnVudGltZUhhbmRsZXIiOiJmbG93LnNldF92YXJpYWJsZSIsInRpbWVvdXRNcyI6MTAwMCwidHlwZSI6ImZsb3cuc2V0X3ZhcmlhYmxlIn0seyJjb25maWciOnt9LCJlcnJvclBvbGljeSI6IlNUT1AiLCJpZCI6ImVuZCIsImlucHV0cyI6e30sInJldHJ5UG9saWN5Ijp7ImRlbGF5TXMiOjAsIm1heEF0dGVtcHRzIjoxfSwicnVudGltZUhhbmRsZXIiOiJmbG93LmVuZCIsInRpbWVvdXRNcyI6MTAwMCwidHlwZSI6ImZsb3cuZW5kIn1dLCJyZXF1aXJlZENhcGFiaWxpdGllcyI6W119",
+      "inputSchemaBase64": "eyJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2UsInByb3BlcnRpZXMiOnt9LCJyZXF1aXJlZCI6W10sInR5cGUiOiJvYmplY3QifQ==",
+      "nonceBase64": "AwMDAwMDAwMDAwMD",
+      "workflowEncBase64": "AlzxV78iRRe/yD/G5hGMZGcUzRLZAKswLANqnT2434/Q90BFXPdZKCW4+38yvPnDSV2ekW3AJ8lwq0bzH0QtSqg8kPDx8t0PvLmSldjJSYXAL0w9pgklC4CmPNepg2F7i6vdr80qZ00IFvSVO/h4qrja6B2AhZZRTUHsy0tRhe9qRhcpULWRTFhYE/3jva78XwfHsVRpuEAyl8CUqVIN/ERhUUZrn/veJhh0dhwsKRMMK446tjo/w6gqhqk9fI87uXVz1mDdXalZKBFBN0Umrac7PpJrbFlwKj5NT5JYXAC4OrWN6KCInJwjaxf4hIQVZdMkWL4ipFmUQRYMo5ObbiYv0UBsHHDXY3+GX932+vlEW9vGfqWDhUDDrYMMs+o1Mc38w9lylglCV3Gn2ZPMeI7XU2qS/gi8kHnRN9D5oR4VXyFeMPPNpf1qSI3HK4O3PpIWZ2TLXEuMO6rgLeAXMwMLd7qcFGXAluRNiBRpI+NaWh4uM/6wNgrbY7UW+VCZ7VQKx7LqCzoS9agWeNxtHUYVF7VC4m4FM+CzpgkqFbUaV31Qk5lOlsVlp0FmRQ/Ixr9heO8zYhnwXhHZjX79gjGlWerno9vBviPsnoL3gufvaH8YeGcQ8Q6lQg8jxASKbIQ45Pi5U6BsaisNa5YDCxgKm3doxNswmWJ0RlGjPmFzrdzaez9sE4PgXVZefmJtvwAlZsya5i4cWw/7d+hVUhB1YidZiPdGS5aXuXMUf9Q7RBBTvQDasiXSYBvPJny4ZPcgV2Rm5q518aS2RjpZBX4cZ4op4AK+MMJOgjtnYJefqh4Ox3JCBcmXV3eLJ3apIfoMrcVrglGBoyEDGX8eYUekzh95ueZkk4JhIbuBEk4vKZ5RzLccs3chANH79rb5lLtOl0/XhABC6WwuXMJKvHbWQMeddXaemt7iENgdf6s1UwUDvMsoK2Wb4PqVuwEDGyZmZfEUfrMNptwkl5f5urOZlSVkvXG/tEpy/z1Aoe5nLO81b2xCXyNK42T4uFcbTbxihdlSUsUnqcie360O6JHtfE/+3p8YpIT44mhMCg7JoNi53dWGTXC++PiJ5vD6VvgjITdqYhVWhyRVsn5Wz89nF2EPJi4yckpakI8E8QTXDt3VHTTHBjBRJP1RzfQ/Iq9ADp8ClNNxDG64RzKo1PITJGFbH2yiOJUYW+/+sSFv4DgwDnyUzXOJZldf8hzzJWtA053KKwMwbkRU+OB01dGf9zXtKVhQUm+/wADdOwW07YsGZWwkajGj74hD/cIBQzfxO59uLncTp7tacd7wJrl2j66+hCv6f9UGXujDwbeEt0vZw6E0Qzvl1mKKM7W6/hZQOr1RC6F6+e2fi6vvx3zYAaQWSEscMw==",
+      "runtimeIrHash": "b83b191520b9987470cb62618bc1534c49116d3e460bffa667db7603a5124767",
+      "packageZipBase64": "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",
+      "packageHash": "5a301a941857f80d9e007c8cf641d1baa4bd0c155076795dcaec9435e797dfb6",
+      "inputs": [
+        {}
+      ]
+    },
+    {
+      "name": "numeric",
+      "runtimeIr": {
+        "formatVersion": 1,
+        "minimumRuntimeVersion": "0.1.0",
+        "metadata": {
+          "sourceGraphSchemaVersion": 1
+        },
+        "entryNodeId": "start",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ratio": {
+              "type": "number",
+              "minimum": 1e-7,
+              "maximum": 1e+21
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "nodes": [
+          {
+            "id": "start",
+            "type": "flow.start",
+            "runtimeHandler": "flow.start",
+            "config": {},
+            "inputs": {},
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          },
+          {
+            "id": "wait",
+            "type": "flow.delay",
+            "runtimeHandler": "flow.delay",
+            "config": {},
+            "inputs": {
+              "durationMs": {
+                "source": "LITERAL",
+                "value": 10
+              }
+            },
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          },
+          {
+            "id": "end",
+            "type": "flow.end",
+            "runtimeHandler": "flow.end",
+            "config": {},
+            "inputs": {},
+            "timeoutMs": 1000,
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "delayMs": 0
+            },
+            "errorPolicy": "STOP"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "sourceNodeId": "start",
+            "sourcePort": "success",
+            "targetNodeId": "wait"
+          },
+          {
+            "id": "e2",
+            "sourceNodeId": "wait",
+            "sourcePort": "success",
+            "targetNodeId": "end"
+          }
+        ],
+        "requiredCapabilities": []
+      },
+      "canonicalRuntimeIrBase64": "eyJlZGdlcyI6W3siaWQiOiJlMSIsInNvdXJjZU5vZGVJZCI6InN0YXJ0Iiwic291cmNlUG9ydCI6InN1Y2Nlc3MiLCJ0YXJnZXROb2RlSWQiOiJ3YWl0In0seyJpZCI6ImUyIiwic291cmNlTm9kZUlkIjoid2FpdCIsInNvdXJjZVBvcnQiOiJzdWNjZXNzIiwidGFyZ2V0Tm9kZUlkIjoiZW5kIn1dLCJlbnRyeU5vZGVJZCI6InN0YXJ0IiwiZm9ybWF0VmVyc2lvbiI6MSwiaW5wdXRTY2hlbWEiOnsiYWRkaXRpb25hbFByb3BlcnRpZXMiOmZhbHNlLCJwcm9wZXJ0aWVzIjp7InJhdGlvIjp7Im1heGltdW0iOjFlKzIxLCJtaW5pbXVtIjoxZS03LCJ0eXBlIjoibnVtYmVyIn19LCJyZXF1aXJlZCI6W10sInR5cGUiOiJvYmplY3QifSwibWV0YWRhdGEiOnsic291cmNlR3JhcGhTY2hlbWFWZXJzaW9uIjoxfSwibWluaW11bVJ1bnRpbWVWZXJzaW9uIjoiMC4xLjAiLCJub2RlcyI6W3siY29uZmlnIjp7fSwiZXJyb3JQb2xpY3kiOiJTVE9QIiwiaWQiOiJzdGFydCIsImlucHV0cyI6e30sInJldHJ5UG9saWN5Ijp7ImRlbGF5TXMiOjAsIm1heEF0dGVtcHRzIjoxfSwicnVudGltZUhhbmRsZXIiOiJmbG93LnN0YXJ0IiwidGltZW91dE1zIjoxMDAwLCJ0eXBlIjoiZmxvdy5zdGFydCJ9LHsiY29uZmlnIjp7fSwiZXJyb3JQb2xpY3kiOiJTVE9QIiwiaWQiOiJ3YWl0IiwiaW5wdXRzIjp7ImR1cmF0aW9uTXMiOnsic291cmNlIjoiTElURVJBTCIsInZhbHVlIjoxMH19LCJyZXRyeVBvbGljeSI6eyJkZWxheU1zIjowLCJtYXhBdHRlbXB0cyI6MX0sInJ1bnRpbWVIYW5kbGVyIjoiZmxvdy5kZWxheSIsInRpbWVvdXRNcyI6MTAwMCwidHlwZSI6ImZsb3cuZGVsYXkifSx7ImNvbmZpZyI6e30sImVycm9yUG9saWN5IjoiU1RPUCIsImlkIjoiZW5kIiwiaW5wdXRzIjp7fSwicmV0cnlQb2xpY3kiOnsiZGVsYXlNcyI6MCwibWF4QXR0ZW1wdHMiOjF9LCJydW50aW1lSGFuZGxlciI6ImZsb3cuZW5kIiwidGltZW91dE1zIjoxMDAwLCJ0eXBlIjoiZmxvdy5lbmQifV0sInJlcXVpcmVkQ2FwYWJpbGl0aWVzIjpbXX0=",
+      "inputSchemaBase64": "eyJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2UsInByb3BlcnRpZXMiOnsicmF0aW8iOnsibWF4aW11bSI6MWUrMjEsIm1pbmltdW0iOjFlLTcsInR5cGUiOiJudW1iZXIifX0sInJlcXVpcmVkIjpbXSwidHlwZSI6Im9iamVjdCJ9",
+      "nonceBase64": "BAQEBAQEBAQEBAQE",
+      "workflowEncBase64": "6yxHzj6+sIZzZguX0a98fuhyHabhqyLXXABlB8h8XEuj2rYRz8/i+DAMCIuVYfAMnFnhd8pOf2YUpodeAFM3hyWcJadMRIWwRijh0eeUGMHW5GhddsKGApRWB3wOxw8gqSNpN5kncq0ueLyJX274Fq50YUIsZVApDgi/Fm0FYlHroZV2ry4JSV1ARmp9iNb7lJRGTjXrFqxvR4jLbkHRcAdwdVKdTLjxKk0JUHZaJYdXR3pEIMf+WZEmYr7Wlhbm1NjAjsnXxaY1yyr3MSzz6fBHOVYPGvvqD8gVBg4WJ1i1aK2MGqBCzHH6rGs9yPUlu4eXZTu+iWO36w0UXtswf9ImIQ6fTrU0g4ign08jAOcTiVPLaRXny8B96OnGwoSiHdrYTg3WfaGSgXus4dqXPUW57vXNMDBqnMRcFXLIS7aJT36Ti2It5ZdAZHQRvErnlzvGbnQfJyg4qF7VdOmw4TfmDLqMzz3vuC2uIL59x+Qj6AtlTmP/FLDXXXfLg9GEVZiAc4HR+03ngWPZxXzJOAJEKHgAZ37jCdtXOdOoMFVMgXmZMPeSXpRVATM5USJUt3WDaWLYr0SKIb2Dp1r5sAFOmzhXJ4jwdyp9+T4aRYZKG1nxbVaGhWNTOK19pGCMNGOONOmwwkrZZuTXzsBn6hnJxZdXYch4ZKLW6vcglIDkgsdRbCoJbLPTY4pH4k8q73apKRJU34TIioQ2q8AZ0bm3ZQxF+lFcQc49AKkkugEd5Yzz65lN8D+5gst4Ap8l1B0d9+jpvnrmc9xmacgbP7cnZc5085BzWzjj4RJ00Y9ZzaxlFTPdjFiLLjCyDSwy1QlFdwLmh2bD3IK7Cc5NQeKBSrytLOsNrVHWq76Y6sf3RMYnR8+AKkG541QFKDXxeunfflySIXVB+AtPGOiqYMaMzgYkkupk+r9Ou9ejqQKcyFxz2YciwX9F0/mN3XIsBrwWZ6ZDQT8fRZft9iIYK+8SITxDzcOmbUwX1EFXepibQldgDtQ0Z4lmjadVWIBdnVgldFXAHeXCyqXYNbUQrJtDSufTHupiWcvJAl+FgpfI7kPbhiCjh6yuntQ9ZXBKIPK78GHbd7kb4Li4GPj68DFWP6Nr0IQOSvztEQsU5uJlBswBEuz11TvZXZ+6gZ1aZArejSpCcmdk8r2kiY/pcVIpO6hhaSB66/4BA/pz9PAZA0lhaWF8Ekh5qd00QMRInJMbqDxzB+PMdVAG5tl1nKgl2YiuoV7m976EK4V4rIlK+9bnJCbqcEUzkIYslbTwpUTqGfTYTsOdaXtCmSCC5kvx1Xqdnun05hplOuCleUPInuVjq81Nm0xEcU9zBw1JTCX5D5t3skkjpaR2DPWVmB7JktyXylMQ",
+      "runtimeIrHash": "0cc4af19d0e755c3e13714ff41ffd147bcd9401b86fa7e349cb24cc01cbcde22",
+      "packageZipBase64": "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",
+      "packageHash": "010f6aecd9d6a1a9f51185865dbea157b4e6f206b07587c364dc04b7dfa0c6b2",
+      "inputs": [
+        {}
+      ]
+    }
+  ]
+}
