@@ -15,7 +15,7 @@ func TestWindowsRootSyntax(t *testing.T) {
 		`\\?\C:\packages`, `\\.\C:\packages`, `\??\C:\packages`, `\\??\C:\packages`} {
 		assertReadError(t, requestAt(root), xerror.ErrProductPackageLocation, "decode_package_location")
 	}
-	for _, root := range []string{`c:\packages\..\packages\`, `c:/packages`, `\\server\share\packages`} {
+	for _, root := range []string{`c:\Users\Admin\OneDrive\Documents\a2matex\products\..\products\`, `c:/Users/Admin/OneDrive/Documents/a2matex/products`, `\\server\share\packages`} {
 		location, err := ResolveLocation(requestAt(root))
 		if err != nil {
 			t.Fatalf("valid native root rejected: %v", err)

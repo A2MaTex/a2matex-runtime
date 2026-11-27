@@ -130,7 +130,7 @@ func (v *Verifier) Verify(ctx context.Context, request Request) (*VerifiedPackag
 	return v.verifySnapshot(ctx, request, snapshot)
 }
 
-// Inspect derives IDs from the reference and checks package-internal consistency.
+// Inspect matches the Product folder and reads Release identity from the manifest.
 // Verify remains the separate operation requiring an expected download hash.
 func (v *Verifier) Inspect(ctx context.Context, request InspectionRequest) (*Inspection, error) {
 	if err := ctx.Err(); err != nil {
@@ -139,13 +139,13 @@ func (v *Verifier) Inspect(ctx context.Context, request InspectionRequest) (*Ins
 	if !ir.ValidVersion(request.LauncherVersion) {
 		return nil, failure("decode_package_selection", "launcher_version_invalid", xerror.ErrProductPackageSelection)
 	}
-	parts := strings.SplitN(request.PackageRef, "/", 3)
-	if len(parts) != 3 {
+	parts := strings.SplitN(request.PackageRef, "/", 2)
+	if len(parts) != 2 {
 		return nil, failure("decode_package_location", "reference_invalid", xerror.ErrProductPackageLocation)
 	}
 	readRequest := reader.ReadRequest{
 		DirectoryHeaderValues: request.DirectoryHeaderValues, PackageRef: request.PackageRef,
-		ProductID: parts[0], ReleaseID: parts[1],
+		ProductID: parts[0],
 	}
 	snapshot, err := reader.Read(ctx, readRequest)
 	if err != nil {
@@ -178,7 +178,7 @@ func (v *Verifier) checkSnapshot(ctx context.Context, request reader.ReadRequest
 	if err != nil {
 		return nil, err
 	}
-	if manifest.ProductID != request.ProductID || manifest.ReleaseID != request.ReleaseID {
+	if manifest.ProductID != request.ProductID {
 		return nil, failure("verify_package_identity", "identity_mismatch", xerror.ErrProductPackageInvalid)
 	}
 	for _, entry := range []struct {

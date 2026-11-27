@@ -119,7 +119,7 @@ func (s *Service) Prepare(ctx context.Context, request Request) (Prepared, error
 		return Prepared{}, xerror.WithOperation("verify_session_package", err)
 	}
 	if verified == nil || verified.Snapshot == nil || verified.Snapshot.Location != location ||
-		verified.Package.ProductID != read.ProductID || verified.Package.ReleaseID != read.ReleaseID ||
+		verified.Package.ProductID != read.ProductID || !validID(verified.Package.ReleaseID) ||
 		verified.Package.PackageHash != request.PackageHash || !ir.ValidVersion(verified.Package.Version) {
 		return Prepared{}, failure("verify_session_package", "result_inconsistent", xerror.ErrProductSessionConfiguration)
 	}
@@ -204,11 +204,11 @@ func selection(r Request) (reader.ReadRequest, reader.Location, [sha256.Size]byt
 		(r.Purpose == constants.ProductSessionStart && r.RunGroupID != "") || (r.Purpose == constants.ProductSessionReauthorize && !validID(r.RunGroupID)) {
 		return reader.ReadRequest{}, reader.Location{}, empty, failure("prepare_product_session", "selection_invalid", xerror.ErrProductSessionInvalid)
 	}
-	parts := strings.SplitN(r.PackageRef, "/", 3)
-	if len(parts) != 3 {
+	parts := strings.SplitN(r.PackageRef, "/", 2)
+	if len(parts) != 2 {
 		return reader.ReadRequest{}, reader.Location{}, empty, failure("decode_package_location", "reference_invalid", xerror.ErrProductPackageLocation)
 	}
-	read := reader.ReadRequest{DirectoryHeaderValues: r.DirectoryHeaderValues, PackageRef: r.PackageRef, ProductID: parts[0], ReleaseID: parts[1]}
+	read := reader.ReadRequest{DirectoryHeaderValues: r.DirectoryHeaderValues, PackageRef: r.PackageRef, ProductID: parts[0]}
 	location, err := reader.ResolveLocation(read)
 	if err != nil {
 		return read, location, empty, xerror.WithOperation("decode_package_location", err)

@@ -25,7 +25,6 @@ type ReadRequest struct {
 	DirectoryHeaderValues []string
 	PackageRef            string
 	ProductID             string
-	ReleaseID             string
 }
 
 type Location struct {
@@ -138,14 +137,14 @@ func canonicalID(value string) bool {
 }
 
 func validReference(request ReadRequest) bool {
-	if !canonicalID(request.ProductID) || !canonicalID(request.ReleaseID) {
+	if !canonicalID(request.ProductID) {
 		return false
 	}
-	parts := strings.SplitN(request.PackageRef, "/", 3)
-	if len(parts) != 3 || parts[0] != request.ProductID || parts[1] != request.ReleaseID {
+	parts := strings.SplitN(request.PackageRef, "/", 2)
+	if len(parts) != 2 || parts[0] != request.ProductID {
 		return false
 	}
-	name := parts[2]
+	name := parts[1]
 	if len(name) > constants.ProductPackageFilenameMaxBytes || !validText(name) ||
 		!strings.HasSuffix(name, ".a2m") || strings.ContainsAny(name, `/\:<>"|?*`) ||
 		strings.HasSuffix(name, " ") || strings.HasSuffix(name, ".") {

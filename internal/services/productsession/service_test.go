@@ -35,7 +35,7 @@ import (
 const (
 	testProduct   = "11111111-1111-4111-8111-111111111111"
 	testRelease   = "22222222-2222-4222-8222-222222222222"
-	testReference = testProduct + "/" + testRelease + "/auto-farming-1.0.0.a2m"
+	testReference = testProduct + "/package.a2m"
 	testHash      = "09ec3f0a6a578539e18362027fa907be68257a5590d6a8b8eb6072481ad71d01"
 )
 
@@ -278,7 +278,7 @@ func TestPreparationValidationAndConflict(t *testing.T) {
 	s, _ := service(t, v, nil)
 	original := prepare(t, s, r)
 	for _, change := range []func(*Request){
-		func(r *Request) { r.PackageRef = testProduct + "/" + testRelease + "/other.a2m" },
+		func(r *Request) { r.PackageRef = testProduct + "/other.a2m" },
 		func(r *Request) { r.PackageHash = strings.Repeat("a", 64) },
 		func(r *Request) { r.LauncherVersion = "0.2.0" },
 		func(r *Request) { r.DirectoryHeaderValues = []string{r.DirectoryHeaderValues[0] + "%2Felsewhere"} },

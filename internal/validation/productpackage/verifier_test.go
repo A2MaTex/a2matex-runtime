@@ -26,7 +26,7 @@ import (
 const (
 	productID   = "11111111-1111-4111-8111-111111111111"
 	releaseID   = "22222222-2222-4222-8222-222222222222"
-	reference   = productID + "/" + releaseID + "/auto-farming-1.0.0.a2m"
+	reference   = productID + "/renamed package.a2m"
 	fixtureHash = "09ec3f0a6a578539e18362027fa907be68257a5590d6a8b8eb6072481ad71d01"
 )
 
@@ -91,13 +91,19 @@ func TestInspectPackageWithoutExpectedHash(t *testing.T) {
 	if err != nil || string(encoded) != "{}" {
 		t.Fatal("inspection must use an explicit transport projection")
 	}
-	// Repacking valid members changes the ZIP hash, not its internal consistency.
+	// Release identity comes from the manifest, independent of the editable filename.
+	var manifest Manifest
+	if err := json.Unmarshal(entries[constants.ProductPackageManifestEntry], &manifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest.ReleaseID = productID
+	entries[constants.ProductPackageManifestEntry] = encode(t, manifest)
 	repacked := pack(t, entries)
 	if err := os.WriteFile(path, repacked, 0600); err != nil {
 		t.Fatal(err)
 	}
 	result, err = v.Inspect(context.Background(), request)
-	if err != nil || result.Package.PackageHash != digest(repacked) || result.Package.PackageHash == fixtureHash {
+	if err != nil || result.Package.PackageHash != digest(repacked) || result.Package.PackageHash == fixtureHash || result.Package.ReleaseID != productID {
 		t.Fatalf("inspection must report the actual snapshot hash: %v", err)
 	}
 	assertFailure(t, v, strict, xerror.ErrProductPackageInvalid, "verify_package_hash", "package_hash_mismatch")
@@ -211,7 +217,7 @@ func TestVerifyManifestFields(t *testing.T) {
 		operation, reason string
 	}{
 		{"wrong product", func(m *Manifest) { m.ProductID = releaseID }, "verify_package_identity", "identity_mismatch"},
-		{"wrong release", func(m *Manifest) { m.ReleaseID = productID }, "verify_package_identity", "identity_mismatch"},
+		{"missing release", func(m *Manifest) { m.ReleaseID = "" }, "", ""},
 		{"uppercase ID", func(m *Manifest) { m.ProductID = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA" }, "", ""},
 		{"wrong UUID version", func(m *Manifest) { m.ProductID = "11111111-1111-5111-8111-111111111111" }, "", ""},
 		{"wrong UUID variant", func(m *Manifest) { m.ReleaseID = "22222222-2222-4222-0222-222222222222" }, "", ""},
@@ -598,7 +604,7 @@ func install(t *testing.T, raw []byte) (Request, string) {
 	if err := os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	return Request{ReadRequest: reader.ReadRequest{DirectoryHeaderValues: []string{strings.ReplaceAll(url.QueryEscape(root), "+", "%20")}, PackageRef: reference, ProductID: productID, ReleaseID: releaseID}, PackageHash: digest(raw), LauncherVersion: "0.1.0"}, path
+	return Request{ReadRequest: reader.ReadRequest{DirectoryHeaderValues: []string{strings.ReplaceAll(url.QueryEscape(root), "+", "%20")}, PackageRef: reference, ProductID: productID}, PackageHash: digest(raw), LauncherVersion: "0.1.0"}, path
 }
 func digest(raw []byte) string { sum := sha256.Sum256(raw); return hex.EncodeToString(sum[:]) }
 func encode(t *testing.T, value any) []byte {

@@ -21,8 +21,8 @@ func TestReadLinks(t *testing.T) {
 		name, target string
 		outside      bool
 	}{
-		{"contained relative", "../../inside.a2m", false},
-		{"outside relative", "../../../outside.a2m", true},
+		{"contained relative", "../inside.a2m", false},
+		{"outside relative", "../../outside.a2m", true},
 		{"outside absolute", "", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -163,9 +163,6 @@ func TestReadPermissionAndParentEscape(t *testing.T) {
 		t.Fatal(err)
 	}
 	outside := t.TempDir()
-	if err := os.Mkdir(filepath.Join(outside, testReleaseID), 0700); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.Symlink(outside, parent); err != nil {
 		t.Fatal(err)
 	}

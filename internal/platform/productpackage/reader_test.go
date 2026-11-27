@@ -26,7 +26,7 @@ import (
 const (
 	testProductID = "11111111-1111-4111-8111-111111111111"
 	testReleaseID = "22222222-2222-4222-8222-222222222222"
-	testReference = testProductID + "/" + testReleaseID + "/auto-farming-1.0.0.a2m"
+	testReference = testProductID + "/package.a2m"
 )
 
 func TestReadProtocolVector(t *testing.T) {
@@ -41,12 +41,15 @@ func TestReadProtocolVector(t *testing.T) {
 		t.Fatal("J1 fixture changed")
 	}
 	request, path := installPackage(t, raw)
+	if err := os.WriteFile(filepath.Join(filepath.Dir(path), "launcher.json"), []byte(`{"installed":true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	snapshot, err := Read(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(snapshot.ZIPBytes, raw) || snapshot.Location.PackageRef != testReference ||
-		snapshot.Location.Directory != filepath.Dir(filepath.Dir(filepath.Dir(path))) {
+		snapshot.Location.Directory != filepath.Dir(filepath.Dir(path)) {
 		t.Fatal("snapshot bytes or location changed")
 	}
 	archive, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
@@ -110,10 +113,10 @@ func TestReadRejectsLocation(t *testing.T) {
 		{"tilde root", func(r *ReadRequest) { r.DirectoryHeaderValues = []string{url.PathEscape("~/Documents")} }},
 		{"missing product ID", func(r *ReadRequest) { r.ProductID = "" }},
 		{"wrong identity", func(r *ReadRequest) { r.ProductID = testReleaseID }},
-		{"wrong release", func(r *ReadRequest) { r.ReleaseID = testProductID }},
+		{"old release folder", func(r *ReadRequest) { r.PackageRef = testProductID + "/" + testReleaseID + "/package.a2m" }},
 		{"UUID alternate form", func(r *ReadRequest) { r.ProductID = strings.ReplaceAll(testProductID, "-", "") }},
 		{"UUID wrong version", func(r *ReadRequest) { r.ProductID = "11111111-1111-5111-8111-111111111111" }},
-		{"UUID wrong variant", func(r *ReadRequest) { r.ReleaseID = "22222222-2222-4222-0222-222222222222" }},
+		{"UUID wrong variant", func(r *ReadRequest) { r.ProductID = "11111111-1111-4111-0111-111111111111" }},
 		{"uppercase UUID", func(r *ReadRequest) { r.ProductID = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA" }},
 		{"absolute reference", func(r *ReadRequest) { r.PackageRef = "/" + testReference }},
 		{"backslash reference", func(r *ReadRequest) { r.PackageRef = strings.ReplaceAll(testReference, "/", `\`) }},
@@ -129,7 +132,7 @@ func TestReadRejectsLocation(t *testing.T) {
 			name   string
 			change func(*ReadRequest)
 		}{
-			"filename " + filename, func(r *ReadRequest) { r.PackageRef = testProductID + "/" + testReleaseID + "/" + filename },
+			"filename " + filename, func(r *ReadRequest) { r.PackageRef = testProductID + "/" + filename },
 		})
 	}
 	for _, tc := range cases {
@@ -151,7 +154,7 @@ func TestLocationDecodesOnceAndPreservesFilename(t *testing.T) {
 	for _, filename := range []string{"con-tools.a2m", "literal%2e%2e.a2m", strings.Repeat("é", 125) + "x.a2m"} {
 		t.Run(filename, func(t *testing.T) {
 			r := request
-			r.PackageRef = testProductID + "/" + testReleaseID + "/" + filename
+			r.PackageRef = testProductID + "/" + filename
 			location, err := ResolveLocation(r)
 			if err != nil || location.Directory != root || location.PackageRef != r.PackageRef {
 				t.Fatalf("location changed: %v %v", location, err)
@@ -412,7 +415,7 @@ func makeZIP(t *testing.T, entries []zipEntry) []byte {
 	return buffer.Bytes()
 }
 func requestAt(root string) ReadRequest {
-	return ReadRequest{DirectoryHeaderValues: []string{encodeDirectory(root)}, PackageRef: testReference, ProductID: testProductID, ReleaseID: testReleaseID}
+	return ReadRequest{DirectoryHeaderValues: []string{encodeDirectory(root)}, PackageRef: testReference, ProductID: testProductID}
 }
 
 func encodeDirectory(root string) string {
@@ -422,7 +425,7 @@ func encodeDirectory(root string) string {
 }
 func installPackage(t *testing.T, raw []byte) (ReadRequest, string) {
 	t.Helper()
-	root := t.TempDir()
+	root := filepath.Join(t.TempDir(), "OneDrive", "Documents", "a2matex", "products")
 	path := filepath.Join(root, filepath.FromSlash(testReference))
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)

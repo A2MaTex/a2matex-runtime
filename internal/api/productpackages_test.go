@@ -27,7 +27,7 @@ import (
 )
 
 const packageSchemaPath = "/api/v1/product-packages/input-schema"
-const packageSchemaBody = `{"packageRef":"11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/auto-farming-1.0.0.a2m","launcherVersion":"0.1.0"}`
+const packageSchemaBody = `{"packageRef":"11111111-1111-4111-8111-111111111111/package.a2m","launcherVersion":"0.1.0"}`
 
 type packageInspectorFunc func(context.Context, packagevalidation.InspectionRequest) (*packagevalidation.Inspection, error)
 
