@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "files": [
+    {
+      "path": "protocol-vectors.json",
+      "sha256": "6ff448a7578d9bcb0aee22e200f5f60dcc68e0ad4265f103170380bbbe8521cb"
+    }
+  ],
+  "caseCount": 22
+}

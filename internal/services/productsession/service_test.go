@@ -3,12 +3,15 @@ package productsession
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"io"
 	"log/slog"
@@ -26,6 +29,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/executionlease"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	packagevalidation "github.com/A2MaTex/a2matex-runtime/internal/validation/productpackage"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
@@ -642,5 +646,68 @@ func TestIdleReaperReleasesMaterial(t *testing.T) {
 	defer s.mu.Unlock()
 	if s.pending != 0 || len(s.sessions) != 0 || private.D != nil {
 		t.Fatal("idle cleanup retained material")
+	}
+}
+
+func TestLeaseVerificationDoesNotConsumeSession(t *testing.T) {
+	r, packages, _ := packageRequest(t)
+	s, _ := service(t, packages, nil)
+	prepared := prepare(t, s, r)
+	binding, err := s.Lookup(context.Background(), prepared.RuntimeSessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	public, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A synthetic Backend decision binds real J5 metadata without exposing its
+	// private RSA material or needing a customer/database/HTTP endpoint.
+	verifier, err := executionlease.New(executionlease.Options{VerificationKeys: map[string]string{
+		"session-test": string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Unix()
+	claims, err := json.Marshal(map[string]any{
+		"leaseId": uuid.NewString(), "leaseFamilyId": uuid.NewString(), "executionId": binding.ExecutionID,
+		"sequence": 1, "entitlementId": uuid.NewString(), "userId": uuid.NewString(),
+		"productId": binding.Package.ProductID, "releaseId": binding.Package.ReleaseID,
+		"packageHash": binding.Package.PackageHash, "runtimeSessionId": binding.RuntimeSessionID,
+		"runtimeKeyThumbprint": binding.RuntimeKeyThumbprint,
+		"issuedAt":             now, "notBefore": now, "refreshAfter": now + 60, "expiresAt": now + 120,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"EdDSA","kid":"session-test","typ":"a2matex-execution-lease+jws"}`))
+	input := header + "." + base64.RawURLEncoding.EncodeToString(claims)
+	compact := input + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, []byte(input)))
+	request := executionlease.Request{Mode: constants.LeaseVerificationInitial, Expected: executionlease.Expected{
+		ExecutionID: binding.ExecutionID, ProductID: binding.Package.ProductID, ReleaseID: binding.Package.ReleaseID,
+		PackageHash: binding.Package.PackageHash, RuntimeSessionID: binding.RuntimeSessionID, RuntimeKeyThumbprint: binding.RuntimeKeyThumbprint,
+	}}
+	for _, token := range []string{compact + "invalid", compact} {
+		request.Compact = token
+		result, err := verifier.Verify(context.Background(), request)
+		if token == compact && (err != nil || result.Grant == nil) || token != compact && !errors.Is(err, xerror.ErrExecutionLeaseInvalid) {
+			t.Fatalf("lease decision: %v", err)
+		}
+		if got, err := s.Lookup(context.Background(), binding.RuntimeSessionID); err != nil || got != binding {
+			t.Fatalf("verification consumed or changed J5: %v", err)
+		}
+	}
+	material, err := s.Consume(context.Background(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	material.Close()
+	if _, err := s.Lookup(context.Background(), binding.RuntimeSessionID); !errors.Is(err, xerror.ErrProductSessionUnavailable) {
+		t.Fatal("J5 consumption gate changed")
 	}
 }
