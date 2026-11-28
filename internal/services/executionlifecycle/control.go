@@ -13,10 +13,16 @@ import (
 type groupControl struct{ pause bool }
 
 func (l *Service) Pause(ctx context.Context, id string) (constants.GroupControlDisposition, error) {
+	if disposition, found, err := l.productAction(ctx, id, "PAUSE"); found {
+		return disposition, err
+	}
 	return l.requestControl(ctx, id, true)
 }
 
 func (l *Service) Resume(ctx context.Context, id string) (constants.GroupControlDisposition, error) {
+	if disposition, found, err := l.productAction(ctx, id, "RESUME"); found {
+		return disposition, err
+	}
 	return l.requestControl(ctx, id, false)
 }
 

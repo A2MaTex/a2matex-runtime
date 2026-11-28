@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +18,7 @@ func TestLoadDefaults(t *testing.T) {
 	}
 
 	want := validConfig()
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Load() = %#v, want %#v", got, want)
 	}
 }
@@ -285,6 +286,7 @@ func TestConfigValidate(t *testing.T) {
 
 func validConfig() Config {
 	return Config{
+		Production:      ProductionConfig{ClockSkew: defaultProductionClockSkew},
 		ShutdownTimeout: defaultShutdownTimeout,
 		HTTP: HTTPConfig{
 			ListenAddress:     defaultListenAddress,
@@ -304,6 +306,9 @@ func clearEnvironment(t *testing.T) {
 	t.Helper()
 
 	for _, key := range []string{
+		"A2MATEX_RUNTIME_PRODUCTION_AUTHORIZATION_ENABLED",
+		"A2MATEX_RUNTIME_PRODUCTION_VERIFICATION_KEYS",
+		"A2MATEX_RUNTIME_PRODUCTION_CLOCK_SKEW",
 		"A2MATEX_RUNTIME_SHUTDOWN_TIMEOUT",
 		"A2MATEX_RUNTIME_HTTP_LISTEN_ADDRESS",
 		"A2MATEX_RUNTIME_HTTP_READ_HEADER_TIMEOUT",

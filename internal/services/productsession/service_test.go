@@ -3,12 +3,15 @@ package productsession
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"io"
 	"log/slog"
@@ -26,8 +29,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/A2MaTex/a2matex-runtime/internal/handlers/registry"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/productworkflow"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/executionlease"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/keyenvelope"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
 	packagevalidation "github.com/A2MaTex/a2matex-runtime/internal/validation/productpackage"
+	"github.com/A2MaTex/a2matex-runtime/internal/validation/runtimeir"
 	"github.com/A2MaTex/a2matex-runtime/pkg/constants"
 	xerror "github.com/A2MaTex/a2matex-runtime/pkg/x-error"
 )
@@ -219,6 +226,10 @@ func TestPrepareBindingReplayAndPrivateOwnership(t *testing.T) {
 	equivalent := r
 	equivalent.DirectoryHeaderValues = []string{strings.ReplaceAll(r.DirectoryHeaderValues[0], "%2F", "%2f") + "%2F.%2F"}
 	replay := prepare(t, s, equivalent)
+	if !replay.Replayed || p.Replayed {
+		t.Fatal("new/replay metadata")
+	}
+	replay.Replayed = false
 	if !reflect.DeepEqual(replay, p) || reads.Load() != 1 || keys.Load() != 1 {
 		t.Fatal("replay did work or changed identity")
 	}
@@ -642,5 +653,278 @@ func TestIdleReaperReleasesMaterial(t *testing.T) {
 	defer s.mu.Unlock()
 	if s.pending != 0 || len(s.sessions) != 0 || private.D != nil {
 		t.Fatal("idle cleanup retained material")
+	}
+}
+
+func TestLeaseVerificationDoesNotConsumeSession(t *testing.T) {
+	r, packages, _ := packageRequest(t)
+	s, _ := service(t, packages, nil)
+	prepared := prepare(t, s, r)
+	binding, err := s.Lookup(context.Background(), prepared.RuntimeSessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier, request := sessionLease(t, binding)
+	compact := request.Compact
+	var grant *executionlease.Verified
+	for _, token := range []string{compact + "invalid", compact} {
+		request.Compact = token
+		result, err := verifier.Verify(context.Background(), request)
+		if token == compact && (err != nil || result.Grant == nil) || token != compact && !errors.Is(err, xerror.ErrExecutionLeaseInvalid) {
+			t.Fatalf("lease decision: %v", err)
+		}
+		if got, err := s.Lookup(context.Background(), binding.RuntimeSessionID); err != nil || got != binding {
+			t.Fatalf("verification consumed or changed J5: %v", err)
+		}
+		if err == nil {
+			grant = result.Grant
+		}
+	}
+	material, err := s.Consume(context.Background(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer material.Close()
+	publicDER, err := base64.StdEncoding.DecodeString(prepared.RuntimePublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimePublic, err := x509.ParsePKIXPublicKey(publicDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := bytes.Repeat([]byte{0x4a}, constants.ProductContentKeyBytes)
+	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, runtimePublic.(*rsa.PublicKey), content, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verified := grant.Claims()
+	envelope, err := json.Marshal(map[string]string{
+		"releaseId": verified.ReleaseID, "algorithm": constants.ProductKeyEnvelopeAlgorithm,
+		"runtimeSessionId": verified.RuntimeSessionID, "runtimeKeyThumbprint": verified.RuntimeKeyThumbprint,
+		"encryptedKey": base64.StdEncoding.EncodeToString(ciphertext),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var alias []byte
+	var borrowedKey *rsa.PrivateKey
+	if err := material.Use(context.Background(), func(key *rsa.PrivateKey, snapshot *packagevalidation.VerifiedPackage) error {
+		borrowedKey = key
+		if snapshot.Package != binding.Package {
+			t.Fatal("captured package changed")
+		}
+		return keyenvelope.WithContentKey(context.Background(), keyenvelope.Request{
+			Envelope: envelope, PrivateKey: key, Expected: keyenvelope.Expected{
+				ReleaseID: verified.ReleaseID, RuntimeSessionID: verified.RuntimeSessionID, RuntimeKeyThumbprint: verified.RuntimeKeyThumbprint,
+			},
+		}, func(_ context.Context, key []byte) error {
+			alias = key
+			if !bytes.Equal(key, content) {
+				t.Fatal("J5 material opening key mismatch")
+			}
+			return nil
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(alias, make([]byte, constants.ProductContentKeyBytes)) || borrowedKey.D == nil {
+		t.Fatal("J7 changed key ownership or retained content key")
+	}
+	material.Close()
+	if borrowedKey.D != nil {
+		t.Fatal("caller Close retained private material")
+	}
+	if _, err := s.Lookup(context.Background(), binding.RuntimeSessionID); !errors.Is(err, xerror.ErrProductSessionUnavailable) {
+		t.Fatal("J5 consumption gate changed")
+	}
+}
+
+func sessionLease(t *testing.T, binding Binding) (*executionlease.Verifier, executionlease.Request) {
+	t.Helper()
+	public, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A synthetic Backend decision binds real J5 metadata without exposing its
+	// private RSA material or needing a customer/database/HTTP endpoint.
+	verifier, err := executionlease.New(executionlease.Options{VerificationKeys: map[string]string{
+		"session-test": string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Unix()
+	claims, err := json.Marshal(map[string]any{
+		"leaseId": uuid.NewString(), "leaseFamilyId": uuid.NewString(), "executionId": binding.ExecutionID,
+		"sequence": 1, "entitlementId": uuid.NewString(), "userId": uuid.NewString(),
+		"productId": binding.Package.ProductID, "releaseId": binding.Package.ReleaseID,
+		"packageHash": binding.Package.PackageHash, "runtimeSessionId": binding.RuntimeSessionID,
+		"runtimeKeyThumbprint": binding.RuntimeKeyThumbprint,
+		"issuedAt":             now, "notBefore": now, "refreshAfter": now + 60, "expiresAt": now + 120,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"EdDSA","kid":"session-test","typ":"a2matex-execution-lease+jws"}`))
+	input := header + "." + base64.RawURLEncoding.EncodeToString(claims)
+	compact := input + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, []byte(input)))
+	request := executionlease.Request{Mode: constants.LeaseVerificationInitial, Expected: executionlease.Expected{
+		ExecutionID: binding.ExecutionID, ProductID: binding.Package.ProductID, ReleaseID: binding.Package.ReleaseID,
+		PackageHash: binding.Package.PackageHash, RuntimeSessionID: binding.RuntimeSessionID, RuntimeKeyThumbprint: binding.RuntimeKeyThumbprint,
+	}}
+	request.Compact = compact
+	return verifier, request
+}
+
+func TestProtectedWorkflowLoadingFromSession(t *testing.T) {
+	raw, err := os.ReadFile("../productworkflow/testdata/loading-v1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		ContentKeyBase64 string
+		Cases            []struct {
+			PackageZipBase64, PackageHash, RuntimeIrHash string
+			Inputs                                       []json.RawMessage
+		}
+	}
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	sample := fixture.Cases[0]
+	zipBytes, err := base64.StdEncoding.DecodeString(sample.PackageZipBase64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := base64.StdEncoding.DecodeString(fixture.ContentKeyBase64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definitions, err := nodecontract.NewDefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries []registry.Registration
+	for _, kind := range []string{"flow.start", "flow.delay", "flow.end"} {
+		definition, _ := definitions.CompilationDefinition(kind)
+		entries = append(entries, registry.Registration{Type: kind, RuntimeHandler: definition.RuntimeHandler, Run: func(context.Context, registry.Invocation) (map[string]any, error) {
+			t.Error("loading dispatched a node")
+			return nil, nil
+		}})
+	}
+	handlers, err := registry.New(definitions, entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages, err := packagevalidation.New(definitions, handlers, "0.2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	validator, err := runtimeir.New(definitions, handlers, "0.2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader, err := productworkflow.New(validator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"success", "request_cancel", "owner_loss"} {
+		t.Run(mode, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, filepath.FromSlash(testReference))
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, zipBytes, 0600); err != nil {
+				t.Fatal(err)
+			}
+			s, _ := service(t, packages, nil)
+			prepared := prepare(t, s, Request{RequestID: uuid.NewString(), Purpose: constants.ProductSessionStart, DirectoryHeaderValues: []string{url.PathEscape(root)}, PackageRef: testReference, PackageHash: sample.PackageHash, LauncherVersion: "0.2.0"})
+			binding, err := s.Lookup(context.Background(), prepared.RuntimeSessionID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			verifier, leaseRequest := sessionLease(t, binding)
+			decision, err := verifier.Verify(context.Background(), leaseRequest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			claims := decision.Grant.Claims()
+			publicDER, err := base64.StdEncoding.DecodeString(prepared.RuntimePublicKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parsed, err := x509.ParsePKIXPublicKey(publicDER)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, parsed.(*rsa.PublicKey), content, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			envelope, err := json.Marshal(map[string]string{"releaseId": claims.ReleaseID, "algorithm": constants.ProductKeyEnvelopeAlgorithm, "runtimeSessionId": claims.RuntimeSessionID, "runtimeKeyThumbprint": claims.RuntimeKeyThumbprint, "encryptedKey": base64.StdEncoding.EncodeToString(ciphertext)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			work, cancel := context.WithCancel(s.owner)
+			defer cancel()
+			var observed *productworkflow.Loaded
+			var keyAlias []byte
+			var borrowedPrivate *rsa.PrivateKey
+			loaded, err := func() (*productworkflow.Loaded, error) {
+				material, err := s.Consume(work, binding)
+				if err != nil {
+					return nil, err
+				}
+				defer material.Close()
+				var candidate *productworkflow.Loaded
+				transferred := false
+				defer func() {
+					if !transferred {
+						candidate.Close()
+					}
+				}()
+				err = material.Use(work, func(private *rsa.PrivateKey, snapshot *packagevalidation.VerifiedPackage) error {
+					borrowedPrivate = private
+					return keyenvelope.WithContentKey(work, keyenvelope.Request{Envelope: envelope, PrivateKey: private, Expected: keyenvelope.Expected{ReleaseID: claims.ReleaseID, RuntimeSessionID: claims.RuntimeSessionID, RuntimeKeyThumbprint: claims.RuntimeKeyThumbprint}}, func(ctx context.Context, key []byte) error {
+						keyAlias = key
+						var loadErr error
+						candidate, loadErr = loader.Load(ctx, productworkflow.Request{Package: snapshot, Expected: binding.Package, ContentKey: key, DeviceInputs: sample.Inputs})
+						observed = candidate
+						if mode == "request_cancel" {
+							cancel()
+						}
+						if mode == "owner_loss" {
+							s.cancel()
+						}
+						return loadErr
+					})
+				})
+				if err != nil {
+					return nil, err
+				}
+				transferred = true
+				return candidate, nil
+			}()
+			if borrowedPrivate == nil || borrowedPrivate.D != nil || !bytes.Equal(keyAlias, make([]byte, constants.ProductContentKeyBytes)) {
+				t.Fatal("session/key borrow cleanup failed")
+			}
+			if mode == "success" {
+				if err != nil || loaded == nil {
+					t.Fatalf("protected loading failed: %v", err)
+				}
+				defer loaded.Close()
+				if loaded.RuntimeIRHash != sample.RuntimeIrHash || len(loaded.TakeInputs()) != 1 {
+					t.Fatal("loaded workflow or input transfer")
+				}
+			} else if !errors.Is(err, context.Canceled) || loaded != nil || observed == nil || observed.Document != nil || observed.TakeInputs() != nil {
+				t.Fatal("outer failure retained a candidate")
+			}
+		})
 	}
 }

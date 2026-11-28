@@ -185,7 +185,7 @@ func TestWriteTransactionCancellationRollsBack(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	err := s.WithWriteTx(ctx, func(tx Tx) error {
-		if _, err := tx.ExecContext(ctx, "INSERT INTO run_groups VALUES ('g','r','RUNNING',1,NULL)"); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO run_groups(id,request_id,status,created_at,finished_at) VALUES ('g','r','RUNNING',1,NULL)"); err != nil {
 			return err
 		}
 		cancel()

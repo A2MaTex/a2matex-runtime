@@ -38,6 +38,16 @@ func (s *ExecutionRepository) snapshot(ctx context.Context, query string, args .
 			return storageError(ctx, "read_run_group", err)
 		}
 		group.CreatedAt, group.FinishedAt = stamp(created), nullableStamp(finished)
+		kind, kindErr := executionKind(ctx, tx, group.ID)
+		if kindErr != nil {
+			return kindErr
+		}
+		if kind == constants.ExecutionKindProduct {
+			snapshot.Product, err = readProduct(ctx, tx, group.ID)
+			if err != nil {
+				return err
+			}
+		}
 
 		snapshot.DeviceExecutions, err = readDevices(ctx, tx, group.ID)
 		if err != nil {
@@ -118,7 +128,7 @@ func (s *ExecutionRepository) Attempts(ctx context.Context, deviceID string, aft
 	page := execution.AttemptPage{Attempts: make([]execution.NodeAttempt, 0)}
 	err := s.withReadTx(ctx, func(tx Tx) error {
 		var exists bool
-		if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM device_executions WHERE id = ?)", deviceID).Scan(&exists); err != nil {
+		if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM device_executions d JOIN run_groups g ON g.id=d.run_group_id WHERE d.id = ? AND g.execution_kind='DEVELOPMENT')", deviceID).Scan(&exists); err != nil {
 			return storageError(ctx, "look_up_attempt_owner", err)
 		}
 		if !exists {

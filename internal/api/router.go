@@ -13,6 +13,8 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/foundation"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/productpackages"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/productruns"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/productsessions"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/buildinfo"
@@ -33,10 +35,12 @@ func NewHandler(
 	handlers *registry.Registry,
 	logger *slog.Logger,
 	productPackages *productpackages.Handler,
+	productSessions *productsessions.Handler,
+	productRuns *productruns.Handler,
 ) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 
-	return newRouter(info, verifier, workflowValidation, deviceInventory, runSnapshots, attemptHistory, artifactDownloads, eventStream, handlers.SupportedNodes(), logger, productPackages)
+	return newRouter(info, verifier, workflowValidation, deviceInventory, runSnapshots, attemptHistory, artifactDownloads, eventStream, handlers.SupportedNodes(), logger, productPackages, productSessions, productRuns)
 }
 
 func newRouter(
@@ -51,6 +55,8 @@ func newRouter(
 	supported []registry.SupportedNode,
 	logger *slog.Logger,
 	productPackages *productpackages.Handler,
+	productSessions *productsessions.Handler,
+	productRuns *productruns.Handler,
 ) *gin.Engine {
 	router := gin.New()
 	router.RedirectTrailingSlash = false
@@ -78,6 +84,11 @@ func newRouter(
 		v1.GET("/artifacts/:artifactId", artifactDownloads.ByID)
 		v1.GET("/events", eventStream.Stream)
 		v1.POST("/product-packages/input-schema", productPackages.InputSchema)
+		v1.POST("/product-sessions", productSessions.Prepare)
+		v1.POST("/product-runs", productRuns.Start)
+		v1.GET("/product-runs/active", productRuns.Active)
+		v1.GET("/product-runs/:runGroupId", productRuns.ByID)
+		v1.POST("/product-runs/:runGroupId/actions", productRuns.Action)
 		router.NoRoute(foundation.NotFound)
 	}
 

@@ -8,6 +8,7 @@ import (
 )
 
 type Admission struct {
+	Product    *ProductProvenance
 	RequestID  string
 	RunGroupID string
 	Now        time.Time
@@ -26,9 +27,10 @@ type AdmissionResult struct {
 }
 
 type Snapshot struct {
-	Cursor           string            `json:"cursor"`
-	RunGroup         RunGroup          `json:"runGroup"`
-	DeviceExecutions []DeviceExecution `json:"deviceExecutions"`
+	Product          *ProductProvenance `json:"-"`
+	Cursor           string             `json:"cursor"`
+	RunGroup         RunGroup           `json:"runGroup"`
+	DeviceExecutions []DeviceExecution  `json:"deviceExecutions"`
 }
 
 type RunGroup struct {

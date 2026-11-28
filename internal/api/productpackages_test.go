@@ -36,7 +36,7 @@ func (f packageInspectorFunc) Inspect(ctx context.Context, r packagevalidation.I
 }
 
 func packageRouter(inspector packageapi.Inspector, logs io.Writer) http.Handler {
-	return newRouter(buildinfo.Info{Version: "0.1.0"}, exactAuthorizationVerifier{}, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.NewJSONHandler(logs, nil)), packageapi.NewHandler(inspector))
+	return newRouter(buildinfo.Info{Version: "0.1.0"}, exactAuthorizationVerifier{}, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.NewJSONHandler(logs, nil)), packageapi.NewHandler(inspector), nil, nil)
 }
 func packageRequest(body string) *http.Request {
 	r := httptest.NewRequest(http.MethodPost, packageSchemaPath, strings.NewReader(body))

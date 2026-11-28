@@ -13,6 +13,8 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/devices"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/events"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/productpackages"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/productruns"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/productsessions"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
@@ -85,11 +87,28 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		return nil, err
 	}
 	productpackagesHandler := productpackages.NewHandler(verifier)
-	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, attemptsHandler, artifactsHandler, eventsHandler, registryRegistry, logger, productpackagesHandler)
+	productsessionService, err := newProductSessions(verifier, logger)
+	if err != nil {
+		return nil, err
+	}
+	executionleaseVerifier, err := newProductLeaseVerifier(cfg)
+	if err != nil {
+		return nil, err
+	}
+	productsessionsHandler, err := productsessions.NewHandler(productsessionService, executionleaseVerifier)
+	if err != nil {
+		return nil, err
+	}
+	productrunService, err := newProductRun(registry, registryRegistry, info, productsessionService, executionleaseVerifier, runadmissionService, executionRepository, executionlifecycleService)
+	if err != nil {
+		return nil, err
+	}
+	productrunsHandler := productruns.NewHandler(productrunService)
+	httpHandler := api.NewHandler(info, session, handler, devicesHandler, runsHandler, attemptsHandler, artifactsHandler, eventsHandler, registryRegistry, logger, productpackagesHandler, productsessionsHandler, productrunsHandler)
 	server := httpserver.New(cfg, httpHandler)
 	publisher := discovery.NewOwnerPublisher(cfg, session, owner)
 	executionRecovery := services.NewExecutionRecovery(executionRepository, logger)
 	eventRetention := services.NewEventRetention(executionRepository, logger)
-	app := supervisor.New(server, publisher, store, executionRecovery, artifactService, eventRetention, checkpointService, executionlifecycleService, cfg, logger)
+	app := supervisor.New(server, publisher, store, executionRecovery, artifactService, eventRetention, checkpointService, executionlifecycleService, productsessionService, cfg, logger)
 	return app, nil
 }

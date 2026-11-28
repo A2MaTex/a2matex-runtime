@@ -20,6 +20,9 @@ type groupCancellation struct {
 
 // Cancel stops only this group. Its existing finalizer joins and settles it.
 func (l *Service) Cancel(ctx context.Context, id string) (constants.GroupControlDisposition, error) {
+	if disposition, found, err := l.productAction(ctx, id, "CANCEL"); found {
+		return disposition, err
+	}
 	const operation = "cancel_execution_group"
 	if err := executionContextError(ctx); err != nil {
 		return "", lifecycleError(operation, err)

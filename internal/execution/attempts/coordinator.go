@@ -41,6 +41,8 @@ type Control struct {
 }
 
 type Request struct {
+	BeforeBegin          func(context.Context, int64) (bool, error)
+	BeforeInvoke         func(context.Context, int64) error
 	Ref                  execution.AttemptRef
 	Node                 ir.Node
 	ExpectedDeviceStatus string
@@ -55,6 +57,7 @@ type Request struct {
 // Result releases continuation data only after this call confirms both checkpoints.
 // An error after begin preserves only Began and Sequence for lifecycle settlement.
 type Result struct {
+	Parked     bool
 	Began      bool
 	Finished   bool
 	Sequence   int64
@@ -106,6 +109,15 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 	if err := entryError(ctx, request); err != nil {
 		return Result{}, err
 	}
+	if request.BeforeBegin != nil {
+		allowed, err := request.BeforeBegin(ctx, request.Node.TimeoutMS)
+		if err != nil {
+			return Result{}, err
+		}
+		if !allowed {
+			return Result{Parked: true}, nil
+		}
+	}
 	started := c.dependencies.Now().UTC()
 	if started.IsZero() {
 		return Result{}, attemptError("attempt_request_invalid", xerror.ErrAttemptInvalid)
@@ -122,6 +134,11 @@ func (c *Coordinator) Run(ctx context.Context, request Request) (Result, error) 
 		return Result{}, err
 	}
 	active := Result{Began: true, Sequence: begin.Sequence}
+	if request.BeforeInvoke != nil {
+		if err := request.BeforeInvoke(ctx, request.Node.TimeoutMS); err != nil {
+			return active, err
+		}
+	}
 	var shot *screenshotStage
 	if request.Node.Type == constants.ScreenshotNodeType {
 		shot = &screenshotStage{store: c.dependencies.Artifacts, attemptID: request.Ref.AttemptID}

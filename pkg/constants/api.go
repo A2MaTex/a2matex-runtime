@@ -22,15 +22,17 @@ const (
 	RunActionResume = "RESUME"
 	RunActionCancel = "CANCEL"
 
-	APIErrorCodeInvalidRequest        = "INVALID_REQUEST"
-	APIErrorCodeUnauthorized          = "UNAUTHORIZED"
-	APIErrorCodeResourceNotFound      = "RESOURCE_NOT_FOUND"
-	APIErrorCodePayloadTooLarge       = "PAYLOAD_TOO_LARGE"
-	APIErrorCodeInternal              = InternalError
-	APIErrorCodeADBUnavailable        = ADBUnavailable
-	APIErrorCodeRuntimeBusy           = "RUNTIME_BUSY"
-	APIErrorCodeInvalidExecutionState = "INVALID_EXECUTION_STATE"
-	APIErrorCodeEventCursorExpired    = "EVENT_CURSOR_EXPIRED"
+	APIErrorCodeInvalidRequest                  = "INVALID_REQUEST"
+	APIErrorCodeUnauthorized                    = "UNAUTHORIZED"
+	APIErrorCodeResourceNotFound                = "RESOURCE_NOT_FOUND"
+	APIErrorCodePayloadTooLarge                 = "PAYLOAD_TOO_LARGE"
+	APIErrorCodeInternal                        = InternalError
+	APIErrorCodeADBUnavailable                  = ADBUnavailable
+	APIErrorCodeRuntimeBusy                     = "RUNTIME_BUSY"
+	APIErrorCodeIdempotencyConflict             = "IDEMPOTENCY_CONFLICT"
+	APIErrorCodeAuthorizationSessionUnavailable = "AUTHORIZATION_SESSION_UNAVAILABLE"
+	APIErrorCodeInvalidExecutionState           = "INVALID_EXECUTION_STATE"
+	APIErrorCodeEventCursorExpired              = "EVENT_CURSOR_EXPIRED"
 
 	APIErrorMessageInvalidRequest        = "request is invalid"
 	APIErrorMessageUnauthorized          = "local session token is missing or invalid"
@@ -49,9 +51,14 @@ const (
 	APIDeviceStatusReady       = "READY"
 	APIDeviceStatusUnavailable = "UNAVAILABLE"
 
-	APIErrorMessageAdmissionFailed            = "run admission failed"
-	APIErrorMessageRuntimeBusy                = "another workflow run is active"
-	APIErrorMessageRuntimeStopping            = "runtime is stopping"
-	APIErrorMessageAdmissionADBUnavailable    = "unable to check selected Android device"
-	APIErrorMessageAdmissionPersistenceFailed = "unable to persist workflow run"
+	APIErrorMessageAdmissionFailed                 = "run admission failed"
+	APIErrorMessageRuntimeBusy                     = "another workflow run is active"
+	APIErrorMessageProductSessionBusy              = "product session preparation is busy"
+	APIErrorMessageIdempotencyConflict             = "request identity conflicts with a previous operation"
+	APIErrorMessageAuthorizationSessionUnavailable = "authorization session is unavailable"
+	APIErrorMessageProductExecutionState           = "product operation is not valid for the current execution state"
+	APIErrorMessageProductUnusable                 = "Product package could not be used."
+	APIErrorMessageRuntimeStopping                 = "runtime is stopping"
+	APIErrorMessageAdmissionADBUnavailable         = "unable to check selected Android device"
+	APIErrorMessageAdmissionPersistenceFailed      = "unable to persist workflow run"
 )

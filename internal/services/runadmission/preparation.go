@@ -101,7 +101,11 @@ func prepare(request Request, checked runtimeir.Result, worker *runner.Runner) (
 	if err != nil {
 		return execution.Admission{}, nil, xerror.WithOperation("prepare_run_admission", err)
 	}
-	admission := execution.Admission{RequestID: request.RequestID, RunGroupID: groupID.String(), Devices: make([]execution.AdmissionDevice, len(request.Devices))}
+	return prepareIdentity(request, checked, worker, groupID.String())
+}
+
+func prepareIdentity(request Request, checked runtimeir.Result, worker *runner.Runner, groupID string) (execution.Admission, *PreparedRun, error) {
+	admission := execution.Admission{RequestID: request.RequestID, RunGroupID: groupID, Devices: make([]execution.AdmissionDevice, len(request.Devices))}
 	work := &PreparedRun{Runner: worker, Devices: make([]runner.Request, len(request.Devices))}
 	for i, device := range request.Devices {
 		deviceID, err := uuid.NewRandom()

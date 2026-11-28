@@ -12,6 +12,8 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/api/events"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/middleware"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/productpackages"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/productruns"
+	"github.com/A2MaTex/a2matex-runtime/internal/api/productsessions"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/runs"
 	"github.com/A2MaTex/a2matex-runtime/internal/api/workflowvalidation"
 	"github.com/A2MaTex/a2matex-runtime/internal/auth"
@@ -27,6 +29,8 @@ import (
 	"github.com/A2MaTex/a2matex-runtime/internal/services"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/eventdelivery"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/executionlifecycle"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/productrun"
+	"github.com/A2MaTex/a2matex-runtime/internal/services/productsession"
 	"github.com/A2MaTex/a2matex-runtime/internal/services/runadmission"
 	"github.com/A2MaTex/a2matex-runtime/internal/supervisor"
 	"github.com/A2MaTex/a2matex-runtime/internal/validation/nodecontract"
@@ -49,6 +53,13 @@ func initializeAppWithOwner(cfg config.Config, info buildinfo.Info, owner *disco
 		packagevalidation.New,
 		wire.Bind(new(productpackages.Inspector), new(*packagevalidation.Verifier)),
 		productpackages.NewHandler,
+		newProductLeaseVerifier,
+		newProductSessions,
+		newProductRun,
+		wire.Bind(new(productruns.Service), new(*productrun.Service)),
+		productruns.NewHandler,
+		wire.Bind(new(productsessions.Preparer), new(*productsession.Service)),
+		productsessions.NewHandler,
 		wire.FieldsOf(new(config.Config), "ADB"),
 		adb.NewResolver,
 		adb.NewDispatcher,

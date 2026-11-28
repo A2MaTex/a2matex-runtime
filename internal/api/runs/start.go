@@ -82,6 +82,9 @@ func startError(ctx *gin.Context, cause error) {
 	case errors.As(cause, &limit), errors.Is(cause, xerror.ErrRuntimeIRPayloadTooLarge):
 		startPayloadTooLarge(ctx)
 		return
+	case errors.Is(cause, xerror.ErrProductRunConflict):
+		status = http.StatusConflict
+		failure.Code, failure.Message = constants.APIErrorCodeIdempotencyConflict, "request identity conflicts"
 	case errors.Is(cause, xerror.ErrExecutionStopping):
 		status, failure.Message = http.StatusServiceUnavailable, constants.APIErrorMessageRuntimeStopping
 	case errors.Is(cause, xerror.ErrExecutionPersistence), errors.Is(cause, xerror.ErrExecutionCommitUnknown), errors.Is(cause, xerror.ErrRecoveryIntegrity):

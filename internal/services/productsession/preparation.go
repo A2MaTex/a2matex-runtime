@@ -26,6 +26,7 @@ type Request struct {
 }
 
 type Prepared struct {
+	Replayed              bool                            `json:"-"`
 	RequestID             string                          `json:"requestId"`
 	Purpose               constants.ProductSessionPurpose `json:"purpose"`
 	ExecutionID           string                          `json:"executionId"`
@@ -81,7 +82,9 @@ func (s *Service) Prepare(ctx context.Context, request Request) (Prepared, error
 		if err = s.pendingLocked(work, id, previous); err != nil {
 			return Prepared{}, err
 		}
-		return copyPrepared(previous.prepared), nil
+		prepared := copyPrepared(previous.prepared)
+		prepared.Replayed = true
+		return prepared, nil
 	}
 	if s.pending >= constants.ProductSessionPendingLimit || len(s.receipts) >= constants.ProductSessionReceiptLimit || s.preparing >= constants.ProductSessionPreparationLimit {
 		s.mu.Unlock()

@@ -68,7 +68,7 @@ func TestEventStreamRealSQLiteHTTPReplayAndLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	router := newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(f.repo, nil, nil), nil, nil, events.NewHandler(eventdelivery.New(f.repo), logger), nil, logger, nil)
+	router := newRouter(buildinfo.Info{}, session, nil, nil, runs.NewHandler(f.repo, nil, nil), nil, nil, events.NewHandler(eventdelivery.New(f.repo), logger), nil, logger, nil, nil, nil)
 	server := httptest.NewServer(router)
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)

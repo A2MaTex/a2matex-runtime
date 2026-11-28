@@ -20,7 +20,7 @@ func TestStoreMigratesReopensAndRejectsSecondOwner(t *testing.T) {
 		t.Fatalf("second start: %v", err)
 	}
 	if _, err := first.db.ExecContext(t.Context(),
-		"INSERT INTO run_groups VALUES ('g1','request1','RUNNING',1,NULL)"); err != nil {
+		"INSERT INTO run_groups(id,request_id,status,created_at,finished_at) VALUES ('g1','request1','RUNNING',1,NULL)"); err != nil {
 		t.Fatal(err)
 	}
 	if err := first.Shutdown(t.Context()); err != nil {
@@ -92,7 +92,7 @@ func TestExecutionSchemaConstraints(t *testing.T) {
 	}
 	defer store.release()
 	for _, statement := range []string{
-		"INSERT INTO run_groups VALUES ('g1','r1','RUNNING',1,NULL)",
+		"INSERT INTO run_groups(id,request_id,status,created_at,finished_at) VALUES ('g1','r1','RUNNING',1,NULL)",
 		"INSERT INTO device_executions VALUES ('d1','g1','device',0,'QUEUED','start',1,NULL,NULL,NULL)",
 		"INSERT INTO node_attempts VALUES ('a1','d1',1,'start',1,'RUNNING',1,NULL,NULL,NULL)",
 	} {
@@ -101,8 +101,8 @@ func TestExecutionSchemaConstraints(t *testing.T) {
 		}
 	}
 	for name, statement := range map[string]string{
-		"duplicate request":      "INSERT INTO run_groups VALUES ('g2','r1','SUCCEEDED',1,2)",
-		"second active run":      "INSERT INTO run_groups VALUES ('g2','r2','PAUSED',1,NULL)",
+		"duplicate request":      "INSERT INTO run_groups(id,request_id,status,created_at,finished_at) VALUES ('g2','r1','SUCCEEDED',1,2)",
+		"second active run":      "INSERT INTO run_groups(id,request_id,status,created_at,finished_at) VALUES ('g2','r2','PAUSED',1,NULL)",
 		"duplicate serial":       "INSERT INTO device_executions VALUES ('d2','g1','device',1,'QUEUED','start',1,NULL,NULL,NULL)",
 		"missing parent":         "INSERT INTO device_executions VALUES ('d2','missing','another',1,'QUEUED','start',1,NULL,NULL,NULL)",
 		"second running attempt": "INSERT INTO node_attempts VALUES ('a2','d1',2,'tap',1,'RUNNING',2,NULL,NULL,NULL)",

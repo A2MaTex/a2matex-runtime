@@ -37,6 +37,19 @@ func (h *Handler) Action(ctx *gin.Context) {
 		actionError(ctx, xerror.ErrExecutionLifecycleInvalid)
 		return
 	}
+	if guard, ok := h.reader.(interface {
+		ExecutionKind(context.Context, string) (string, error)
+	}); ok {
+		kind, err := guard.ExecutionKind(ctx.Request.Context(), id)
+		if err != nil {
+			respond(ctx, SnapshotResponse{}, err, "classify_run_action")
+			return
+		}
+		if kind != constants.ExecutionKindDevelopment {
+			respond(ctx, SnapshotResponse{}, xerror.ErrExecutionNotFound, "classify_run_action")
+			return
+		}
+	}
 	var disposition constants.GroupControlDisposition
 	var err error
 	switch request.Action {

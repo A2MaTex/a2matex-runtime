@@ -120,6 +120,9 @@ func (s *Service) replay(ctx context.Context, requestID, id string) (Result, err
 	if err != nil {
 		return Result{}, xerror.WithOperation("read_admitted_run", err)
 	}
+	if snapshot.Product != nil {
+		return Result{}, xerror.ErrProductRunConflict
+	}
 	if snapshot.RunGroup.ID != id || snapshot.RunGroup.RequestID != requestID {
 		return Result{}, xerror.WithOperation("read_admitted_run", xerror.ErrRunAdmissionContract)
 	}
