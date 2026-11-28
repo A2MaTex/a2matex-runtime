@@ -75,52 +75,14 @@ func Read(ctx context.Context, request ReadRequest) (*Snapshot, error) {
 // ResolveLocation validates and normalizes selection without accessing the filesystem.
 // Actual containment and regular-file checks still happen when Read opens it.
 func ResolveLocation(request ReadRequest) (Location, error) {
-	invalid := xerror.ErrProductPackageLocation
-	if len(request.DirectoryHeaderValues) != 1 {
-		return Location{}, invalid
-	}
-	header := request.DirectoryHeaderValues[0]
-	if len(header) == 0 || len(header) > constants.ProductPackageDirectoryHeaderMaxBytes {
-		return Location{}, invalid
-	}
-	for i := 0; i < len(header); i++ {
-		c := header[i]
-		if c == '%' {
-			if i+2 >= len(header) || !isHex(header[i+1]) || !isHex(header[i+2]) {
-				return Location{}, invalid
-			}
-			i += 2
-		} else if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' ||
-			c >= '0' && c <= '9' || strings.ContainsRune("-._~", rune(c))) {
-			return Location{}, invalid
-		}
-	}
-	directory, err := url.PathUnescape(header)
-	if err != nil || !validText(directory) || !filepath.IsAbs(directory) {
-		return Location{}, invalid
-	}
-	if runtime.GOOS == "windows" {
-		directory = strings.ReplaceAll(directory, "/", `\`)
-		volume := filepath.VolumeName(directory)
-		switch {
-		case strings.HasPrefix(directory, `\\`):
-			parts := strings.Split(strings.TrimPrefix(volume, `\\`), `\`)
-			if len(parts) != 2 || parts[0] == "" || parts[1] == "" ||
-				parts[0] == "?" || parts[0] == "." || parts[0] == ".." || parts[0] == "??" ||
-				parts[1] == "." || parts[1] == ".." {
-				return Location{}, invalid
-			}
-		case len(volume) == 2 && volume[1] == ':' &&
-			(volume[0] >= 'a' && volume[0] <= 'z' || volume[0] >= 'A' && volume[0] <= 'Z'):
-			directory = strings.ToUpper(volume) + directory[len(volume):]
-		default:
-			return Location{}, invalid
-		}
+	directory, err := NormalizeDirectory(request.DirectoryHeaderValues)
+	if err != nil {
+		return Location{}, err
 	}
 	if !validReference(request) {
-		return Location{}, invalid
+		return Location{}, xerror.ErrProductPackageLocation
 	}
-	return Location{Directory: filepath.Clean(directory), PackageRef: request.PackageRef}, nil
+	return Location{Directory: directory, PackageRef: request.PackageRef}, nil
 }
 
 func isHex(c byte) bool {
@@ -303,4 +265,51 @@ func readBounded(ctx context.Context, reader io.Reader, limit int) ([]byte, erro
 			return nil, err
 		}
 	}
+}
+
+// NormalizeDirectory applies the shared pure native-directory header policy.
+func NormalizeDirectory(headers []string) (string, error) {
+	invalid := xerror.ErrProductPackageLocation
+	if len(headers) != 1 {
+		return "", invalid
+	}
+	header := headers[0]
+	if len(header) == 0 || len(header) > constants.ProductPackageDirectoryHeaderMaxBytes {
+		return "", invalid
+	}
+	for i := 0; i < len(header); i++ {
+		c := header[i]
+		if c == '%' {
+			if i+2 >= len(header) || !isHex(header[i+1]) || !isHex(header[i+2]) {
+				return "", invalid
+			}
+			i += 2
+		} else if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' ||
+			c >= '0' && c <= '9' || strings.ContainsRune("-._~", rune(c))) {
+			return "", invalid
+		}
+	}
+	directory, err := url.PathUnescape(header)
+	if err != nil || !validText(directory) || !filepath.IsAbs(directory) {
+		return "", invalid
+	}
+	if runtime.GOOS == "windows" {
+		directory = strings.ReplaceAll(directory, "/", `\`)
+		volume := filepath.VolumeName(directory)
+		switch {
+		case strings.HasPrefix(directory, `\\`):
+			parts := strings.Split(strings.TrimPrefix(volume, `\\`), `\`)
+			if len(parts) != 2 || parts[0] == "" || parts[1] == "" ||
+				parts[0] == "?" || parts[0] == "." || parts[0] == ".." || parts[0] == "??" ||
+				parts[1] == "." || parts[1] == ".." {
+				return "", invalid
+			}
+		case len(volume) == 2 && volume[1] == ':' &&
+			(volume[0] >= 'a' && volume[0] <= 'z' || volume[0] >= 'A' && volume[0] <= 'Z'):
+			directory = strings.ToUpper(volume) + directory[len(volume):]
+		default:
+			return "", invalid
+		}
+	}
+	return filepath.Clean(directory), nil
 }

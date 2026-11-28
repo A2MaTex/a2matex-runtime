@@ -28,6 +28,7 @@ type Service struct {
 	cancelAdmissions                    context.CancelFunc
 	workers                             map[string]context.CancelFunc
 	group                               *groupExecution
+	product                             *ProductGroup
 	admissions                          int
 	drained, done, shutdownDone         chan struct{}
 	drainOnce, doneOnce                 sync.Once
@@ -90,7 +91,7 @@ func (l *Service) beginRun(ctx context.Context, worker *runner.Runner, request r
 	if err := executionContextError(ctx); err != nil {
 		return nil, nil, lifecycleError(operation, err)
 	}
-	if worker == nil || request.Control != nil || request.BeforeAttempt != nil || !execution.ValidID(request.RunGroupID) ||
+	if worker == nil || request.Control != nil || request.BeforeAttempt != nil || request.State != nil || request.Permission != nil || request.BeforeBegin != nil || request.BeforeInvoke != nil || request.Park != nil || !execution.ValidID(request.RunGroupID) ||
 		!execution.ValidID(request.DeviceExecutionID) || strings.TrimSpace(request.ADBSerial) == "" || request.WorkflowInputs == nil {
 		return nil, nil, lifecycleError(operation, xerror.ErrExecutionLifecycleInvalid)
 	}
@@ -294,6 +295,9 @@ func (l *Service) recordFailure(err error) {
 
 func (l *Service) cancellations() []context.CancelFunc {
 	result := make([]context.CancelFunc, 0, len(l.workers))
+	if l.product != nil {
+		result = append(result, l.product.cancel)
+	}
 	for _, cancel := range l.workers {
 		result = append(result, cancel)
 	}

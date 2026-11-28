@@ -113,8 +113,8 @@ func (s *ExecutionRepository) ReplayEvents(ctx context.Context, after int64, lim
 		if after > page.State.Watermark {
 			return xerror.ErrEventCursorFuture
 		}
-		const query = `SELECT cursor,event_type,run_group_id,device_execution_id,node_attempt_id,node_id,occurred_at,payload_json
-FROM execution_events WHERE cursor > ? ORDER BY cursor LIMIT ?`
+		const query = `SELECT e.cursor,e.event_type,e.run_group_id,e.device_execution_id,e.node_attempt_id,e.node_id,e.occurred_at,e.payload_json,g.execution_kind
+FROM execution_events e JOIN run_groups g ON g.id=e.run_group_id WHERE e.cursor > ? ORDER BY e.cursor LIMIT ?`
 		rows, err := tx.QueryContext(ctx, query, after, limit+1)
 		if err != nil {
 			return storageError(ctx, "replay_execution_events", err)
@@ -129,9 +129,11 @@ FROM execution_events WHERE cursor > ? ORDER BY cursor LIMIT ?`
 			var cursor, occurred int64
 			var device, attempt, node sql.NullString
 			var payload []byte
-			if err := rows.Scan(&cursor, &event.Type, &event.RunGroupID, &device, &attempt, &node, &occurred, &payload); err != nil {
+			var kind string
+			if err := rows.Scan(&cursor, &event.Type, &event.RunGroupID, &device, &attempt, &node, &occurred, &payload, &kind); err != nil {
 				return storageError(ctx, "decode_execution_event", err)
 			}
+			event.Product = kind != constants.ExecutionKindDevelopment
 			event.Cursor, event.OccurredAt = strconv.FormatInt(cursor, 10), stamp(occurred)
 			event.Payload = payload
 			event.DeviceExecutionID, event.NodeAttemptID, event.NodeID = device.String, attempt.String, node.String

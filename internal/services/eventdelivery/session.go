@@ -50,8 +50,10 @@ func (s *Session) Run(ctx context.Context, sink Sink) (int64, error) {
 			if err != nil || next <= cursor || next > page.State.Watermark {
 				return cursor, xerror.WithOperation("validate_execution_event_cursor", xerror.ErrExecutionPersistence)
 			}
-			if err := sink.Deliver(ctx, event); err != nil {
-				return cursor, xerror.WithOperation("deliver_execution_event", err)
+			if !event.Product {
+				if err := sink.Deliver(ctx, event); err != nil {
+					return cursor, xerror.WithOperation("deliver_execution_event", err)
+				}
 			}
 			cursor = next
 		}

@@ -47,6 +47,13 @@ func (s *ExecutionRepository) Admit(ctx context.Context, admission execution.Adm
 	err := s.WithWriteTx(ctx, func(tx Tx) error {
 		id, err := lookupRequest(ctx, tx, admission.RequestID)
 		if err == nil {
+			kind, err := executionKind(ctx, tx, id)
+			if err != nil {
+				return err
+			}
+			if (admission.Product != nil) != (kind == constants.ExecutionKindProduct) {
+				return xerror.ErrProductRunConflict
+			}
 			result = execution.AdmissionResult{Disposition: constants.AdmissionExisting, RunGroupID: id}
 			return nil
 		}
@@ -79,9 +86,20 @@ func (s *ExecutionRepository) Admit(ctx context.Context, admission execution.Adm
 
 func insertAdmission(ctx context.Context, tx Tx, admission execution.Admission) error {
 	now := admission.Now.UnixMilli()
-	const group = "INSERT INTO run_groups(id,request_id,status,created_at) VALUES (?,?,'RUNNING',?)"
-	if _, err := tx.ExecContext(ctx, group, admission.RunGroupID, admission.RequestID, now); err != nil {
+	kind := constants.ExecutionKindDevelopment
+	if admission.Product != nil {
+		kind = constants.ExecutionKindProduct
+	}
+	const group = "INSERT INTO run_groups(id,request_id,status,created_at,execution_kind) VALUES (?,?,'RUNNING',?,?)"
+	if _, err := tx.ExecContext(ctx, group, admission.RunGroupID, admission.RequestID, now, kind); err != nil {
 		return storageError(ctx, "insert_run_group", err)
+	}
+	if admission.Product != nil {
+		p := admission.Product
+		const query = `INSERT INTO product_run_provenance VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+		if _, err := tx.ExecContext(ctx, query, admission.RunGroupID, p.Package.ProductID, p.Package.ReleaseID, p.Package.Version, p.Package.PackageHash, p.RuntimeIRHash, p.RootHash, p.RuntimeSessionID, p.LeaseFamilyID, p.Sequence, p.RefreshAfter.UnixMilli(), p.ExpiresAt.UnixMilli()); err != nil {
+			return storageError(ctx, "insert_product_provenance", err)
+		}
 	}
 	const devices = "INSERT INTO device_executions(id,run_group_id,adb_serial,admission_ordinal,status,next_node_id,created_at) VALUES "
 	// Bound SQL parameters without limiting the admitted group or committing a partial selection.

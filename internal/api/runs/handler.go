@@ -64,6 +64,9 @@ func (h *Handler) available(ctx *gin.Context, operation string) bool {
 }
 
 func respond(ctx *gin.Context, snapshot SnapshotResponse, err error, operation string) {
+	if err == nil && snapshot.Product != nil {
+		err = xerror.ErrExecutionNotFound
+	}
 	if err == nil {
 		ctx.JSON(http.StatusOK, snapshot)
 		return

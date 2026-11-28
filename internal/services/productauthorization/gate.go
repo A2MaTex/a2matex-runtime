@@ -200,3 +200,18 @@ func (c *Controller) transitionLocked() {
 		}
 	}
 }
+
+// Observe advances clock fences without inventing a node budget or doing I/O.
+func (c *Controller) Observe(ctx context.Context) (Snapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return Snapshot{}, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now, err := c.nowLocked()
+	if err != nil {
+		return Snapshot{}, err
+	}
+	c.advanceLocked(now)
+	return c.state, nil
+}

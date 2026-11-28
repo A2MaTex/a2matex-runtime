@@ -23,6 +23,7 @@ type PendingEvent struct {
 }
 
 type Event struct {
+	Product           bool            `json:"-"`
 	Cursor            string          `json:"cursor"`
 	Type              string          `json:"type"`
 	OccurredAt        string          `json:"occurredAt"`

@@ -30,6 +30,12 @@ type Dependencies struct {
 }
 
 type Request struct {
+	State        *Continuation
+	Permission   func(context.Context, int64, execution.Boundary) (bool, error)
+	BeforeBegin  func(context.Context, int64) (bool, error)
+	BeforeInvoke func(context.Context, int64) error
+	Park         <-chan struct{}
+
 	RunGroupID        string
 	DeviceExecutionID string
 	ADBSerial         string
@@ -52,6 +58,7 @@ type AttemptEvidence struct {
 // Result has a DeviceStatus only for a confirmed terminal device checkpoint.
 // On an error, LastAttempt and NextNodeID are evidence for lifecycle settlement.
 type Result struct {
+	Parked        bool
 	DeviceStatus  string
 	TerminalError *xerror.CommandError
 	NextNodeID    string
@@ -121,14 +128,22 @@ func (r *Runner) Run(ctx context.Context, request Request) (Result, error) {
 		!request.Variables.ValidFor(request.RunGroupID, request.DeviceExecutionID) {
 		return Result{}, runnerError(operation, "runner_request_invalid")
 	}
-	result := Result{NextNodeID: r.entryNodeID}
-	inputs, err := copyInputs(ctx, request)
-	if err != nil {
-		return result, err
+	state := request.State
+	if state == nil {
+		state = &Continuation{}
 	}
-	values := bindings.Values{WorkflowInputs: inputs, CommittedOutputs: make(map[string]ir.Object), Variables: request.Variables}
-	visited := make(map[string]bool)
-	number, previousID, expected := 1, "", constants.ExecutionQueued
+	if err := state.Initialize(ctx, request, r.entryNodeID); err != nil {
+		return Result{}, err
+	}
+	result := state.Result
+	result.Parked = false
+	values, visited := state.Values, state.Visited
+	number, previousID, expected := state.Number, state.PreviousID, state.Expected
+	defer func() {
+		state.Result = result
+		state.Number, state.PreviousID, state.Expected = number, previousID, expected
+	}()
+	parked := func() (Result, error) { result.Parked = true; return result, nil }
 	for {
 		if err := lifecycleError(ctx, request); err != nil {
 			return result, err
@@ -147,7 +162,24 @@ func (r *Runner) Run(ctx context.Context, request Request) (Result, error) {
 		if !exists || (number == 1 && visited[node.ID]) {
 			return result, runnerError(operation, "runner_transition_invalid")
 		}
-		visited[node.ID] = true
+		if request.Permission != nil {
+			allowed, err := request.Permission(ctx, node.TimeoutMS, execution.Boundary{DeviceExecutionID: request.DeviceExecutionID, Status: expected, NextNodeID: result.NextNodeID, Sequence: result.LastAttempt.Sequence, AttemptID: result.LastAttempt.Ref.AttemptID})
+			if err != nil {
+				return result, err
+			}
+			if !allowed {
+				return parked()
+			}
+		}
+		if !state.RetryDue.IsZero() {
+			if err := waitRetry(ctx, request.Park, state.RetryDue); err != nil {
+				if err == xerror.ErrProductRunParked {
+					return parked()
+				}
+				return result, err
+			}
+			state.RetryDue = time.Time{}
+		}
 		id, err := uuid.NewRandom()
 		if err != nil {
 			return result, runnerError(operation, "runner_attempt_identity_unavailable")
@@ -158,7 +190,11 @@ func (r *Runner) Run(ctx context.Context, request Request) (Result, error) {
 		ref := execution.AttemptRef{RunGroupID: request.RunGroupID, DeviceExecutionID: request.DeviceExecutionID, NodeID: node.ID, AttemptID: id.String()}
 		completed, err := r.attempts.Run(ctx, attempts.Request{Ref: ref, Node: node, ExpectedDeviceStatus: expected,
 			AttemptNumber: number, PreviousAttemptID: previousID, ADBSerial: request.ADBSerial, Values: values,
-			VariableStore: request.VariableStore, Control: request.Control})
+			VariableStore: request.VariableStore, Control: request.Control, BeforeBegin: request.BeforeBegin, BeforeInvoke: request.BeforeInvoke})
+		if completed.Parked && !completed.Began {
+			return parked()
+		}
+		visited[node.ID] = true
 		result.LastAttempt = AttemptEvidence{Ref: ref, Began: completed.Began, Finished: completed.Finished, Sequence: completed.Sequence, Cursor: completed.Cursor}
 		if err != nil {
 			return result, xerror.WithOperation(operation, err)
@@ -185,7 +221,9 @@ func (r *Runner) Run(ctx context.Context, request Request) (Result, error) {
 			if err := lifecycleError(ctx, request); err != nil {
 				return result, err
 			}
-			if err := retry.Wait(ctx, completed.Retry.DelayMS); err != nil {
+			if request.State != nil {
+				state.RetryDue = time.Now().Add(time.Duration(completed.Retry.DelayMS) * time.Millisecond)
+			} else if err := retry.Wait(ctx, completed.Retry.DelayMS); err != nil {
 				return result, xerror.WithOperation(operation, err)
 			}
 			if err := lifecycleError(ctx, request); err != nil {
@@ -197,4 +235,13 @@ func (r *Runner) Run(ctx context.Context, request Request) (Result, error) {
 		}
 		expected = constants.ExecutionRunning
 	}
+}
+
+// NodeTimeout reads immutable definition metadata while its owner holds the epoch.
+func (r *Runner) NodeTimeout(id string) (int64, bool) {
+	if r == nil {
+		return 0, false
+	}
+	n, ok := r.nodes[id]
+	return n.TimeoutMS, ok
 }

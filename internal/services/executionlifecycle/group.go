@@ -53,7 +53,7 @@ func newGroup(ctx context.Context, id string, worker *runner.Runner, devices []r
 		view := device.Variables
 		if device.RunGroupID != id || !execution.ValidID(device.DeviceExecutionID) || seenIDs[device.DeviceExecutionID] ||
 			!adb.ValidSerial(device.ADBSerial) || seenSerials[device.ADBSerial] || device.WorkflowInputs == nil ||
-			device.Control != nil || device.BeforeAttempt != nil || device.VariableStore != nil || view.RunGroupID != "" || view.DeviceExecutionID != "" || view.Lookup != nil {
+			device.Control != nil || device.BeforeAttempt != nil || device.State != nil || device.Permission != nil || device.BeforeBegin != nil || device.BeforeInvoke != nil || device.Park != nil || device.VariableStore != nil || view.RunGroupID != "" || view.DeviceExecutionID != "" || view.Lookup != nil {
 			return invalid()
 		}
 		ids[i], seenIDs[device.DeviceExecutionID], seenSerials[device.ADBSerial] = device.DeviceExecutionID, true, true

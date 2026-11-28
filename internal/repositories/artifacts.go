@@ -18,7 +18,7 @@ func (s *ExecutionRepository) ArtifactByID(ctx context.Context, id string) (exec
 	if db == nil {
 		return execution.Artifact{}, missingStore(ctx, "open_artifact_metadata")
 	}
-	return readArtifact(ctx, db.QueryRowContext(ctx, `SELECT `+artifactFields+` FROM artifacts WHERE id = ?`, id))
+	return readArtifact(ctx, db.QueryRowContext(ctx, `SELECT `+artifactFields+` FROM artifacts WHERE id = ? AND EXISTS(SELECT 1 FROM node_attempts n JOIN device_executions d ON d.id=n.device_execution_id JOIN run_groups g ON g.id=d.run_group_id WHERE n.id=artifacts.attempt_id AND g.execution_kind='DEVELOPMENT')`, id))
 }
 
 func (s *ExecutionRepository) ArtifactIDs(ctx context.Context) (map[string]struct{}, error) {

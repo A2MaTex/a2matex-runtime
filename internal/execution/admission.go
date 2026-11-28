@@ -22,6 +22,9 @@ func ValidID(id string) bool {
 
 // ValidNewAdmission checks in-memory inputs for a new run without accessing SQLite.
 func ValidNewAdmission(admission Admission) bool {
+	if admission.Product != nil && !ValidProductProvenance(admission.Product) {
+		return false
+	}
 	if !ValidID(admission.RunGroupID) || admission.Now.IsZero() ||
 		len(admission.Devices) == 0 {
 		return false

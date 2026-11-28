@@ -171,3 +171,17 @@ func validBinding(b Binding) bool {
 		return false
 	}
 }
+
+// Invalidate retires only an unchanged pending binding owned by a failed start.
+func (s *Service) Invalidate(ctx context.Context, expected Binding) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r := s.sessions[expected.RuntimeSessionID]
+	if r != nil && r.state == constants.ProductSessionPending && r.binding == expected {
+		s.retireLocked(r, constants.ProductSessionUnavailable)
+	}
+	return nil
+}
